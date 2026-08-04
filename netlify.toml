@@ -6,3 +6,7 @@
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
+[[redirects]]
+  from = "/mobile"
+  to = "/mobile/mobile.html"
+  status = 200
