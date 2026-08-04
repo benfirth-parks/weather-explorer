@@ -95,8 +95,8 @@ exports.handler = async (event) => {
       out.push({
         measurementDateTime: row.Date || null,
         airTempAvg: num(row.Temp),
-        snowHeight: num(row.HS),
-        newSnow: num(row.Rn_1),
+        snowHeight: num(row.HS) ?? num(row.SDcm) ?? num(row.SD) ?? num(row.SD2) ?? num(row.Depth),
+        newSnow: num(row.Rn_1) ?? num(row.SW),
         windSpeedAvg: num(row.Wspd),
         windSpeedGust: num(row.Mx_Spd),
         windDirAvg: num(row.Dir),
