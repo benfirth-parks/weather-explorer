@@ -224,7 +224,11 @@ function updateHoursLabel(){
   const el = document.getElementById('hoursLabel');
   if (el) el.textContent = map[hours] || `Last ${hours} hours`;
 }
-renderStationList(); loadAndRender();
+renderStationList();
+updateHoursLabel();
+renderRangeScroll();
+renderMetricTabs();
+loadAndRender();
 </script>
 </body>
 </html>
