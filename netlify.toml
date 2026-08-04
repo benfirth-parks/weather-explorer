@@ -3,6 +3,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/fts"
+  to = "/.netlify/functions/fts"
+  status = 200
+
+[[redirects]]
+  from = "/mobile"
+  to = "/mobile/mobile.html"
   status = 200
