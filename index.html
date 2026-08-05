@@ -430,7 +430,7 @@ async function fetchFTS360Station(id, hours){
   return await res.json();
 }
 const cacheHours = {};
-function requestHours(){ return Math.max(8640, hours); }
+function requestHours(){ return Math.max(720, hours); }
 async function fetchStation(id, hrs){ try{ const live = await fetchFTS360Station(id, hrs); if(live.length){ FTS_LIVE_STATUS[id]='live'; return live; } throw new Error('empty live response'); }catch(e){ console.warn('FTS360 live fetch failed for', id, '- falling back to snapshot.', e.message); FTS_LIVE_STATUS[id]='fallback'; return (FTS_DATA[id]||[]).slice(); } }
 async function loadAndRender(){
   const ids=Array.from(selected);
