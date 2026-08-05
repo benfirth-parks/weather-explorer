@@ -32,6 +32,14 @@ exports.handler = async (event) => {
     const qs = event.queryStringParameters || {};
     const station = qs.station;
     const hours = Math.min(Number(qs.hours || 24), 720);
+    const CHUNK_DAYS = 30;
+const end = new Date();
+const start = new Date(end - hours * 3600 * 1000);
+let rows = [];
+for (let s = new Date(start); s < end; s.setDate(s.getDate() + CHUNK_DAYS)) {
+  const e = new Date(Math.min(+new Date(s).setDate(s.getDate() + CHUNK_DAYS), +end));
+  rows = rows.concat(await fetchChunk(stationId, s, e));
+}
 
     if (!station || !stationMap[station]) {
       return {
