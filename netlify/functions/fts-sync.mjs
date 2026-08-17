@@ -1,14 +1,9 @@
-const { schedule } = require('@netlify/functions');
-
-const {
-  STATIONS,
-  syncStation
-} = require('./_weather-archive');
+import { schedule } from "@netlify/functions";
+import { STATIONS, syncStation } from "./_weather-archive.mjs";
 
 async function syncArchive() {
   const results = [];
 
-  // Sequential by design: avoids bursting FTS360 with many simultaneous calls.
   for (const stationId of Object.keys(STATIONS)) {
     try {
       results.push({
@@ -26,11 +21,11 @@ async function syncArchive() {
     }
   }
 
-  const succeeded = results.filter(result => result.ok).length;
+  const succeeded = results.filter((result) => result.ok).length;
 
   console.log(
     JSON.stringify({
-      event: 'fts-archive-sync',
+      event: "fts-archive-sync",
       succeeded,
       total: results.length,
       results
@@ -38,18 +33,22 @@ async function syncArchive() {
   );
 
   if (!succeeded) {
-    throw new Error('All station archive syncs failed');
+    throw new Error("All station archive syncs failed");
   }
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
+  return new Response(
+    JSON.stringify({
       succeeded,
       total: results.length,
       results
-    })
-  };
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8"
+      }
+    }
+  );
 }
 
-// Runs every hour at 10 minutes past the hour, UTC.
-exports.handler = schedule('10 * * * *', syncArchive);
+export default schedule("10 * * * *", syncArchive);
