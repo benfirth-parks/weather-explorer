@@ -7,7 +7,6 @@
   to = "/.netlify/functions/fts"
   status = 200
 
-[[redirects]]
-  from = "/mobile"
-  to = "/mobile/mobile.html"
-  status = 200
+# Runs at 10 minutes past every hour, in UTC.
+[functions."fts-sync"]
+  schedule = "10 * * * *"
