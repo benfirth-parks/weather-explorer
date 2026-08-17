@@ -1,146 +1,68 @@
-exports.handler = async (event) => {
-  try {
-    const token = process.env.FTS360_TOKEN;
-    if (!token) {
-      return {
-        statusCode: 500,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: "Missing FTS360_TOKEN" }),
-      };
-    }
+const {
+  STATIONS,
+  INITIAL_SEED_HOURS,
+  readArchive,
+  syncStation,
+  selectHours
+} = require('./_weather-archive');
 
-    const stationMap = {
-      "fts-boslo": "6160c6b964699463087281d9",
-      "fts-bosup": "6160c6b964699463087281dc",
-      "fts-boulder": "6160c6b964699463087281db",
-      "fts-bowsummit": "6160c6b964699463087281ec",
-      "fts-bowprecip": "6160c6ba6469946308728202",
-      "fts-lookout": "6160c6b964699463087281e7",
-      "fts-pikarun": "61e09ba56a379f48b21582f6",
-      "fts-simplo": "6160c6b964699463087281fa",
-      "fts-simpup": "6160c6ba6469946308728203",
-      "fts-stanley": "6160c6b964699463087281ea",
-      "fts-sunshine": "6160c6b964699463087281e8",
-      "fts-vulture": "6160c6b964699463087281e9",
-      "fts-whymper": "6160c6b964699463087281e3",
-      "fts-vermillion": "6160c6b964699463087281e0",
-      "fts-lakelouise": "6160c6b964699463087281eb",
-      "fts-castle": "6160c6b964699463087281ef",
-      "fts-skoki": "61e09ba56a379f48b21582f7",
-      // Group 3 - Jasper Fire / Jasper Visitor Safety
-      "fts-maligne": "6160c6b36469946308727b36",
-      "fts-jasperqd1": "6160c6b964699463087281d0",
-      "fts-coleman": "6160c6b36469946308727b25",
-      "fts-dorothy": "6160c6b36469946308727b1b",
-      "fts-devona": "6160c6b36469946308727b1a",
-      "fts-saskcrossing": "6160c6b36469946308727b30",
-      "fts-rangercreek": "6160c6b36469946308727b2a",
-      "fts-bigbend": "6160c6a964699463087271e7",
-      "fts-tangleridge": "6160c6b36469946308727bca"
+exports.handler = async event => {
+  if (event.httpMethod !== 'GET') {
+    return {
+      statusCode: 405,
+      headers: { Allow: 'GET' },
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
+  }
 
-    const qs = event.queryStringParameters || {};
-    const station = qs.station;
-    const hours = Math.min(Number(qs.hours || 24), 720);
+  try {
+    const stationId = event.queryStringParameters?.station;
+    const requestedHours = Number(
+      event.queryStringParameters?.hours || 24
+    );
 
-    if (!station || !stationMap[station]) {
+    if (!stationId || !STATIONS[stationId]) {
       return {
         statusCode: 400,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: "Invalid station" }),
+        body: JSON.stringify({ error: 'Invalid station' })
       };
     }
 
-    const end = new Date();
-    const start = new Date(end.getTime() - hours * 3600 * 1000);
+    let archive = await readArchive(stationId);
+    let seeded = false;
 
-    const url = new URL("https://fts360api.com/data/v1/agencies/450/records/csv");
-    url.searchParams.set("stationIds", stationMap[station]);
-    url.searchParams.set("startDate", start.toISOString());
-    url.searchParams.set("endDate", end.toISOString());
-
-    const res = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const text = await res.text();
-
-    if (!res.ok) {
-      return {
-        statusCode: res.status,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error: "FTS request failed", details: text }),
-      };
+    if (!archive.observations.length) {
+      await syncStation(stationId, INITIAL_SEED_HOURS);
+      archive = await readArchive(stationId);
+      seeded = true;
     }
 
-    const lines = text.trim().split(/\r?\n/).filter(Boolean);
-    if (lines.length < 2) {
-      return {
-        statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "public, max-age=300",
-        },
-        body: JSON.stringify([]),
-      };
-    }
-
-    const headers = lines[0].split(",").map(h => h.trim());
-    const num = (v) => {
-      if (v === "" || v == null || /^\/+$/.test(v) || v === "NAN") return null;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    };
-
-    const out = [];
-    for (const line of lines.slice(1)) {
-      const cols = line.split(",");
-      const row = {};
-      headers.forEach((h, i) => {
-        row[h] = cols[i] ? cols[i].trim().replace(/^\"|\"$/g, "") : "";
-      });
-
-      // FTS360 returns whatever columns each station's datalogger is programmed with,
-      // and the names differ between sites, so resolve each value through an alias list.
-      const pick = (...keys) => {
-        for (const k of keys) {
-          const v = num(row[k]);
-          if (v !== null) return v;
-        }
-        return null;
-      };
-
-      out.push({
-        measurementDateTime: row.Date || null,
-        airTempAvg: pick("Temp", "TA", "ATCAvg", "TA2", "air_temperature"),
-        snowHeight: pick("HS", "SDcm", "SD", "Depth", "SD2", "SDepth"),
-        // Rn_1 is 1-hour rainfall in mm, not new snow in cm, so it is kept out of newSnow.
-        newSnow: pick("New_sno"),
-        windSpeedAvg: pick("Wspd", "AvgWS", "WS", "wind_speed"),
-        windSpeedGust: pick("Mx_Spd", "Mx_spd", "PeakWS"),
-        windDirAvg: pick("Dir", "AvgWD", "WD", "Mx_Dir", "PeakWD", "wind_direction"),
-        relativeHumidity: pick("Rh", "RH", "RHAvg", "relative_humidity"),
-        // PC is the running precipitation gauge total in mm; HW24 is derived from it client-side.
-        precipTotal: pick("PC", "Precip"),
-        precipIncr: pick("Rn_1"),
-      });
-    }
+    const observations = selectHours(archive, requestedHours);
 
     return {
       statusCode: 200,
       headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=300",
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control':
+          'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+        'X-Weather-Data-Source': 'netlify-blobs-archive',
+        'X-Archive-Last-Synced': archive.lastSyncedAt || '',
+        'X-Archive-Seeded': String(seeded)
       },
-      body: JSON.stringify(out),
+      body: JSON.stringify(observations)
     };
-  } catch (err) {
+  } catch (error) {
+    console.error(error);
+
     return {
       statusCode: 500,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "Proxy failure", details: err.message }),
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8'
+      },
+      body: JSON.stringify({
+        error: 'Weather archive unavailable',
+        details: error.message
+      })
     };
   }
 };
