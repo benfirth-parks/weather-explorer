@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "description": "FTS360 weather archive for the Rockies Weather Explorer",
+  "type": "module",
   "dependencies": {
-  "dependencies": {
-    "@netlify/blobs": "8.1.0"
+    "@netlify/blobs": "8.1.0",
+    "@netlify/functions": "2.8.2"
   },
   "engines": {
     "node": "20"
   }
-}
 }
