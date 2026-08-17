@@ -1,0 +1,290 @@
+const { getStore } = require('@netlify/blobs');
+
+const STORE_NAME = 'rockies-weather-archive-v1';
+const RETENTION_MS = Math.round(3 * 365.25 * 24 * 60 * 60 * 1000);
+const INITIAL_SEED_HOURS = 720;
+const SYNC_OVERLAP_HOURS = 30;
+
+const STATIONS = {
+  'fts-boslo': '6160c6b964699463087281d9',
+  'fts-boulder': '6160c6b964699463087281db',
+  'fts-bosup': '6160c6b964699463087281dc',
+  'fts-vermillion': '6160c6b964699463087281e0',
+  'fts-whymper': '6160c6b964699463087281e3',
+  'fts-sunshine': '6160c6b964699463087281e8',
+  'fts-vulture': '6160c6b964699463087281e9',
+  'fts-stanley': '6160c6b964699463087281ea',
+  'fts-lakelouise': '6160c6b964699463087281eb',
+  'fts-bowsummit': '6160c6b964699463087281ec',
+  'fts-castle': '6160c6b964699463087281ef',
+  'fts-simplo': '6160c6b964699463087281fa',
+  'fts-bowprecip': '6160c6ba6469946308728202',
+  'fts-lookout': '6160c6b964699463087281e7',
+  'fts-simpup': '6160c6ba6469946308728203',
+  'fts-pikarun': '61e09ba56a379f48b21582f6',
+  'fts-skoki': '61e09ba56a379f48b21582f7',
+  'fts-maligne': '6160c6b36469946308727b36',
+  'fts-jasperqd1': '6160c6b964699463087281d0',
+  'fts-coleman': '6160c6b36469946308727b25',
+  'fts-dorothy': '6160c6b36469946308727b1b',
+  'fts-devona': '6160c6b36469946308727b1a',
+  'fts-saskcrossing': '6160c6b36469946308727b30',
+  'fts-rangercreek': '6160c6b36469946308727b2a',
+  'fts-bigbend': '6160c6a964699463087271e7',
+  'fts-tangleridge': '6160c6b36469946308727bca'
+};
+
+const archiveStore = () => getStore(STORE_NAME);
+const archiveKey = stationId => `stations/${stationId}.json`;
+
+function asNumber(value) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    value === '/////' ||
+    value === '///'
+  ) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function csvLine(line) {
+  const cells = [];
+  let cell = '';
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (quoted && line[i + 1] === '"') {
+        cell += char;
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === ',' && !quoted) {
+      cells.push(cell.trim());
+      cell = '';
+    } else {
+      cell += char;
+    }
+  }
+
+  cells.push(cell.trim());
+  return cells;
+}
+
+function parseFtsCsv(text) {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const headers = csvLine(lines[0]).map(value =>
+    value.replace(/^"|"$/g, '')
+  );
+
+  const observations = [];
+
+  for (const line of lines.slice(1)) {
+    const cells = csvLine(line);
+    const row = {};
+
+    headers.forEach((header, index) => {
+      row[header] = cells[index] || '';
+    });
+
+    const rawTime =
+      row.Date ||
+      row.date ||
+      row.DateTime ||
+      row.Timestamp;
+
+    const date = new Date(rawTime);
+
+    if (!rawTime || !Number.isFinite(date.getTime())) {
+      continue;
+    }
+
+    const record = {
+      measurementDateTime: date.toISOString()
+    };
+
+    const assign = (name, aliases) => {
+      for (const alias of aliases) {
+        const value = asNumber(row[alias]);
+        if (value !== null) {
+          record[name] = value;
+          return;
+        }
+      }
+    };
+
+    assign('airTempAvg', ['Temp', 'TA', 'TA2']);
+    assign('snowHeight', ['HS', 'SDcm', 'SD', 'SD2', 'Depth']);
+    assign('newSnow', ['HN24', 'Rn_1', 'SW']);
+    assign('precipTotal', ['HW', 'Precip', 'Rain']);
+    assign('windSpeedAvg', ['Wspd', 'WindSpeed']);
+    assign('windSpeedGust', ['Mx_Spd', 'Gust', 'WindGust']);
+    assign('windDirAvg', ['Dir', 'Mx_Dir', 'WindDir']);
+    assign('relativeHumidity', ['Rh', 'RH']);
+
+    observations.push(record);
+  }
+
+  return observations;
+}
+
+async function fetchFts(stationId, startDate, endDate = new Date()) {
+  const stationHexId = STATIONS[stationId];
+
+  if (!stationHexId) {
+    throw new Error(`Unsupported station: ${stationId}`);
+  }
+
+  if (!process.env.FTS360_TOKEN) {
+    throw new Error('Missing FTS360_TOKEN');
+  }
+
+  const url = new URL(
+    'https://fts360api.com/data/v1/agencies/450/records/csv'
+  );
+
+  url.searchParams.set('stationIds', stationHexId);
+  url.searchParams.set('startDate', startDate.toISOString());
+  url.searchParams.set('endDate', endDate.toISOString());
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${process.env.FTS360_TOKEN}`
+    }
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`FTS360 ${response.status}: ${text.slice(0, 200)}`);
+  }
+
+  return parseFtsCsv(text);
+}
+
+async function readArchive(stationId) {
+  const data = await archiveStore().get(archiveKey(stationId), {
+    type: 'json'
+  });
+
+  if (!data || !Array.isArray(data.observations)) {
+    return {
+      stationId,
+      observations: [],
+      lastSyncedAt: null,
+      retainedYears: 3
+    };
+  }
+
+  return data;
+}
+
+function mergeAndPrune(existing, incoming) {
+  const cutoff = Date.now() - RETENTION_MS;
+  const byTimestamp = new Map();
+
+  for (const record of [...existing, ...incoming]) {
+    const timestamp = new Date(record.measurementDateTime).getTime();
+
+    if (!Number.isFinite(timestamp) || timestamp < cutoff) {
+      continue;
+    }
+
+    byTimestamp.set(record.measurementDateTime, {
+      ...(byTimestamp.get(record.measurementDateTime) || {}),
+      ...record
+    });
+  }
+
+  return [...byTimestamp.values()].sort(
+    (a, b) =>
+      new Date(a.measurementDateTime) -
+      new Date(b.measurementDateTime)
+  );
+}
+
+async function saveArchive(stationId, observations, extra = {}) {
+  const archive = {
+    archiveVersion: 1,
+    stationId,
+    retainedYears: 3,
+    lastSyncedAt: new Date().toISOString(),
+    observationCount: observations.length,
+    ...extra,
+    observations
+  };
+
+  await archiveStore().setJSON(archiveKey(stationId), archive);
+
+  return archive;
+}
+
+async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
+  const archive = await readArchive(stationId);
+  const newest = archive.observations[archive.observations.length - 1];
+
+  const newestTime = newest
+    ? new Date(newest.measurementDateTime).getTime()
+    : NaN;
+
+  const start = Number.isFinite(newestTime)
+    ? new Date(
+        newestTime -
+        SYNC_OVERLAP_HOURS * 60 * 60 * 1000
+      )
+    : new Date(
+        Date.now() -
+        seedHours * 60 * 60 * 1000
+      );
+
+  const incoming = await fetchFts(stationId, start);
+  const observations = mergeAndPrune(
+    archive.observations,
+    incoming
+  );
+
+  const saved = await saveArchive(stationId, observations, {
+    lastFtsRequestStart: start.toISOString(),
+    lastFtsRecordCount: incoming.length
+  });
+
+  return {
+    stationId,
+    fetched: incoming.length,
+    retained: saved.observationCount,
+    lastSyncedAt: saved.lastSyncedAt
+  };
+}
+
+function selectHours(archive, requestedHours) {
+  const maximumHours = Math.floor(RETENTION_MS / 3600000);
+
+  const hours = Math.min(
+    Math.max(Number(requestedHours) || 24, 1),
+    maximumHours
+  );
+
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+
+  return archive.observations.filter(record =>
+    new Date(record.measurementDateTime).getTime() >= cutoff
+  );
+}
+
+module.exports = {
+  STATIONS,
+  INITIAL_SEED_HOURS,
+  readArchive,
+  syncStation,
+  selectHours
+};
