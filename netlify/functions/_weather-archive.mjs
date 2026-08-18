@@ -199,7 +199,7 @@ console.log('FTS REQUEST URL:', url.toString());
 }
 
 return parseFtsCsv(text);
-
+}
 export async function readArchive(stationId) {
   const data = await archiveStore().get(archiveKey(stationId), {
     type: "json"
