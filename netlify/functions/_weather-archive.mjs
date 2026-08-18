@@ -195,7 +195,8 @@ async function fetchFts(stationId, startDate, endDate = new Date()) {
   if (!response.ok) {
     throw new Error(`FTS360 ${response.status}: ${text.slice(0, 200)}`);
   }
-console.log('FTS RAW CSV:', text.slice(0, 5000));
+const header = text.split(/\r?\n/)[0];
+console.log('FTS CSV HEADERS:', header);
   return parseFtsCsv(text);
 }
 
