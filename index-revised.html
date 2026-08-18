@@ -1075,7 +1075,10 @@ function renderSnowCards(ids){
     const records=cache[id]||[];
     const isHW=HW24_IDS.has(id);
     const dual=DUAL_METRIC_IDS.has(id);
-    const hasPrecip=records.some(d=>d.precipTotal!=null);
+const hasPrecip = records.some(d =>
+  Number.isFinite(numOf(d.precipTotal)) ||
+  Number.isFinite(numOf(d.precipIncr))
+);
     const hasSnowHeight=(!isHW||dual)&&records.some(d=>d.snowHeight!=null);
     const hasDirectNewSnow=!isHW&&records.some(d=>d.newSnow!=null);
     const hasNewSnow=hasDirectNewSnow||hasSnowHeight;
