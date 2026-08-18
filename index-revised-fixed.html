@@ -1,0 +1,139 @@
+<!doctype html>
+<!--
+Patch instructions for index-revised.txt
+
+The attached file is otherwise preserved. Apply the replacements below to its script.
+
+1) REPLACE the entire `ftsRowToRecord` function with the following:
+
+function ftsRowToRecord(row){
+  const num = v=>{
+    if(v===undefined || v===null || v==='') return null;
+    const n=Number(String(v).trim().replace(/,/g,''));
+    return Number.isFinite(n) ? n : null;
+  };
+  const firstNum=(...keys)=>{
+    for(const key of keys){
+      const value=num(row[key]);
+      if(value!==null) return value;
+    }
+    return null;
+  };
+  const dateVal=row['Date']||row['date']||row['DateTime']||row['Timestamp']||row['TIMESTAMP'];
+  if(!dateVal) return null;
+
+  const rec={measurementDateTime:dateVal};
+  const temp=firstNum('Temp','TA','TA2','AirTemp','Air Temp');
+  if(temp!==null) rec.airTempAvg=temp;
+
+  // FTS/AB Env exports use several header variants. Keep the existing aliases,
+  // and include the common units-bearing names used by the station feeds.
+  const snow=firstNum(
+    'HS','HS_cm','HS (cm)','SnowHeight','Snow Height','Snow Height (cm)',
+    'SnowDepth','Snow Depth','Snow Depth (cm)','SDcm','SD','SD2','Depth'
+  );
+  if(snow!==null) rec.snowHeight=snow;
+
+  const newSnow=firstNum('HN24','HN_24','HN','NewSnow','New Snow','New Snow (cm)','Rn_1','SW');
+  if(newSnow!==null) rec.newSnow=newSnow;
+
+  const precipIncrement=firstNum(
+    'Rain','Rainfall','PrecipIncrement','Precip Incr','Precipitation Increment',
+    'Precipitation (mm)','PC_1','PC1','Rn_1'
+  );
+  if(precipIncrement!==null) rec.precipIncr=precipIncrement;
+
+  const precipTotal=firstNum(
+    'PC','Precip','PrecipTotal','Precip Total','Precipitation Total',
+    'Precipitation Accumulated','Accumulated Precipitation','Rain Total'
+  );
+  if(precipTotal!==null) rec.precipTotal=precipTotal;
+
+  const wspd=firstNum('Wspd','WindSpeed','Wind Speed','WS');
+  if(wspd!==null) rec.windSpeedAvg=wspd;
+  const gust=firstNum('Mx_Spd','Gust','WindGust','Wind Gust','Max Wind Speed');
+  if(gust!==null) rec.windSpeedGust=gust;
+  const wdir=firstNum('Dir','Mx_Dir','WindDir','Wind Direction');
+  if(wdir!==null) rec.windDirAvg=wdir;
+  const rh=firstNum('Rh','RH','RelativeHumidity','Relative Humidity');
+  if(rh!==null) rec.relativeHumidity=rh;
+  return rec;
+}
+
+2) REPLACE `fetchFTS360Station` with the following. This normalizes either an API
+response that is already normalized or a raw FTS CSV/row response, so the UI is no
+longer dependent on the proxy doing one particular conversion.
+
+function normalizeFTSResponse(payload){
+  if(typeof payload==='string') return parseFTSCsv(payload).map(ftsRowToRecord).filter(Boolean);
+  if(Array.isArray(payload)){
+    return payload.map(row=>{
+      if(!row || typeof row!=='object') return null;
+      return row.measurementDateTime ? row : ftsRowToRecord(row);
+    }).filter(Boolean);
+  }
+  const rows=payload?.data || payload?.rows || payload?.observations || payload?.records;
+  if(Array.isArray(rows)) return normalizeFTSResponse(rows);
+  return [];
+}
+async function fetchFTS360Station(id, hrs){
+  const url=`/api/fts?station=${encodeURIComponent(id)}&hours=${hrs}`;
+  const res=await fetch(url,{headers:{Accept:'application/json, text/csv;q=0.9'}});
+  if(!res.ok) throw new Error('Proxy error: '+res.status);
+  const contentType=res.headers.get('content-type')||'';
+  const payload=contentType.includes('json') ? await res.json() : await res.text();
+  return sanitizeRecords(normalizeFTSResponse(payload));
+}
+
+3) REPLACE the first lines inside `renderSnowCards` that determine available metrics:
+
+const isHW=usesHW24(id);
+const dual=DUAL_METRIC_IDS.has(id);
+const hasPrecip=records.some(d=>
+  Number.isFinite(numOf(d.precipTotal)) || Number.isFinite(numOf(d.precipIncr))
+);
+const hasSnowHeight=(!isHW||dual) && records.some(d=>Number.isFinite(numOf(d.snowHeight)));
+const hasDirectNewSnow=!isHW && records.some(d=>Number.isFinite(numOf(d.newSnow)));
+
+This makes cards appear when precipitation is supplied as intervals rather than a
+running PC total, and ensures that valid zero values are retained.
+
+4) REPLACE `precipAccumSeries` with the following. It uses whichever source genuinely
+contains observations; totals take precedence only when they actually vary.
+
+function precipAccumSeries(records){
+  const fromTotal=accumFromTotal(records);
+  const fromIncr=accumFromIncrements(records);
+  if(!fromTotal.length) return fromIncr;
+  if(!fromIncr.length) return fromTotal;
+  const endTotal=fromTotal[fromTotal.length-1].hw;
+  const endIncr=fromIncr[fromIncr.length-1].hw;
+  const totalHasMovement=endTotal>0;
+  const incrementHasMovement=endIncr>0;
+  if(!totalHasMovement && incrementHasMovement) return fromIncr;
+  return fromTotal;
+}
+
+5) In `renderSnowCards`, replace this narrow check:
+
+const isHW=HW24_IDS.has(id);
+
+with:
+
+const isHW=usesHW24(id);
+
+This includes Group 3 and Group 4 stations, which the rest of the page already
+classifies as precipitation-gauge stations.
+
+6) Optional diagnostic: immediately after `const records=cache[id]||[];` in
+`renderSnowCards`, add:
+
+console.debug('[snow card]', id, {
+  records: records.length,
+  snowHeight: records.filter(d=>Number.isFinite(numOf(d.snowHeight))).length,
+  precipTotal: records.filter(d=>Number.isFinite(numOf(d.precipTotal))).length,
+  precipIncr: records.filter(d=>Number.isFinite(numOf(d.precipIncr))).length
+});
+
+Remove the diagnostic once verified.
+-->
