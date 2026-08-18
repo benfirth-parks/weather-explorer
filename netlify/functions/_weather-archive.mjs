@@ -183,7 +183,9 @@ async function fetchFts(stationId, startDate, endDate = new Date()) {
   url.searchParams.set("stationIds", stationHexId);
   url.searchParams.set("startDate", startDate.toISOString());
   url.searchParams.set("endDate", endDate.toISOString());
-
+  
+console.log('FTS REQUEST URL:', url.toString());
+  
   const response = await fetch(url, {
     headers: {
       Authorization: `Bearer ${process.env.FTS360_TOKEN}`
@@ -193,15 +195,10 @@ async function fetchFts(stationId, startDate, endDate = new Date()) {
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(`FTS360 ${response.status}: ${text.slice(0, 200)}`);
-  }
-const lines = text.split(/\r?\n/).filter(Boolean);
-
-console.log('FTS CSV LINE 1:', lines[0] || '');
-console.log('FTS CSV LINE 2:', lines[1] || '');
-console.log('FTS CSV LINE 3:', lines[2] || '');
-  return parseFtsCsv(text);
+  throw new Error(`FTS360 ${response.status}: ${text.slice(0, 200)}`);
 }
+
+return parseFtsCsv(text);
 
 export async function readArchive(stationId) {
   const data = await archiveStore().get(archiveKey(stationId), {
