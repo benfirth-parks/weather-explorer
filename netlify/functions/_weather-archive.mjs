@@ -135,7 +135,25 @@ function parseFtsCsv(text) {
     assign("airTempAvg", ["Temp", "TA", "TA2"]);
     assign("snowHeight", ["HS", "SDcm", "SD", "SD2", "Depth"]);
     assign("newSnow", ["HN24", "Rn_1", "SW"]);
-    assign("precipTotal", ["HW", "Precip", "Rain"]);
+assign("precipTotal", [
+  "HW",
+  "PC",
+  "Precip",
+  "PrecipTotal",
+  "Precip Total",
+  "Precipitation Total",
+  "Accumulated Precipitation",
+  "Rain"
+]);
+
+assign("precipIncr", [
+  "PC_1",
+  "PC1",
+  "PrecipIncrement",
+  "Precip Increment",
+  "Precipitation Increment",
+  "Rainfall"
+]);
     assign("windSpeedAvg", ["Wspd", "WindSpeed"]);
     assign("windSpeedGust", ["Mx_Spd", "Gust", "WindGust"]);
     assign("windDirAvg", ["Dir", "Mx_Dir", "WindDir"]);
