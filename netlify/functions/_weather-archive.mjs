@@ -184,7 +184,9 @@ async function fetchFts(stationId, startDate, endDate = new Date()) {
   url.searchParams.set("startDate", startDate.toISOString());
   url.searchParams.set("endDate", endDate.toISOString());
   
-console.log('FTS REQUEST URL:', url.toString());
+console.log('FTS stationIds:', stationHexId);
+console.log('FTS startDate:', startDate.toISOString());
+console.log('FTS endDate:', endDate.toISOString());
   
   const response = await fetch(url, {
     headers: {
