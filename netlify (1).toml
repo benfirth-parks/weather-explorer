@@ -1,0 +1,32 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/fts"
+  to = "/.netlify/functions/fts"
+  status = 200
+
+[[redirects]]
+  from = "/api/fts-inspect"
+  to = "/.netlify/functions/fts-inspect"
+  status = 200
+
+[[redirects]]
+  from = "/api/fts-backfill"
+  to = "/.netlify/functions/fts-backfill"
+  status = 200
+
+[[redirects]]
+  from = "/api/ai-summary"
+  to = "/.netlify/functions/ai-summary"
+  status = 200
+
+[[redirects]]
+  from = "/api/ai-chat"
+  to = "/.netlify/functions/ai-chat"
+  status = 200
+
+# Runs at 15 minutes past every hour, in UTC.
+[functions."fts-sync"]
+  schedule = "15 * * * *"
