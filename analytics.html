@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weather Explorer — Usage Analytics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f2f4f4;
+      --surface: #ffffff;
+      --ink: #172328;
+      --muted: #5c6a70;
+      --line: #d5dadd;
+      --accent: #0d7f8a;
+      --danger: #a1303f;
+      --radius: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12161a;
+        --surface: #1a2025;
+        --ink: #dce5e7;
+        --muted: #98a8ae;
+        --line: #354149;
+        --accent: #4fc4ce;
+        --danger: #ff8290;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 22px; }
+    h2 { font-size: 15px; }
+
+    .muted {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    main {
+      max-width: 1400px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    .access {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input, select, button {
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border-color: var(--accent);
+      background: var(--accent);
+      color: white;
+    }
+
+    button:hover { filter: brightness(1.05); }
+
+    .status {
+      margin: 18px 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status.error { color: var(--danger); }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .kpi-label { color: var(--muted); font-size: 12px; }
+
+    .kpi-value {
+      margin-top: 5px;
+      font-size: 28px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .wide { grid-column: 1 / -1; }
+    .chart { position: relative; height: 300px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 9px 6px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .hint {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; }
+      .chart { height: 260px; }
+      header { align-items: start; }
+      .access { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Usage Analytics</h1>
+      <p class="muted">Private first-party dashboard for Rockies Weather Explorer.</p>
+    </div>
+
+    <div class="access">
+      <label>
+        Time range
+        <select id="days">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last 365 days</option>
+        </select>
+      </label>
+
+      <label>
+        Admin token
+        <input id="token" type="password" autocomplete="current-password" placeholder="ANALYTICS_ADMIN_TOKEN">
+      </label>
+
+      <button id="load">Load report</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="status" class="status">Enter the server-side analytics admin token, then load a report.</div>
+
+    <section class="kpis">
+      <div class="card"><div class="kpi-label">Page views</div><div class="kpi-value" id="pageViews">—</div></div>
+      <div class="card"><div class="kpi-label">Anonymous visitors</div><div class="kpi-value" id="visitors">—</div></div>
+      <div class="card"><div class="kpi-label">Station selections</div><div class="kpi-value" id="selections">—</div></div>
+      <div class="card"><div class="kpi-label">Archive requests</div><div class="kpi-value" id="requests">—</div></div>
+      <div class="card"><div class="kpi-label">Archive error rate</div><div class="kpi-value" id="errorRate">—</div></div>
+      <div class="card"><div class="kpi-label">Average archive request</div><div class="kpi-value" id="duration">—</div></div>
+    </section>
+
+    <section class="grid">
+      <article class="card wide">
+        <h2>Events over time</h2>
+        <p class="muted">All anonymous interaction events recorded per day.</p>
+        <div class="chart"><canvas id="dailyChart"></canvas></div>
+      </article>
+
+      <article class="card"><h2>Most selected stations</h2><table><thead><tr><th>Station</th><th>Selections</th></tr></thead><tbody id="stations"></tbody></table></article>
+      <article class="card"><h2>Range choices</h2><table><thead><tr><th>Range</th><th>Events</th></tr></thead><tbody id="ranges"></tbody></table></article>
+      <article class="card"><h2>Metric choices</h2><table><thead><tr><th>Metric</th><th>Events</th></tr></thead><tbody id="metrics"></tbody></table></article>
+      <article class="card"><h2>Devices</h2><table><thead><tr><th>Device</th><th>Events</th></tr></thead><tbody id="devices"></tbody></table></article>
+      <article class="card"><h2>Referrers</h2><table><thead><tr><th>Source</th><th>Events</th></tr></thead><tbody id="referrers"></tbody></table></article>
+      <article class="card"><h2>Archive outcomes</h2><table><thead><tr><th>Status</th><th>Requests</th></tr></thead><tbody id="statuses"></tbody></table></article>
+    </section>
+
+    <p class="hint">The tracker stores an anonymous browser ID, event name, station/feature choices, coarse device category, referring hostname, and request timing. It does not intentionally collect names, emails, exact location, or full IP addresses. The admin token is sent only to the reporting function and is not stored by this page.</p>
+  </main>
+
+  <script>
+    let dailyChart;
+    const $ = id => document.getElementById(id);
+
+    function setStatus(message, error = false) {
+      const node = $("status");
+      node.textContent = message;
+      node.classList.toggle("error", error);
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        "\"": "&quot;"
+      }[character]));
+    }
+
+    function fillTable(id, rows) {
+      $(id).innerHTML = rows.length
+        ? rows.map(row => `<tr><td>${escapeHtml(row.key || "Unknown")}</td><td>${Number(row.count || 0).toLocaleString()}</td></tr>`).join("")
+        : '<tr><td colspan="2">No data yet</td></tr>';
+    }
+
+    function render(data) {
+      const summary = data.summary;
+
+      $("pageViews").textContent = summary.pageViews.toLocaleString();
+      $("visitors").textContent = summary.uniqueVisitors.toLocaleString();
+      $("selections").textContent = summary.stationSelections.toLocaleString();
+      $("requests").textContent = summary.archiveRequests.toLocaleString();
+      $("errorRate").textContent = `${summary.archiveErrorRate.toFixed(2)}%`;
+      $("duration").textContent = summary.averageArchiveRequestMs === null
+        ? "—"
+        : `${summary.averageArchiveRequestMs.toLocaleString()} ms`;
+
+      fillTable("stations", data.stations);
+      fillTable("ranges", data.ranges);
+      fillTable("metrics", data.metrics);
+      fillTable("devices", data.devices);
+      fillTable("referrers", data.referrers);
+      fillTable("statuses", data.archiveStatuses);
+
+      if (dailyChart) dailyChart.destroy();
+
+      dailyChart = new Chart($("dailyChart"), {
+        type: "line",
+        data: {
+          labels: data.daily.map(item => item.date),
+          datasets: [{
+            label: "Events",
+            data: data.daily.map(item => item.count),
+            borderColor: "#0d7f8a",
+            backgroundColor: "rgba(13,127,138,.15)",
+            fill: true,
+            tension: .25,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      });
+    }
+
+    async function load() {
+      const token = $("token").value.trim();
+      const days = $("days").value;
+
+      if (!token) {
+        setStatus("Enter ANALYTICS_ADMIN_TOKEN first.", true);
+        return;
+      }
+
+      setStatus("Loading analytics report…");
+
+      try {
+        const response = await fetch(
+          `/.netlify/functions/analytics-report?days=${encodeURIComponent(days)}`,
+          { headers: { "X-Analytics-Admin-Token": token } }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `Request failed (${response.status})`);
+        }
+
+        render(data);
+
+        setStatus(
+          `Report generated ${new Date(data.generatedAt).toLocaleString()} for the last ${data.days} days${data.limited ? " (event limit reached)" : ""}.`
+        );
+      } catch (error) {
+        console.error(error);
+        setStatus(error.message, true);
+      }
+    }
+
+    $("load").addEventListener("click", load);
+    $("token").addEventListener("keydown", event => {
+      if (event.key === "Enter") load();
+    });
+  </script>
+</body>
+</html>
