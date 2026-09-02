@@ -18,6 +18,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/fts-sync-manual"
+  to = "/.netlify/functions/fts-sync-manual"
+  status = 200
+
+[[redirects]]
   from = "/api/ai-summary"
   to = "/.netlify/functions/ai-summary"
   status = 200
