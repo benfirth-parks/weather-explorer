@@ -318,6 +318,40 @@ export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
   return { stationId, fetched: incoming.length, retained: saved.observationCount, lastSyncedAt: saved.lastSyncedAt };
 }
 
+/* Sync every station in parallel with Promise.allSettled so a single
+   station's failure does not kill the whole batch. Returns a structured
+   result object suitable for JSON responses and logs. Used by both the
+   scheduled `fts-sync` function and the token-gated `fts-sync-manual`
+   webhook so the two share exactly one code path. */
+export async function syncAllStations({ seedHours = INITIAL_SEED_HOURS } = {}) {
+  const startedAt = new Date().toISOString();
+  const startMs = Date.now();
+  const settled = await Promise.allSettled(
+    Object.keys(STATIONS).map((stationId) => syncStation(stationId, seedHours))
+  );
+
+  const results = settled.map((r, i) => {
+    const stationId = Object.keys(STATIONS)[i];
+    if (r.status === "fulfilled") return { stationId, ok: true, ...r.value };
+    return { stationId, ok: false, error: r.reason?.message || String(r.reason) };
+  });
+
+  const succeeded = results.filter((r) => r.ok).length;
+  const failed = results.length - succeeded;
+  const durationMs = Date.now() - startMs;
+
+  return {
+    event: "fts-archive-sync",
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    durationMs,
+    total: results.length,
+    succeeded,
+    failed,
+    results
+  };
+}
+
 export function selectHours(archive, requestedHours) {
   const maximumHours = Math.floor(RETENTION_MS / 3_600_000);
   const hours = Math.min(Math.max(Number(requestedHours) || 24, 1), maximumHours);

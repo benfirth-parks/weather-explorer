@@ -1,54 +1,24 @@
 import { schedule } from "@netlify/functions";
-import { STATIONS, syncStation } from "./_weather-archive.mjs";
+import { syncAllStations } from "./_weather-archive.mjs";
 
+/* Scheduled at 15 minutes past every hour (see netlify.toml). Runs the
+   same parallel fan-out sync as the token-gated /api/fts-sync-manual
+   webhook so the scheduled and manual paths never diverge. */
 async function syncArchive() {
-  const results = [];
+  const summary = await syncAllStations();
 
-  for (const stationId of Object.keys(STATIONS)) {
-    try {
-      results.push({
-        ok: true,
-        ...(await syncStation(stationId))
-      });
-    } catch (error) {
-      console.error(`Sync failed for ${stationId}`, error);
+  console.log(JSON.stringify(summary));
 
-      results.push({
-        stationId,
-        ok: false,
-        error: error.message
-      });
-    }
-  }
-
-  const succeeded = results.filter((result) => result.ok).length;
-
-  console.log(
-    JSON.stringify({
-      event: "fts-archive-sync",
-      succeeded,
-      total: results.length,
-      results
-    })
-  );
-
-  if (!succeeded) {
+  if (!summary.succeeded) {
+    /* If every station failed, throw so Netlify records the run as an
+       error in the function logs (helps spot upstream FTS360 outages). */
     throw new Error("All station archive syncs failed");
   }
 
-  return new Response(
-    JSON.stringify({
-      succeeded,
-      total: results.length,
-      results
-    }),
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8"
-      }
-    }
-  );
+  return new Response(JSON.stringify(summary), {
+    status: 200,
+    headers: { "Content-Type": "application/json; charset=utf-8" }
+  });
 }
 
 export default schedule("15 * * * *", syncArchive);
