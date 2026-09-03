@@ -287,13 +287,13 @@ Required output format:
 
 Do NOT include a heading or title (no "## Last 24 Hours", no bold heading, nothing above the first sentence). Start directly with the intro paragraph.
 
-Write one or two short sentences that summarize observed conditions across the network. Include the 24-hour temperature range (min to max across all stations), the network average wind speed, and total precipitation observed when those values are available.
+Write one or two short sentences that summarize observed conditions across the network. Include the 24-hour temperature range (min to max across all stations), the network average wind speed, and the highest single-station precipitation total when those values are available. Never sum precipitation across stations.
 
 Then a blank line, then write exactly three detail bullets as a Markdown unordered list, in this order (one sentence per bullet, each line starts with "- "):
 
 - State the 24-hour high, low, and network-average temperature, and note the elevation contrast (alpine vs treeline vs below treeline) when the data shows a meaningful difference.
 - State the average wind speed, peak gust, and prevailing wind direction across the network when available.
-- State total precipitation across the network and precipitation type when it can be inferred from the data (rain when freezing level is above the highest reporting station; snow when new-snow or snow-depth change is present at alpine), or explicitly state that no measurable precipitation was recorded.
+- State the highest single-station 24-hour precipitation total (in mm) and how many stations recorded any measurable precipitation, and precipitation type when it can be inferred from the data (rain when freezing level is above the highest reporting station; snow when new-snow or snow-depth change is present at alpine), or explicitly state that no measurable precipitation was recorded. Never sum precipitation across stations — each station's \`precip_24h_mm\` is that station's own total, not additive across the network.
 
 Add a fourth bullet (same list, same "- " prefix) ONLY when the supplied data verifies a meaningful anomaly, outlier, sharp change, unusual timing, or regional contrast (north/south or east/west of Lake Louise). When naming a station in this bullet, use the \`name\` field verbatim — the same label the dashboard's 24h station summary table shows, including any trailing operator suffix like " - AB Env", "- Fire", or "- AB ENV/ LLSA". Do not shorten or re-punctuate the name.
 
