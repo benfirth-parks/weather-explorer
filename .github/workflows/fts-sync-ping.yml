@@ -1,0 +1,70 @@
+# Fallback pinger for the FTS station-data sync. If Netlify's scheduled
+# `fts-sync` function skips a run, this workflow calls the token-gated
+# manual webhook so the archive stays current. Runs every 30 minutes.
+#
+# Setup:
+#   1. Go to repo Settings -> Secrets and variables -> Actions -> New secret.
+#   2. Add secret `ARCHIVE_ADMIN_TOKEN` with the same value used on Netlify.
+#   3. (Optional) Add secret `SITE_URL` if the site URL ever changes;
+#      defaults to https://rockiesweatherdataexplorer.netlify.app.
+#
+# On failure the workflow's built-in email notification will alert you
+# (make sure "Send notifications for failed workflows" is enabled in
+# GitHub -> Settings -> Notifications -> Actions).
+
+name: FTS sync fallback ping
+
+on:
+  schedule:
+    # Every 30 minutes. UTC. Offset from Netlify's :15 slot so a healthy
+    # scheduled run has time to write before we double-check.
+    - cron: "25,55 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: fts-sync-ping
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger manual sync webhook
+        env:
+          ADMIN_TOKEN: ${{ secrets.ARCHIVE_ADMIN_TOKEN }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://rockiesweatherdataexplorer.netlify.app' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "::error::ARCHIVE_ADMIN_TOKEN secret is not set"
+            exit 1
+          fi
+
+          echo "Pinging ${SITE_URL}/api/fts-sync-manual"
+
+          # -w prints status + timing on a new line after the body.
+          # -f fails the request on any HTTP >= 400 so the job goes red.
+          # 207 (partial failure) is treated as success by curl -f but we
+          # still fail if any station failed.
+          response=$(curl -sS --fail-with-body -m 120 \
+            -w '\nHTTP_STATUS:%{http_code} TIME:%{time_total}s' \
+            -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "${SITE_URL}/api/fts-sync-manual")
+
+          echo "$response"
+
+          # Parse the JSON body (everything before the trailing HTTP_STATUS line)
+          body=$(echo "$response" | sed '$d')
+
+          failed=$(echo "$body" | jq -r '.failed // 0' 2>/dev/null || echo "?")
+          succeeded=$(echo "$body" | jq -r '.succeeded // 0' 2>/dev/null || echo "?")
+          total=$(echo "$body" | jq -r '.total // 0' 2>/dev/null || echo "?")
+
+          echo "::notice::Sync result: ${succeeded}/${total} stations succeeded, ${failed} failed"
+
+          if [ "$failed" != "0" ] && [ "$failed" != "?" ]; then
+            echo "::warning::${failed} station(s) failed to sync - check Netlify function logs"
+            # Non-zero exit so the workflow shows as failed and emails you.
+            exit 1
+          fi
