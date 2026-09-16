@@ -975,7 +975,13 @@ async function fetchFTS360Station(id, hrs){
   return sanitizeRecords(await res.json());
 }
 const cacheHours = {};
-function requestHours(){ return hours; }
+function requestHours(){
+  // Return the number of hours from now back to viewRange.from, so the archive
+  // fetch covers the full absolute range. windowedData() then trims to [from,to).
+  const now=Date.now();
+  const spanMs=Math.max(now - viewRange.from.getTime(), viewRange.to.getTime() - viewRange.from.getTime());
+  return Math.max(1, Math.ceil(spanMs/3600000));
+}
 async function fetchStation(id, hrs){
   try{
     const archive = await fetchFTS360Station(id, hrs);
