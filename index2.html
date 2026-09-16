@@ -3,12 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Rockies Weather Explorer — Meteostat Test</title>
+<title>Rockies Weather Explorer — Open-Meteo Test</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <style>
 :root{
   --bg:#0b0d10;--bg-elev:#141821;--bg-elev-2:#1a1f2b;--border:#232936;
@@ -77,10 +76,10 @@ h2{font-size:11px;text-transform:uppercase;color:var(--text-muted);margin-bottom
 <body>
 
 <div class="sidebar">
-  <h1>MS Test <span class="tag">TEST</span><span class="link"><a href="/">← main app</a></span></h1>
+  <h1>OM Test <span class="tag">TEST</span><span class="link"><a href="/">← main app</a></span></h1>
 
   <div class="info-banner">
-    <strong>Test page.</strong> Data from Meteostat (bulk CSV, no auth). All 26 FTS stations map to just <strong>4 unique Meteostat stations</strong> (Yoho Park, Banff, Golden Airport, Jasper Warden), all valley-bottom. Recent hours are often <strong>MET Norway forecast fill</strong>, not obs — historical hours are ECCC. Use <em>Unique</em> button to view one series per underlying MS station.
+    <strong>Test page.</strong> Data from <a href="https://open-meteo.com" target="_blank" style="color:var(--primary)">Open-Meteo</a> (no auth, CORS-open). Each FTS location queried at its exact lat/lon/elevation. <strong>These are model values, not observations</strong> — recent 92 days from Canadian HRDPS/GDPS (2.5 km grid), older from ERA5 reanalysis (9 km grid). Elevation-aware but the alpine model bias is real. Use only for context/backfill, never as a substitute for FTS obs.
   </div>
 
   <div class="sidebar-section">
@@ -147,7 +146,7 @@ h2{font-size:11px;text-transform:uppercase;color:var(--text-muted);margin-bottom
   </div>
   <div class="footer">
     <span id="statusLabel">Ready</span>
-    <span>Data: <a href="https://meteostat.net/en/" target="_blank" style="color:var(--primary)">Meteostat</a> · Bulk CSV · Data may be model-filled where obs unavailable</span>
+    <span>Data: <a href="https://open-meteo.com" target="_blank" style="color:var(--primary)">Open-Meteo</a> · HRDPS/GDPS (recent) + ERA5 (archive) · <strong>Model values, not obs</strong></span>
   </div>
 </div>
 
@@ -209,58 +208,69 @@ function isoDate(dt){const mst=new Date(dt.getTime()-MST_OFFSET_MS); return mst.
 function mstFromIso(iso){const p=iso.split('-').map(Number); return new Date(Date.UTC(p[0],p[1]-1,p[2],7,0,0,0));}
 let viewRange = (function(){const to=new Date(); return {from:new Date(to.getTime()-168*3600000), to:to, preset:168};})();
 
-// ==================== Data cache ====================
-// Cache Meteostat CSVs by "msId:year" so multiple FTS pointing to same MS station share fetches
-const csvCache = {}; // { "71786:2026": Promise<Array<row>> }
+// ==================== Data fetch (Open-Meteo) ====================
+// Two APIs:
+//  - Forecast API: recent (past_days up to 92) + future, uses HRDPS/GDPS Canadian models
+//  - Archive API: ERA5 reanalysis, historical only, up to ~5 days ago
+const HOURLY_VARS = ['temperature_2m','relative_humidity_2m','wind_speed_10m','wind_gusts_10m','wind_direction_10m','precipitation','surface_pressure'];
 
-async function fetchMSYear(msId, year){
-  const key = msId+':'+year;
-  if(csvCache[key]) return csvCache[key];
-  csvCache[key] = (async()=>{
-    const url = `https://data.meteostat.net/hourly/${year}/${msId}.csv.gz`;
-    const res = await fetch(url);
-    if(!res.ok){
-      if(res.status===404) return []; // No data for this year yet
-      throw new Error(`HTTP ${res.status} for ${msId}/${year}`);
+async function getStationData(station, fromTs, toTs){
+  // Split window into recent (forecast API, past_days) + older (archive API)
+  const now = Date.now();
+  const cutoff = now - 92*24*3600000; // forecast API supports up to 92 past days
+  const chunks = [];
+  if(toTs > cutoff){
+    // Recent chunk via forecast API — round to full days
+    const startRecent = Math.max(fromTs, cutoff);
+    const pastDays = Math.min(92, Math.ceil((now - startRecent)/86400000));
+    chunks.push(fetchForecast(station, pastDays));
+  }
+  if(fromTs < cutoff){
+    // Older chunk via archive API
+    const endArchive = new Date(Math.min(toTs, cutoff));
+    const startArchive = new Date(fromTs);
+    chunks.push(fetchArchive(station, isoDate(startArchive), isoDate(endArchive)));
+  }
+  const results = await Promise.all(chunks);
+  // Merge, dedupe on timestamp, filter to range
+  const seen = new Map();
+  for(const arr of results){
+    for(const r of arr){
+      if(r.ts>=fromTs && r.ts<=toTs && !seen.has(r.ts)) seen.set(r.ts, r);
     }
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const csv = pako.ungzip(buf, {to:'string'});
-    return parseCSV(csv);
-  })();
-  return csvCache[key];
+  }
+  return Array.from(seen.values()).sort((a,b)=>a.ts-b.ts);
 }
 
-function parseCSV(csv){
-  const lines = csv.trim().split('\n');
-  const header = lines[0].split(',');
+async function fetchForecast(s, pastDays){
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&elevation=${s.elev}&hourly=${HOURLY_VARS.join(',')}&past_days=${pastDays}&forecast_days=0&timezone=UTC&wind_speed_unit=kmh`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`OM forecast ${res.status} for ${s.id}`);
+  return parseOM(await res.json());
+}
+async function fetchArchive(s, startIso, endIso){
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${s.lat}&longitude=${s.lon}&elevation=${s.elev}&start_date=${startIso}&end_date=${endIso}&hourly=${HOURLY_VARS.join(',')}&timezone=UTC&wind_speed_unit=kmh`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`OM archive ${res.status} for ${s.id}`);
+  return parseOM(await res.json());
+}
+function parseOM(d){
+  const h = d.hourly || {};
+  const times = h.time || [];
   const rows = [];
-  for(let i=1;i<lines.length;i++){
-    const parts = lines[i].split(',');
-    const r = {};
-    for(let j=0;j<header.length;j++) r[header[j]] = parts[j];
-    // Build UTC timestamp from year/month/day/hour
-    const y=+r.year, m=+r.month, d=+r.day, h=+r.hour;
-    if(!Number.isFinite(y)) continue;
-    r.ts = new Date(Date.UTC(y,m-1,d,h,0,0,0)).getTime();
-    // Coerce numerics
-    ['temp','rhum','prcp','wdir','wspd','wpgt','pres','cldc'].forEach(k=>{
-      r[k] = (r[k]==='' || r[k]==null) ? null : parseFloat(r[k]);
-      if(!Number.isFinite(r[k])) r[k]=null;
+  for(let i=0;i<times.length;i++){
+    rows.push({
+      ts: Date.parse(times[i]+'Z'),
+      temp: h.temperature_2m?.[i] ?? null,
+      rhum: h.relative_humidity_2m?.[i] ?? null,
+      wspd: h.wind_speed_10m?.[i] ?? null,
+      wpgt: h.wind_gusts_10m?.[i] ?? null,
+      wdir: h.wind_direction_10m?.[i] ?? null,
+      prcp: h.precipitation?.[i] ?? null,
+      pres: h.surface_pressure?.[i] ?? null,
     });
-    rows.push(r);
   }
   return rows;
-}
-
-async function getMSData(msId, fromTs, toTs){
-  // Fetch all years covering the range in parallel
-  const startYear = new Date(fromTs).getUTCFullYear();
-  const endYear = new Date(toTs).getUTCFullYear();
-  const years = [];
-  for(let y=startYear; y<=endYear; y++) years.push(y);
-  const chunks = await Promise.all(years.map(y=>fetchMSYear(msId,y).catch(e=>{console.warn('year fetch',msId,y,e); return [];})));
-  const all = chunks.flat();
-  return all.filter(r=>r.ts>=fromTs && r.ts<=toTs);
 }
 
 // ==================== UI wiring ====================
@@ -317,11 +327,12 @@ document.querySelectorAll('.chip[data-metric]').forEach(c=>{
 document.getElementById('selectAllBtn').addEventListener('click',()=>{selected=new Set(STATIONS.map(s=>s.id)); renderStationList(); refreshMarkers(); loadAndRender();});
 document.getElementById('clearBtn').addEventListener('click',()=>{selected=new Set(); renderStationList(); refreshMarkers(); loadAndRender();});
 document.getElementById('uniqueBtn').addEventListener('click',()=>{
-  // One FTS per unique Meteostat station (the first one)
-  const seen=new Set(); const pick=[];
-  for(const s of STATIONS){ if(!seen.has(s.ms)){ seen.add(s.ms); pick.push(s.id); } }
-  selected=new Set(pick); renderStationList(); refreshMarkers(); loadAndRender();
+  // Group 1 = Banff VS (main use case)
+  selected=new Set(STATIONS.filter(s=>s.group===1).map(s=>s.id));
+  renderStationList(); refreshMarkers(); loadAndRender();
 });
+document.getElementById('uniqueBtn').textContent='Banff VS';
+document.getElementById('uniqueBtn').title='Group 1: Banff Visitor Safety stations';
 
 function renderStationList(){
   const el=document.getElementById('stationList');
@@ -331,7 +342,7 @@ function renderStationList(){
     div.className='station-item'+(selected.has(s.id)?' selected':'');
     div.innerHTML=`<span class="dot" style="background:${s.color}"></span>
       <span class="name">${s.name}</span>
-      <span class="ms-tag">MS:${s.ms}</span>`;
+      <span class="ms-tag">${s.elev}m</span>`;
     div.addEventListener('click',()=>{
       if(selected.has(s.id)) selected.delete(s.id); else selected.add(s.id);
       renderStationList(); refreshMarkers(); loadAndRender();
@@ -347,17 +358,11 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribu
 const markers={};
 const msMarkers={};
 
-// Meteostat station markers (larger, marked "MS")
-Object.entries(MS_STATIONS).forEach(([id,s])=>{
-  const icon=L.divIcon({html:`<div style="width:16px;height:16px;background:#fff;border:2px solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;font-weight:700">M</div>`,iconSize:[16,16],className:''});
-  L.marker([s.lat,s.lon],{icon}).addTo(map).bindTooltip(`MS ${id} — ${s.name} (${s.elev}m)`,{direction:'top'});
-});
-
 // FTS station markers
 STATIONS.forEach(s=>{
   const icon=L.divIcon({html:`<div style="width:10px;height:10px;background:${s.color};border:2px solid ${selected.has(s.id)?'#fff':'#333'};border-radius:50%"></div>`,iconSize:[10,10],className:''});
   const m=L.marker([s.lat,s.lon],{icon}).addTo(map)
-    .bindTooltip(`${s.name} (${s.elev}m) → MS ${s.ms}`,{direction:'top'})
+    .bindTooltip(`${s.name} (${s.elev}m)`,{direction:'top'})
     .on('click',()=>{if(selected.has(s.id)) selected.delete(s.id); else selected.add(s.id); renderStationList(); refreshMarkers(); loadAndRender();});
   markers[s.id]=m;
 });
@@ -380,7 +385,7 @@ async function loadAndRender(){
   try{
     await Promise.all(ids.map(async id=>{
       const s=STATIONS.find(x=>x.id===id);
-      dataCache[id]=await getMSData(s.ms, viewRange.from.getTime(), viewRange.to.getTime());
+      dataCache[id]=await getStationData(s, viewRange.from.getTime(), viewRange.to.getTime());
     }));
     setStatus(`Loaded ${ids.length} station(s)`,'ok');
   }catch(e){
