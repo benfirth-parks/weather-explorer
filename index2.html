@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rockies Weather Explorer — Meteostat Test</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<style>
+:root{
+  --bg:#0b0d10;--bg-elev:#141821;--bg-elev-2:#1a1f2b;--border:#232936;
+  --text:#e8ecf3;--text-muted:#96a0b0;--primary:#4aa3ff;--accent:#f0b942;
+  --danger:#e04e5f;--ok:#5ad48b;--warn:#f0b942;
+  --mono:'Courier Prime','Courier New',monospace;--sans:system-ui,sans-serif;
+  --radius:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;overflow:hidden;height:100vh;display:grid;grid-template-columns:340px 1fr;}
+h1,h2,h3{font-family:var(--mono);font-weight:500;letter-spacing:-0.01em}
+h1{font-size:15px;padding:12px 16px;border-bottom:1px solid var(--border)}
+h1 .tag{font-size:10px;background:var(--warn);color:#000;padding:1px 6px;border-radius:3px;margin-left:8px;vertical-align:middle}
+h1 .link{font-size:11px;color:var(--text-muted);float:right;margin-top:3px}
+h1 .link a{color:var(--primary);text-decoration:none}
+h2{font-size:11px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+.sidebar{background:var(--bg-elev);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.sidebar-section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.mono{font-family:var(--mono)}
+.range-chip-row{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11px;padding:3px 8px;border-radius:99px;background:var(--bg-elev-2);color:var(--text-muted);border:none;cursor:pointer;font-family:var(--mono)}
+.chip.active{background:var(--primary);color:#000}
+.chip:hover{background:var(--border)}
+.date-range-row{display:flex;gap:6px;margin-top:8px}
+.date-field{display:flex;flex-direction:column;flex:1;gap:2px}
+.date-field-label{font-size:10px;color:var(--text-muted);font-family:var(--mono)}
+.date-field input{background:var(--bg-elev-2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 5px;font-family:var(--mono);font-size:12px}
+.range-label{margin-top:6px;font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between}
+.station-list{display:flex;flex-direction:column;gap:3px;max-height:400px;overflow-y:auto}
+.station-item{display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--bg-elev-2);border-radius:4px;cursor:pointer;font-size:12px;border:1px solid transparent}
+.station-item:hover{border-color:var(--border)}
+.station-item.selected{border-color:var(--primary)}
+.station-item .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.station-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.station-item .ms-tag{font-family:var(--mono);font-size:10px;color:var(--text-muted)}
+.btn{padding:5px 12px;background:var(--bg-elev-2);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:12px;font-family:var(--mono)}
+.btn:hover{background:var(--border)}
+.btn-row{display:flex;gap:6px;margin-top:8px}
+.btn-row .btn{flex:1}
+.metric-row{display:flex;flex-wrap:wrap;gap:4px}
+.main{display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+.map-container{height:280px;position:relative;border-bottom:1px solid var(--border)}
+#map{width:100%;height:100%;background:var(--bg-elev)}
+.charts-container{padding:16px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-panel{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px;min-height:280px;display:flex;flex-direction:column}
+.chart-panel h3{font-size:12px;margin-bottom:2px}
+.chart-panel .sub{font-size:11px;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px}
+.chart-panel canvas{flex:1}
+.chart-wide{grid-column:1/-1;min-height:320px}
+.footer{padding:8px 16px;background:var(--bg-elev);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);font-family:var(--mono);display:flex;justify-content:space-between}
+.status-loading{color:var(--warn)}
+.status-ok{color:var(--ok)}
+.status-error{color:var(--danger)}
+.legend-row{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;font-family:var(--mono);margin-top:8px}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-dot{width:10px;height:3px;border-radius:1px}
+.info-banner{background:var(--bg-elev-2);border-left:3px solid var(--warn);padding:8px 12px;margin:0;font-size:11px;color:var(--text-muted);font-family:var(--mono);line-height:1.5}
+.info-banner strong{color:var(--warn);font-weight:500}
+.leaflet-container{background:var(--bg-elev)}
+.leaflet-popup-content-wrapper{background:var(--bg-elev-2);color:var(--text);border-radius:4px}
+.leaflet-popup-tip{background:var(--bg-elev-2)}
+.leaflet-tooltip{background:var(--bg-elev-2);color:var(--text);border:1px solid var(--border);font-family:var(--mono);font-size:11px}
+.leaflet-tooltip::before{border-right-color:var(--bg-elev-2)}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h1>MS Test <span class="tag">TEST</span><span class="link"><a href="/">← main app</a></span></h1>
+
+  <div class="info-banner">
+    <strong>Test page.</strong> Data from Meteostat (bulk CSV, no auth). All 26 FTS stations shown map to just <strong>4 unique Meteostat stations</strong> (Yoho Park, Banff, Golden Airport, Jasper Warden), all at valley-bottom elevations. Not a substitute for FTS obs — use only for cross-checking or backfill exploration.
+  </div>
+
+  <div class="sidebar-section">
+    <h2>Main time range</h2>
+    <div class="range-chip-row" id="presetChips">
+      <button class="chip" data-hours="24">1d</button>
+      <button class="chip" data-hours="72">3d</button>
+      <button class="chip active" data-hours="168">7d</button>
+      <button class="chip" data-hours="720">30d</button>
+      <button class="chip" data-hours="2160">90d</button>
+      <button class="chip" data-hours="8640">1yr</button>
+    </div>
+    <div class="date-range-row">
+      <label class="date-field"><span class="date-field-label">From</span><input type="date" id="fromDate"></label>
+      <label class="date-field"><span class="date-field-label">To</span><input type="date" id="toDate"></label>
+    </div>
+    <div class="range-label"><span id="hoursLabel">Last 7 days</span><span class="mono">Or pick From/To (MST)</span></div>
+  </div>
+
+  <div class="sidebar-section">
+    <h2>Metric</h2>
+    <div class="metric-row" id="metricChips">
+      <button class="chip active" data-metric="temp">Temp</button>
+      <button class="chip" data-metric="rhum">RH%</button>
+      <button class="chip" data-metric="wspd">Wind</button>
+      <button class="chip" data-metric="wpgt">Gust</button>
+      <button class="chip" data-metric="prcp">Precip</button>
+      <button class="chip" data-metric="pres">Pressure</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section" style="flex:1">
+    <h2>Stations (<span id="stationCountLabel">0</span> selected)</h2>
+    <div class="station-list" id="stationList"></div>
+    <div class="btn-row">
+      <button class="btn" id="selectAllBtn">All</button>
+      <button class="btn" id="clearBtn">None</button>
+      <button class="btn" id="uniqueBtn" title="One representative per Meteostat station">Unique</button>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+  <div class="charts-container">
+    <div class="chart-panel">
+      <h3 id="trendTitle">Temperature Trend</h3>
+      <div class="sub" id="trendSub">Loading…</div>
+      <canvas id="trendChart"></canvas>
+      <div class="legend-row" id="trendLegend"></div>
+    </div>
+    <div class="chart-panel">
+      <h3>Wind Rose (aggregate over range)</h3>
+      <div class="sub" id="windRoseSub">All selected stations, all hours in range</div>
+      <canvas id="windRoseChart"></canvas>
+    </div>
+    <div class="chart-panel chart-wide">
+      <h3 id="gustTitle">Wind Speed &amp; Gust</h3>
+      <div class="sub" id="gustSub">Solid = mean wind · dashed = peak gust · km/h</div>
+      <canvas id="gustChart"></canvas>
+    </div>
+  </div>
+  <div class="footer">
+    <span id="statusLabel">Ready</span>
+    <span>Data: <a href="https://meteostat.net/en/" target="_blank" style="color:var(--primary)">Meteostat</a> · Bulk CSV · Data may be model-filled where obs unavailable</span>
+  </div>
+</div>
+
+<script>
+// ==================== Station catalog ====================
+// Each FTS station maps to a Meteostat station (nearest with hourly data since 2025).
+// Note the distance and elevation offset — many are 20-100km away, valley bottom.
+const STATIONS = [
+  {"id":"fts-boslo","name":"Bosworth Lower","lat":51.45722,"lon":-116.357834,"elev":2210,"ms":"71786","group":1,"color":"#c46a2e"},
+  {"id":"fts-bosup","name":"Bosworth Upper","lat":51.46954,"lon":-116.34969,"elev":2745,"ms":"71786","group":1,"color":"#9a4fbf"},
+  {"id":"fts-bowsummit","name":"Bow Summit","lat":51.709373,"lon":-116.47904,"elev":2040,"ms":"71786","group":1,"color":"#3daaa0"},
+  {"id":"fts-bowprecip","name":"Bow Summit Precip","lat":51.712,"lon":-116.481,"elev":2040,"ms":"71786","group":1,"color":"#2f9e8f"},
+  {"id":"fts-lookout","name":"Lookout","lat":51.07417,"lon":-115.754295,"elev":2640,"ms":"71122","group":1,"color":"#c85d2a"},
+  {"id":"fts-simplo","name":"Simpson Lower","lat":50.98507,"lon":-115.984215,"elev":2115,"ms":"71122","group":1,"color":"#7f3fbf"},
+  {"id":"fts-simpup","name":"Simpson Upper","lat":50.990124,"lon":-115.991165,"elev":2320,"ms":"71122","group":1,"color":"#c48b2e"},
+  {"id":"fts-stanley","name":"Stanley Lower","lat":51.184673,"lon":-116.0892,"elev":1930,"ms":"71786","group":1,"color":"#5b6bd6"},
+  {"id":"fts-sunshine","name":"Sunshine Village","lat":51.078358,"lon":-115.782455,"elev":2200,"ms":"71122","group":1,"color":"#8fa42d"},
+  {"id":"fts-vulture","name":"Vulture Peak","lat":51.6244,"lon":-116.47188,"elev":2930,"ms":"71786","group":1,"color":"#d19100"},
+  {"id":"fts-whymper","name":"Whymper","lat":51.2126,"lon":-116.11409,"elev":2600,"ms":"71786","group":1,"color":"#4f78c4"},
+  {"id":"fts-boulder","name":"Boulder Creek","lat":51.3665,"lon":-116.5264,"elev":1650,"ms":"71786","group":2,"color":"#3e8f6f"},
+  {"id":"fts-pikarun","name":"Pika Run","lat":51.442,"lon":-116.217,"elev":2200,"ms":"71786","group":2,"color":"#5a4fbf"},
+  {"id":"fts-vermillion","name":"Vermillion Crossing","lat":51.0194,"lon":-115.9766,"elev":1310,"ms":"71122","group":2,"color":"#c4426b"},
+  {"id":"fts-lakelouise","name":"Lake Louise","lat":51.4281,"lon":-116.2093,"elev":1730,"ms":"71786","group":2,"color":"#c25d99"},
+  {"id":"fts-castle","name":"Castle","lat":51.2796,"lon":-115.9562,"elev":1450,"ms":"71122","group":2,"color":"#a4732c"},
+  {"id":"fts-skoki","name":"Skoki","lat":51.482,"lon":-116.217,"elev":2160,"ms":"71786","group":2,"color":"#9e3f5b"},
+  {"id":"fts-tangleridge","name":"Tangle Ridge","lat":52.226,"lon":-117.257,"elev":3009,"ms":"71486","group":3,"color":"#a86bc4"},
+  {"id":"fts-coleman","name":"Coleman","lat":52.09691,"lon":-116.92602,"elev":2176,"ms":"71786","group":3,"color":"#6b9ac4"},
+  {"id":"fts-bigbend","name":"Big Bend","lat":52.193,"lon":-117.156,"elev":2125,"ms":"71173","group":3,"color":"#c46b8b"},
+  {"id":"fts-maligne","name":"Maligne","lat":52.7244,"lon":-117.6494,"elev":1712,"ms":"71486","group":3,"color":"#4bb0a0"},
+  {"id":"fts-saskcrossing","name":"Sask Crossing","lat":51.9681,"lon":-116.7145,"elev":1392,"ms":"71786","group":3,"color":"#b0b04b"},
+  {"id":"fts-jasperqd1","name":"Jasper QD1","lat":52.6648,"lon":-116.8767,"elev":1585,"ms":"71486","group":4,"color":"#c47a4b"},
+  {"id":"fts-dorothy","name":"Dorothy","lat":52.9008,"lon":-118.2786,"elev":1528,"ms":"71486","group":4,"color":"#4b7ac4"},
+  {"id":"fts-devona","name":"Devona","lat":53.1718,"lon":-118.0292,"elev":1402,"ms":"71486","group":4,"color":"#c44b8b"},
+  {"id":"fts-rangercreek","name":"Ranger Creek","lat":52.5768,"lon":-117.7208,"elev":1289,"ms":"71486","group":4,"color":"#4bc48b"},
+];
+
+const MS_STATIONS = {
+  "71786":{"name":"Yoho Park","lat":51.44,"lon":-116.34,"elev":1602},
+  "71122":{"name":"Banff","lat":51.19,"lon":-115.55,"elev":1397},
+  "71486":{"name":"Jasper Warden","lat":52.93,"lon":-118.03,"elev":1020},
+  "71173":{"name":"Golden Airport","lat":51.3,"lon":-116.98,"elev":785},
+};
+
+const METRIC_META = {
+  temp:{label:"Temperature",unit:"°C"},
+  rhum:{label:"Relative Humidity",unit:"%"},
+  wspd:{label:"Wind Speed",unit:"km/h"},
+  wpgt:{label:"Wind Gust",unit:"km/h"},
+  prcp:{label:"Precipitation",unit:"mm/hr"},
+  pres:{label:"Pressure",unit:"hPa"},
+};
+
+// ==================== State ====================
+let selected = new Set(STATIONS.filter(s=>s.group===1).map(s=>s.id));
+let metric = "temp";
+const MST_OFFSET_MS = 7*3600*1000;
+function todayMstMidnight(){const now=new Date(); const mst=new Date(now.getTime()-MST_OFFSET_MS); return new Date(Date.UTC(mst.getUTCFullYear(),mst.getUTCMonth(),mst.getUTCDate(),7,0,0,0));}
+function isoDate(dt){const mst=new Date(dt.getTime()-MST_OFFSET_MS); return mst.getUTCFullYear()+'-'+String(mst.getUTCMonth()+1).padStart(2,'0')+'-'+String(mst.getUTCDate()).padStart(2,'0');}
+function mstFromIso(iso){const p=iso.split('-').map(Number); return new Date(Date.UTC(p[0],p[1]-1,p[2],7,0,0,0));}
+let viewRange = (function(){const to=new Date(); return {from:new Date(to.getTime()-168*3600000), to:to, preset:168};})();
+
+// ==================== Data cache ====================
+// Cache Meteostat CSVs by "msId:year" so multiple FTS pointing to same MS station share fetches
+const csvCache = {}; // { "71786:2026": Promise<Array<row>> }
+
+async function fetchMSYear(msId, year){
+  const key = msId+':'+year;
+  if(csvCache[key]) return csvCache[key];
+  csvCache[key] = (async()=>{
+    const url = `https://data.meteostat.net/hourly/${year}/${msId}.csv.gz`;
+    const res = await fetch(url);
+    if(!res.ok){
+      if(res.status===404) return []; // No data for this year yet
+      throw new Error(`HTTP ${res.status} for ${msId}/${year}`);
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const csv = pako.ungzip(buf, {to:'string'});
+    return parseCSV(csv);
+  })();
+  return csvCache[key];
+}
+
+function parseCSV(csv){
+  const lines = csv.trim().split('\n');
+  const header = lines[0].split(',');
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const parts = lines[i].split(',');
+    const r = {};
+    for(let j=0;j<header.length;j++) r[header[j]] = parts[j];
+    // Build UTC timestamp from year/month/day/hour
+    const y=+r.year, m=+r.month, d=+r.day, h=+r.hour;
+    if(!Number.isFinite(y)) continue;
+    r.ts = new Date(Date.UTC(y,m-1,d,h,0,0,0)).getTime();
+    // Coerce numerics
+    ['temp','rhum','prcp','wdir','wspd','wpgt','pres','cldc'].forEach(k=>{
+      r[k] = (r[k]==='' || r[k]==null) ? null : parseFloat(r[k]);
+      if(!Number.isFinite(r[k])) r[k]=null;
+    });
+    rows.push(r);
+  }
+  return rows;
+}
+
+async function getMSData(msId, fromTs, toTs){
+  // Fetch all years covering the range in parallel
+  const startYear = new Date(fromTs).getUTCFullYear();
+  const endYear = new Date(toTs).getUTCFullYear();
+  const years = [];
+  for(let y=startYear; y<=endYear; y++) years.push(y);
+  const chunks = await Promise.all(years.map(y=>fetchMSYear(msId,y).catch(e=>{console.warn('year fetch',msId,y,e); return [];})));
+  const all = chunks.flat();
+  return all.filter(r=>r.ts>=fromTs && r.ts<=toTs);
+}
+
+// ==================== UI wiring ====================
+function viewHours(){return Math.max(1, Math.round((viewRange.to.getTime()-viewRange.from.getTime())/3600000));}
+
+function updateHoursLabel(){
+  const labelEl=document.getElementById('hoursLabel');
+  const fd=document.getElementById('fromDate');
+  const td=document.getElementById('toDate');
+  document.querySelectorAll('.chip[data-hours]').forEach(c=>c.classList.remove('active'));
+  if(viewRange.preset){
+    const p=viewRange.preset;
+    const map={24:'Last 1 day',72:'Last 3 days',168:'Last 7 days',720:'Last 30 days',2160:'Last 90 days',8640:'Last 1 year'};
+    labelEl.textContent = map[p] || ('Last '+p+' hours');
+    document.querySelectorAll('.chip[data-hours]').forEach(c=>{if(Number(c.dataset.hours)===p) c.classList.add('active');});
+    if(fd) fd.value=''; if(td) td.value='';
+  } else {
+    const endIncl=new Date(viewRange.to.getTime()-86400000);
+    const days=Math.round(viewHours()/24);
+    labelEl.textContent = isoDate(viewRange.from)+' → '+isoDate(endIncl)+' ('+days+'d)';
+    if(fd) fd.value=isoDate(viewRange.from);
+    if(td) td.value=isoDate(endIncl);
+  }
+}
+
+function setPreset(h){
+  const to=new Date();
+  viewRange={from:new Date(to.getTime()-h*3600000), to:to, preset:h};
+  updateHoursLabel();
+  loadAndRender();
+}
+function setAbsolute(fromIso, toIsoIncl){
+  const from=mstFromIso(fromIso);
+  const to=new Date(mstFromIso(toIsoIncl).getTime()+86400000);
+  if(to<=from) return;
+  viewRange={from, to};
+  updateHoursLabel();
+  loadAndRender();
+}
+
+document.querySelectorAll('.chip[data-hours]').forEach(c=>{c.addEventListener('click',()=>setPreset(+c.dataset.hours));});
+document.getElementById('fromDate').addEventListener('change',e=>{const tv=document.getElementById('toDate').value; if(e.target.value && tv) setAbsolute(e.target.value,tv);});
+document.getElementById('toDate').addEventListener('change',e=>{const fv=document.getElementById('fromDate').value; if(fv && e.target.value) setAbsolute(fv,e.target.value);});
+
+document.querySelectorAll('.chip[data-metric]').forEach(c=>{
+  c.addEventListener('click',()=>{
+    metric=c.dataset.metric;
+    document.querySelectorAll('.chip[data-metric]').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+    renderTrend();
+  });
+});
+
+document.getElementById('selectAllBtn').addEventListener('click',()=>{selected=new Set(STATIONS.map(s=>s.id)); renderStationList(); refreshMarkers(); loadAndRender();});
+document.getElementById('clearBtn').addEventListener('click',()=>{selected=new Set(); renderStationList(); refreshMarkers(); loadAndRender();});
+document.getElementById('uniqueBtn').addEventListener('click',()=>{
+  // One FTS per unique Meteostat station (the first one)
+  const seen=new Set(); const pick=[];
+  for(const s of STATIONS){ if(!seen.has(s.ms)){ seen.add(s.ms); pick.push(s.id); } }
+  selected=new Set(pick); renderStationList(); refreshMarkers(); loadAndRender();
+});
+
+function renderStationList(){
+  const el=document.getElementById('stationList');
+  el.innerHTML='';
+  STATIONS.forEach(s=>{
+    const div=document.createElement('div');
+    div.className='station-item'+(selected.has(s.id)?' selected':'');
+    div.innerHTML=`<span class="dot" style="background:${s.color}"></span>
+      <span class="name">${s.name}</span>
+      <span class="ms-tag">MS:${s.ms}</span>`;
+    div.addEventListener('click',()=>{
+      if(selected.has(s.id)) selected.delete(s.id); else selected.add(s.id);
+      renderStationList(); refreshMarkers(); loadAndRender();
+    });
+    el.appendChild(div);
+  });
+  document.getElementById('stationCountLabel').textContent=selected.size;
+}
+
+// ==================== Map ====================
+const map = L.map('map',{center:[51.7,-116.6],zoom:8,zoomControl:true,attributionControl:false});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+const markers={};
+const msMarkers={};
+
+// Meteostat station markers (larger, marked "MS")
+Object.entries(MS_STATIONS).forEach(([id,s])=>{
+  const icon=L.divIcon({html:`<div style="width:16px;height:16px;background:#fff;border:2px solid #000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;font-weight:700">M</div>`,iconSize:[16,16],className:''});
+  L.marker([s.lat,s.lon],{icon}).addTo(map).bindTooltip(`MS ${id} — ${s.name} (${s.elev}m)`,{direction:'top'});
+});
+
+// FTS station markers
+STATIONS.forEach(s=>{
+  const icon=L.divIcon({html:`<div style="width:10px;height:10px;background:${s.color};border:2px solid ${selected.has(s.id)?'#fff':'#333'};border-radius:50%"></div>`,iconSize:[10,10],className:''});
+  const m=L.marker([s.lat,s.lon],{icon}).addTo(map)
+    .bindTooltip(`${s.name} (${s.elev}m) → MS ${s.ms}`,{direction:'top'})
+    .on('click',()=>{if(selected.has(s.id)) selected.delete(s.id); else selected.add(s.id); renderStationList(); refreshMarkers(); loadAndRender();});
+  markers[s.id]=m;
+});
+
+function refreshMarkers(){
+  STATIONS.forEach(s=>{
+    if(!markers[s.id]) return;
+    const icon=L.divIcon({html:`<div style="width:10px;height:10px;background:${s.color};border:2px solid ${selected.has(s.id)?'#fff':'#333'};border-radius:50%"></div>`,iconSize:[10,10],className:''});
+    markers[s.id].setIcon(icon);
+  });
+}
+
+// ==================== Data + render ====================
+const dataCache = {}; // id → array of rows
+
+async function loadAndRender(){
+  const ids=Array.from(selected);
+  if(ids.length===0){ renderAll(); setStatus('No stations selected','ok'); return; }
+  setStatus(`Loading ${ids.length} station(s)…`,'loading');
+  try{
+    await Promise.all(ids.map(async id=>{
+      const s=STATIONS.find(x=>x.id===id);
+      dataCache[id]=await getMSData(s.ms, viewRange.from.getTime(), viewRange.to.getTime());
+    }));
+    setStatus(`Loaded ${ids.length} station(s)`,'ok');
+  }catch(e){
+    setStatus('Load error: '+e.message,'error');
+    console.error(e);
+  }
+  renderAll();
+}
+
+function setStatus(msg,kind){
+  const el=document.getElementById('statusLabel');
+  el.textContent=msg;
+  el.className='status-'+kind;
+}
+
+function renderAll(){ renderTrend(); renderWindRose(); renderGust(); }
+
+let trendChart=null;
+function renderTrend(){
+  const ids=Array.from(selected);
+  const meta=METRIC_META[metric];
+  document.getElementById('trendTitle').textContent = meta.label+' Trend';
+  document.getElementById('trendSub').textContent = ids.length ? `${ids.length} station(s) · ${meta.unit}` : 'No stations selected';
+  const datasets = ids.map(id=>{
+    const s=STATIONS.find(x=>x.id===id);
+    const rows=dataCache[id]||[];
+    const data=rows.filter(r=>r[metric]!=null).map(r=>({x:new Date(r.ts), y:r[metric]}));
+    return {label:s.name, data, borderColor:s.color, backgroundColor:s.color+'22', borderWidth:1.5, pointRadius:0, tension:.2, fill:false};
+  });
+  if(trendChart) trendChart.destroy();
+  trendChart=new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'nearest',intersect:false},
+      plugins:{legend:{display:false}, tooltip:{titleFont:{family:"'Courier Prime', monospace"}, bodyFont:{family:"'Courier Prime', monospace"}}},
+      scales:{
+        x:{type:'time', min:viewRange.from, max:viewRange.to,
+           ticks:{color:'#96a0b0',font:{family:"'Courier Prime', monospace",size:10}},
+           grid:{color:'#232936'}},
+        y:{ticks:{color:'#96a0b0',font:{family:"'Courier Prime', monospace",size:10}},
+           grid:{color:'#232936'},
+           title:{display:true,text:meta.unit,color:'#96a0b0',font:{family:"'Courier Prime', monospace",size:10}}}
+      }
+    }
+  });
+  document.getElementById('trendLegend').innerHTML = ids.map(id=>{const s=STATIONS.find(x=>x.id===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`;}).join('');
+}
+
+let gustChart=null;
+function renderGust(){
+  const ids=Array.from(selected);
+  const datasets=[];
+  ids.forEach(id=>{
+    const s=STATIONS.find(x=>x.id===id);
+    const rows=dataCache[id]||[];
+    const wind=rows.filter(r=>r.wspd!=null).map(r=>({x:new Date(r.ts), y:r.wspd}));
+    const gust=rows.filter(r=>r.wpgt!=null).map(r=>({x:new Date(r.ts), y:r.wpgt}));
+    if(wind.length) datasets.push({label:s.name+' wind', data:wind, borderColor:s.color, borderWidth:1.5, pointRadius:0, tension:.2, fill:false});
+    if(gust.length) datasets.push({label:s.name+' gust', data:gust, borderColor:s.color, borderDash:[4,3], borderWidth:1, pointRadius:0, tension:.2, fill:false});
+  });
+  if(gustChart) gustChart.destroy();
+  gustChart=new Chart(document.getElementById('gustChart'),{
+    type:'line', data:{datasets},
+    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:'nearest',intersect:false},
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{type:'time', min:viewRange.from, max:viewRange.to, ticks:{color:'#96a0b0',font:{family:"'Courier Prime', monospace",size:10}}, grid:{color:'#232936'}},
+        y:{beginAtZero:true, ticks:{color:'#96a0b0',font:{family:"'Courier Prime', monospace",size:10}}, grid:{color:'#232936'}, title:{display:true,text:'km/h',color:'#96a0b0',font:{family:"'Courier Prime', monospace",size:10}}}
+      }
+    }
+  });
+}
+
+// ==================== Wind Rose (custom canvas, discrete 16 sectors) ====================
+const SPEED_BINS = [
+  {min:0, max:5, color:'#5ad48b', label:'Calm (0–5)'},
+  {min:5, max:15, color:'#f5cd47', label:'Light (5–15)'},
+  {min:15, max:30, color:'#f0954a', label:'Moderate (15–30)'},
+  {min:30, max:50, color:'#e04e5f', label:'Strong (30–50)'},
+  {min:50, max:999, color:'#a548c4', label:'Extreme (50+)'}
+];
+
+function renderWindRose(){
+  const ids=Array.from(selected);
+  const canvas=document.getElementById('windRoseChart');
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,rect.width,rect.height);
+  const cx=rect.width/2, cy=rect.height/2, R=Math.min(cx,cy)-30;
+
+  // Collect all wind readings from selected stations
+  const readings=[];
+  ids.forEach(id=>{
+    (dataCache[id]||[]).forEach(r=>{
+      if(r.wspd!=null && r.wdir!=null) readings.push({spd:r.wspd, dir:r.wdir});
+    });
+  });
+
+  if(readings.length===0){
+    ctx.fillStyle='#96a0b0'; ctx.font="12px 'Courier Prime', monospace"; ctx.textAlign='center';
+    ctx.fillText('No wind data', cx, cy);
+    document.getElementById('windRoseSub').textContent='No wind data in range';
+    return;
+  }
+
+  // 16 direction bins, 22.5° each; bin center at N=0°
+  const N_SECTORS=16, ANG_STEP=360/N_SECTORS;
+  // For each sector, count readings in each speed bin
+  const sectors = Array.from({length:N_SECTORS},()=>SPEED_BINS.map(()=>0));
+  readings.forEach(r=>{
+    let d=r.dir; if(d<0) d+=360; if(d>=360) d-=360;
+    const secIdx = Math.round(d/ANG_STEP) % N_SECTORS;
+    const spdIdx = SPEED_BINS.findIndex(b=>r.spd>=b.min && r.spd<b.max);
+    if(spdIdx>=0) sectors[secIdx][spdIdx]++;
+  });
+
+  // Max total for scaling
+  const maxTotal = Math.max(...sectors.map(s=>s.reduce((a,b)=>a+b,0)));
+  if(maxTotal===0){ document.getElementById('windRoseSub').textContent='All wind readings zero magnitude'; return; }
+
+  // Draw concentric grid circles + N/E/S/W labels
+  ctx.strokeStyle='#232936'; ctx.lineWidth=0.5;
+  [0.25,0.5,0.75,1].forEach(f=>{ctx.beginPath(); ctx.arc(cx,cy,R*f,0,Math.PI*2); ctx.stroke();});
+  ctx.fillStyle='#96a0b0'; ctx.font="10px 'Courier Prime', monospace"; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ['N','E','S','W'].forEach((lbl,i)=>{
+    const ang=(i*90-90)*Math.PI/180;
+    ctx.fillText(lbl, cx+Math.cos(ang)*(R+14), cy+Math.sin(ang)*(R+14));
+  });
+
+  // Draw sectors: each is a pie slice, stacked from center out by speed bin
+  const halfAng = (ANG_STEP/2) * Math.PI/180;
+  for(let i=0;i<N_SECTORS;i++){
+    const centerDeg = i*ANG_STEP;
+    const angC = (centerDeg-90)*Math.PI/180; // -90 so 0° = N (up)
+    const a1 = angC - halfAng, a2 = angC + halfAng;
+    const total = sectors[i].reduce((a,b)=>a+b,0);
+    if(total===0) continue;
+    let rInner=0;
+    for(let j=0;j<SPEED_BINS.length;j++){
+      const count = sectors[i][j];
+      if(count===0) continue;
+      const rOuter = rInner + (count/maxTotal) * R;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(a1)*rInner, cy+Math.sin(a1)*rInner);
+      ctx.arc(cx,cy,rOuter,a1,a2);
+      ctx.lineTo(cx+Math.cos(a2)*rInner, cy+Math.sin(a2)*rInner);
+      ctx.arc(cx,cy,rInner,a2,a1,true);
+      ctx.closePath();
+      ctx.fillStyle=SPEED_BINS[j].color;
+      ctx.globalAlpha=0.85;
+      ctx.fill();
+      ctx.globalAlpha=1;
+      rInner=rOuter;
+    }
+  }
+
+  // Legend
+  const legY = rect.height-14;
+  ctx.font="10px 'Courier Prime', monospace"; ctx.textAlign='left'; ctx.textBaseline='middle';
+  let lx=8;
+  SPEED_BINS.forEach(b=>{
+    ctx.fillStyle=b.color; ctx.fillRect(lx,legY-4,8,8);
+    ctx.fillStyle='#96a0b0'; ctx.fillText(b.label, lx+12, legY);
+    lx += ctx.measureText(b.label).width + 30;
+  });
+
+  document.getElementById('windRoseSub').textContent = `${readings.length} hourly readings · ${ids.length} station(s) · km/h`;
+}
+
+// ==================== Init ====================
+renderStationList();
+updateHoursLabel();
+loadAndRender();
+</script>
+</body>
+</html>
