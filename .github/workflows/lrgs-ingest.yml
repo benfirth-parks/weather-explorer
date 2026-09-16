@@ -1,0 +1,95 @@
+# NOAA LRGS ingestion for Canadian Rockies FTS stations.
+#
+# Connects to NOAA/Wallops LRGS server every 15 minutes, pulls raw GOES-DCP
+# transmissions for the Parks Canada / Avalanche Canada FTS stations, decodes
+# them, and commits data/lrgs/*.json to the repo. The Netlify function
+# `lrgs.mjs` reads those files and serves them to index2.html.
+#
+# Setup:
+#   1. Register with NOAA/Wallops DCS operator:  (757) 824-7450
+#      Provide: name, email, org (Parks Canada Visitor Safety),
+#      phone, 6-char preferred username.
+#      Accounts propagate to all 4 public LRGS servers within 24h.
+#   2. Add repo secrets under Settings -> Secrets and variables -> Actions:
+#        LRGS_USER      NOAA-issued username
+#        LRGS_PASSWORD  NOAA-issued password
+#   3. (Optional) Override server via repo variable LRGS_SERVER; default is
+#      cdadata.wcda.noaa.gov. Failover candidates:
+#        cdabackup.wcda.noaa.gov
+#        lrgseddn1.cr.usgs.gov
+#        lrgseddn2.cr.usgs.gov
+#
+# The workflow is a no-op (exit 0 with a notice) until the secrets are
+# present, so it's safe to merge before the NOAA account is issued.
+
+name: NOAA LRGS ingest
+
+on:
+  schedule:
+    # Every 15 minutes, offset from other jobs.
+    - cron: "5,20,35,50 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: lrgs-ingest
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # needs to commit data/lrgs/*.json back to main
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Skip if LRGS credentials not set
+        id: check
+        env:
+          LRGS_USER: ${{ secrets.LRGS_USER }}
+        run: |
+          if [ -z "${LRGS_USER:-}" ]; then
+            echo "::notice::LRGS_USER secret is not set — skipping. Add it after registering with NOAA/Wallops (757) 824-7450."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run ingestion
+        if: steps.check.outputs.run == 'true'
+        env:
+          LRGS_USER: ${{ secrets.LRGS_USER }}
+          LRGS_PASSWORD: ${{ secrets.LRGS_PASSWORD }}
+          LRGS_SERVER: ${{ vars.LRGS_SERVER || 'cdadata.wcda.noaa.gov' }}
+          LRGS_SINCE: "now - 30 minutes"
+          LRGS_OUT: data/lrgs
+        run: |
+          set -euo pipefail
+          python scripts/lrgs_ingest.py
+
+      - name: Commit updated data
+        if: steps.check.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  "lrgs-ingest[bot]"
+          git config user.email "lrgs-ingest[bot]@users.noreply.github.com"
+          git add data/lrgs
+          if git diff --cached --quiet; then
+            echo "::notice::No LRGS changes to commit"
+          else
+            # Amend on top of previous same-day commit to keep history light
+            git commit -m "chore(lrgs): ingest $(date -u +'%Y-%m-%dT%H:%MZ')"
+            # Pull-rebase in case another push landed while we ran
+            git pull --rebase --autostash origin main || true
+            git push origin HEAD:main
+          fi
