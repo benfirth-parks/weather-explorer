@@ -155,7 +155,7 @@ button,input,select{font:inherit;color:inherit} button{cursor:pointer;background
 .btn-ghost:hover{background:var(--color-surface-offset-2);}
 .btn-row{display:flex;gap:var(--space-2);margin-top:var(--space-3);}
 .btn-row .btn{flex:1;}
-.range-chip-row{display:flex;gap:var(--space-2);flex-wrap:wrap;}
+.date-range-row{display:flex;gap:8px;margin-bottom:8px;}.date-field{display:flex;flex-direction:column;flex:1;gap:2px;}.date-field-label{font-size:var(--text-xs);color:var(--color-text-muted);font-family:'Courier Prime',monospace;}.date-field input[type=date]{background:var(--color-bg-elevated);color:var(--color-text-primary);border:1px solid var(--color-border-primary);border-radius:4px;padding:4px 6px;font-family:'Courier Prime',monospace;font-size:var(--text-sm);}.date-field input[type=date]:focus{outline:none;border-color:var(--color-primary);}.range-chip-row{display:flex;gap:var(--space-2);flex-wrap:wrap;}
 .chip{font-size:var(--text-xs);padding:var(--space-1) var(--space-3);border-radius:var(--radius-full);background:var(--color-surface-offset);color:var(--color-text-muted);transition:all var(--transition-interactive);}
 .chip.active{background:var(--color-primary);color:var(--color-text-inverse);}
 .slider-wrap{padding:var(--space-3) var(--space-1) 0;}
@@ -509,7 +509,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
     <div class="map-toolbar"><button class="btn" id="lassoBtn">Lasso select</button></div>
     <div class="map-hint" id="mapHint">Draw a shape around stations to select them</div>
   </div>
-  <div class="sidebar-section"><h2>Main time range</h2><div class="range-controls"><div class="range-chip-row"><button class="chip" data-hours="6">6h</button><button class="chip" data-hours="24">1d</button><button class="chip" data-hours="36">36h</button><button class="chip" data-hours="48">48h</button><button class="chip active" data-hours="72">72h</button><button class="chip" data-hours="96">96h</button><button class="chip" data-hours="168">7d</button><button class="chip" data-hours="240">10d</button><button class="chip" data-hours="480">20d</button><button class="chip" data-hours="720">30d</button><button class="chip" data-hours="1440">60d</button><button class="chip" data-hours="2160">90d</button><button class="chip" data-hours="4320">180d</button><button class="chip" data-hours="8640">360d</button><button class="chip" data-hours="87600" title="Full archived history for the selected stations">All</button></div><div class="slider-wrap"><input type="range" id="hoursSlider" min="6" max="87600" value="72" step="6"><div class="range-label"><span id="hoursLabel">Last 72 hours</span><span class="mono">6h to all archived data</span></div></div></div></div>
+  <div class="sidebar-section"><h2>Main time range</h2><div class="range-controls"><div class="date-range-row"><label class="date-field"><span class="date-field-label">From</span><input type="date" id="fromDate"></label><label class="date-field"><span class="date-field-label">To</span><input type="date" id="toDate"></label></div><div class="range-chip-row" id="presetChips"><button class="chip" data-hours="24">1d</button><button class="chip active" data-hours="72">3d</button><button class="chip" data-hours="168">7d</button><button class="chip" data-hours="240">10d</button><button class="chip" data-hours="720">30d</button><button class="chip" data-hours="2160">90d</button><button class="chip" data-hours="8640">1yr</button><button class="chip" data-hours="87600" title="Full archived history for the selected stations">All</button></div><div class="range-label"><span id="hoursLabel">Last 72 hours</span><span class="mono">Midnight-to-midnight MST</span></div></div></div>
   <div class="sidebar-section"><h2>Stations (<span id="stationCountLabel">16</span>)</h2><div class="range-chip-row" style="margin-bottom:var(--space-3);"><button class="chip group-chip active" data-group="1">Group 1 · Banff VS</button><button class="chip group-chip" data-group="2">Group 2 · Banff Fire</button><button class="chip group-chip" data-group="3">Group 3 · Jasper VS</button><button class="chip group-chip" data-group="4">Group 4 · Jasper Fire</button></div><div class="elev-filter"><div class="elev-head"><span>Elevation band</span><span class="mono" id="elevRangeLabel">1289–2930 m</span></div><div class="dual-range" id="elevDualRange"><div class="track"></div><div class="track-fill" id="elevTrackFill"></div><input type="range" id="elevMin" aria-label="Minimum station elevation"><input type="range" id="elevMax" aria-label="Maximum station elevation"></div><div class="elev-band-row" id="elevBandRow"></div></div><div class="station-list" id="stationList"></div><div class="btn-row"><button class="btn btn-ghost" id="selectAllBtn">Select all</button><button class="btn btn-ghost" id="clearBtn">Clear</button></div></div>
   <div class="sidebar-section" style="border-bottom:none;flex:1;"><h2>About</h2><p style="font-size:var(--text-xs);color:var(--color-text-muted);line-height:1.6;">Select stations from the list, click map markers, or lasso-select multiple stations. The main trend and wind diagnostics use the main time slider. Snow depth cards below have their own per-station controls and default to 24 hours. Drag any panel's bottom-right corner to resize it. All stations in this app are FTS360 stations. Group 1 is Banff Visitor Safety, Group 2 Banff Fire, Group 3 Jasper Visitor Safety and Group 4 Jasper Fire; only Group 1 is selected on load. Stations above 2200 m are emphasized in wind views by default. See the <a href="https://playground.dx.dev.avalanche.ca/meteograms" target="_blank" rel="noopener noreferrer" style="color:var(--color-primary);">Avid forecast meteograms</a> for the official forecast.</p></div>
 </aside>
@@ -629,7 +629,14 @@ let selected = new Set(STATIONS_GROUP1.map(s=>s.stationId));
    no fixed upper bound on how far back FTS360 archives go, so this is a generous sentinel
    (10 years) rather than a real duration — /api/fts is asked to return everything it has. */
 const ALL_HOURS = 87600;
-let hours = 72;
+const MST_OFFSET_MS = 7*3600*1000;
+function mstMidnightUtc(y,m,d){return new Date(Date.UTC(y,m,d,7,0,0,0));}
+function todayMstMidnight(){const now=new Date(); const mstMs=now.getTime()-MST_OFFSET_MS; const mst=new Date(mstMs); return mstMidnightUtc(mst.getUTCFullYear(), mst.getUTCMonth(), mst.getUTCDate());}
+function isoDateFromMstMidnight(dt){const mstMs=dt.getTime()-MST_OFFSET_MS; const mst=new Date(mstMs); const y=mst.getUTCFullYear(); const m=String(mst.getUTCMonth()+1).padStart(2,'0'); const d=String(mst.getUTCDate()).padStart(2,'0'); return y+'-'+m+'-'+d;}
+function mstMidnightFromIso(iso){const parts=iso.split('-').map(Number); return mstMidnightUtc(parts[0], parts[1]-1, parts[2]);}
+let viewRange = (function(){const t=todayMstMidnight(); return {from:new Date(t.getTime()-2*86400000), to:new Date(t.getTime()+86400000)};})();
+function viewHours(){return Math.max(1, Math.round((viewRange.to.getTime()-viewRange.from.getTime())/3600000));}
+Object.defineProperty(window,'hours',{get:function(){return viewHours();}, configurable:true});
 let metric = 'airTempAvg';
 let lassoActive = false;
 let cache = {};
@@ -796,26 +803,50 @@ document.querySelectorAll('.group-chip').forEach(chip=>chip.addEventListener('cl
 }));
 
 function updateHoursLabel(){
-  if(hours>=ALL_HOURS){ document.getElementById('hoursLabel').textContent='All archived data'; return; }
-  const map={6:'Last 6 hours',24:'Last 1 day',36:'Last 36 hours',48:'Last 48 hours',72:'Last 72 hours',96:'Last 96 hours',168:'Last 7 days',240:'Last 10 days',480:'Last 20 days',720:'Last 30 days',1440:'Last 60 days',2160:'Last 90 days',4320:'Last 180 days',8640:'Last 360 days'};
-  document.getElementById('hoursLabel').textContent=map[hours]||(hours>=48?`Last ${Math.round(hours/24)} days`:`Last ${hours} hours`);
-}
-document.querySelectorAll('.chip[data-hours]').forEach(chip=>chip.addEventListener('click',()=>{
+  const hrs=viewHours();
+  const days=hrs/24;
+  const endInclusive=new Date(viewRange.to.getTime()-86400000);
+  const fromLabel=isoDateFromMstMidnight(viewRange.from);
+  const toLabel=isoDateFromMstMidnight(endInclusive);
+  let dur;
+  if(hrs>=ALL_HOURS-24) dur='full archive';
+  else if(days>=2) dur=Math.round(days)+' days';
+  else if(hrs>=48) dur=Math.round(hrs/24)+' days';
+  else dur=hrs+' hours';
+  document.getElementById('hoursLabel').textContent = fromLabel+' to '+toLabel+' MST ('+dur+')';
+  const fd=document.getElementById('fromDate'); if(fd) fd.value=isoDateFromMstMidnight(viewRange.from);
+  const td=document.getElementById('toDate'); if(td) td.value=isoDateFromMstMidnight(endInclusive);
   document.querySelectorAll('.chip[data-hours]').forEach(c=>c.classList.remove('active'));
-  chip.classList.add('active');
-  hours=Number(chip.dataset.hours);
-  document.getElementById('hoursSlider').value=hours;
+  const todayMid=todayMstMidnight();
+  const isEndingToday = viewRange.to.getTime() === (todayMid.getTime()+86400000);
+  if(isEndingToday){
+    const chipHours=Math.round((viewRange.to.getTime()-viewRange.from.getTime())/3600000);
+    document.querySelectorAll('.chip[data-hours]').forEach(c=>{
+      if(Number(c.dataset.hours)===chipHours) c.classList.add('active');
+    });
+  }
+}
+function setPresetRange(hoursBack){
+  const todayMid=todayMstMidnight();
+  const to=new Date(todayMid.getTime()+86400000);
+  const from=new Date(to.getTime()-hoursBack*3600000);
+  const fromSnapped=mstMidnightFromIso(isoDateFromMstMidnight(from));
+  viewRange={from:fromSnapped, to:to};
   updateHoursLabel();
   loadAndRender();
-}));
-document.getElementById('hoursSlider').addEventListener('input',e=>{
-  hours=Number(e.target.value);
-  document.querySelectorAll('.chip[data-hours]').forEach(c=>c.classList.remove('active'));
-  document.querySelectorAll('.chip[data-hours]').forEach(c=>{if(Number(c.dataset.hours)===hours)c.classList.add('active');});
+}
+function setAbsoluteRange(fromIso,toIsoInclusive){
+  const from=mstMidnightFromIso(fromIso);
+  const toInclusive=mstMidnightFromIso(toIsoInclusive);
+  const to=new Date(toInclusive.getTime()+86400000);
+  if(to.getTime()<=from.getTime()){return;}
+  viewRange={from:from, to:to};
   updateHoursLabel();
-  renderAll();
-});
-document.getElementById('hoursSlider').addEventListener('change',()=>{loadAndRender();});
+  loadAndRender();
+}
+document.querySelectorAll('.chip[data-hours]').forEach(function(chip){chip.addEventListener('click',function(){setPresetRange(Number(chip.dataset.hours));});});
+document.getElementById('fromDate').addEventListener('change',function(e){var toVal=document.getElementById('toDate').value; if(!e.target.value||!toVal) return; setAbsoluteRange(e.target.value, toVal);});
+document.getElementById('toDate').addEventListener('change',function(e){var fromVal=document.getElementById('fromDate').value; if(!fromVal||!e.target.value) return; setAbsoluteRange(fromVal, e.target.value);});
 document.getElementById('mainMetricSelect').addEventListener('change',e=>{metric=e.target.value; renderAll();});
 document.getElementById('refreshBtn').addEventListener('click',()=>{cache={}; Object.keys(cacheHours).forEach(k=>delete cacheHours[k]); loadAndRender();});
 document.getElementById('selectAllBtn').addEventListener('click',()=>{visibleStations().forEach(s=>selected.add(s.stationId)); renderStationList(); refreshMarkers(); loadAndRender();});
@@ -969,7 +1000,7 @@ async function loadAndRender(){
   renderStationList(); renderAll();
 }
 function timeUnitFor(h){return h<=48?'hour':h<=720?'day':h<=2160?'week':'month';}
-function axisBounds(h){const end=new Date(); const start=new Date(end.getTime()-h*3600*1000); return {min:start, max:end};}
+function axisBounds(h){if(h===undefined){return {min:new Date(viewRange.from.getTime()), max:new Date(viewRange.to.getTime())};} const end=new Date(); const start=new Date(end.getTime()-h*3600*1000); return {min:start, max:end};}
 function filterSnowSpikes(records, key){
   const out=[];
   let prev=null;
@@ -994,14 +1025,14 @@ function deriveNewSnowFromDepth(records){
     return {measurementDateTime:record.measurementDateTime,newSnow:value};
   }).filter(Boolean);
 }
-function windowedData(id,h=hours){const arr=cache[id]||[]; const cutoff=Date.now()-h*3600*1000; return arr.filter(d=>new Date(d.measurementDateTime).getTime()>=cutoff)}
+function windowedData(id,h){const arr=cache[id]||[]; if(h===undefined){const from=viewRange.from.getTime(); const to=viewRange.to.getTime(); return arr.filter(function(d){var t=new Date(d.measurementDateTime).getTime(); return t>=from && t<to;});} const cutoff=Date.now()-h*3600*1000; return arr.filter(function(d){return new Date(d.measurementDateTime).getTime()>=cutoff;});}
 function chartTextColors(){return {text:cssVar('--color-text-muted'), grid:cssVar('--color-divider')}}
 function renderAll(){const ids=Array.from(selected); const empty=document.getElementById('emptyState'), dataView=document.getElementById('dataView'); if(ids.length===0){empty.style.display='flex'; dataView.style.display='none'; return;} empty.style.display='none'; dataView.style.display='block'; renderKPIs(ids); renderHighLow(ids); renderTrend(ids); renderHsCompare(ids); renderWindRose(ids); renderGust(ids); renderGustPeak(ids); renderSnowCards(ids);}
 /* ---- HS comparison chart: validated snow-depth trace for every selected station, overlaid on one chart. ---- */
 function renderHsCompare(ids){
   const canvas=document.getElementById('hsCompareChart');
   if(!canvas) return;
-  const bounds=axisBounds(hours);
+  const bounds=axisBounds();
   let earliestData=null;
   const eligibleIds=ids.filter(id=>!SNOW_GRAPH_EXCLUDED_IDS.has(id));
   const datasets=eligibleIds.map(id=>{
@@ -1257,7 +1288,7 @@ function renderHighLow(ids){
     body.appendChild(tr);
   });
 }
-function renderTrend(ids){const meta=METRIC_META[metric]; const bounds=axisBounds(hours); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw.filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join('');}
+function renderTrend(ids){const meta=METRIC_META[metric]; const bounds=axisBounds(); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw.filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join('');}
 function windFocusIds(ids){const hi=ids.filter(id=>WIND_DEFAULT_IDS.has(id)); return hi.length?hi:ids;}
 /* Wind speed classes per CAA OGRS 2016 (Observation Guidelines and Recording
    Standards for Weather, Snowpack and Avalanches), section 1.4.17 Wind speed.
@@ -1418,7 +1449,7 @@ function renderGust(ids){
       interaction:{mode:'nearest',intersect:false},
       plugins:{legend:{position:'bottom',labels:{color:c.text,font:{size:9},boxWidth:8,boxHeight:2}}},
       scales:{
-        x:{type:'time',min:axisBounds(hours).min,max:axisBounds(hours).max,time:{unit:timeUnitFor(hours)},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},
+        x:{type:'time',min:axisBounds().min,max:axisBounds().max,time:{unit:timeUnitFor(viewHours())},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},
         y:{beginAtZero:true,min:0,ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid},title:{display:true,text:'km/h',color:c.text}}
       }
     }
@@ -1465,7 +1496,7 @@ function renderGustPeak(ids){
       interaction:{mode:'nearest',intersect:false},
       plugins:{legend:{position:'bottom',labels:{color:c.text,font:{size:9},boxWidth:8,boxHeight:2}}},
       scales:{
-        x:{type:'time',min:axisBounds(hours).min,max:axisBounds(hours).max,time:{unit:timeUnitFor(hours)},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},
+        x:{type:'time',min:axisBounds().min,max:axisBounds().max,time:{unit:timeUnitFor(viewHours())},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},
         y:{beginAtZero:true,min:0,ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid},title:{display:true,text:'Gust km/h',color:c.text}}
       }
     }
