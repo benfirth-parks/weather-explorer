@@ -1,0 +1,10 @@
+{
+  "generated_at": null,
+  "server": null,
+  "protocol_version": 0,
+  "message_count": 0,
+  "station_count": 0,
+  "stations": {},
+  "status": "awaiting-credentials",
+  "note": "Placeholder file. Real data will populate here once LRGS_USER and LRGS_PASSWORD secrets are added and .github/workflows/lrgs-ingest.yml runs successfully. Register at NOAA/Wallops (757) 824-7450."
+}
