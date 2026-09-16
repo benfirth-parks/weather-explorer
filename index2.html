@@ -80,7 +80,7 @@ h2{font-size:11px;text-transform:uppercase;color:var(--text-muted);margin-bottom
   <h1>MS Test <span class="tag">TEST</span><span class="link"><a href="/">← main app</a></span></h1>
 
   <div class="info-banner">
-    <strong>Test page.</strong> Data from Meteostat (bulk CSV, no auth). All 26 FTS stations shown map to just <strong>4 unique Meteostat stations</strong> (Yoho Park, Banff, Golden Airport, Jasper Warden), all at valley-bottom elevations. Not a substitute for FTS obs — use only for cross-checking or backfill exploration.
+    <strong>Test page.</strong> Data from Meteostat (bulk CSV, no auth). All 26 FTS stations map to just <strong>4 unique Meteostat stations</strong> (Yoho Park, Banff, Golden Airport, Jasper Warden), all valley-bottom. Recent hours are often <strong>MET Norway forecast fill</strong>, not obs — historical hours are ECCC. Use <em>Unique</em> button to view one series per underlying MS station.
   </div>
 
   <div class="sidebar-section">
@@ -343,7 +343,7 @@ function renderStationList(){
 
 // ==================== Map ====================
 const map = L.map('map',{center:[51.7,-116.6],zoom:8,zoomControl:true,attributionControl:false});
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
 const markers={};
 const msMarkers={};
 
