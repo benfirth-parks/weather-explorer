@@ -1274,7 +1274,119 @@ function ogrsWindClass(speed){
   return OGRS_WIND_CLASSES.find(c=>speed<=c.max)||OGRS_WIND_CLASSES[OGRS_WIND_CLASSES.length-1];
 }
 function buildWindRoseDatasets(ids){ids=windFocusIds(ids);const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; const bins=OGRS_WIND_CLASSES; const counts=dirs.map(()=>bins.map(()=>0)); ids.forEach(id=>windowedData(id).forEach(d=>{if(d.windDirAvg==null||d.windSpeedAvg==null)return; const idx=Math.floor((((d.windDirAvg%360)+11.25)%360)/22.5); const binIdx=bins.findIndex(b=>d.windSpeedAvg<=b.max); counts[idx][binIdx<0?bins.length-1:binIdx]++;})); return {dirs,bins,counts};}
-function renderWindRose(ids){const c=chartTextColors(); const built=buildWindRoseDatasets(ids); const total=built.counts.flat().reduce((a,b)=>a+b,0); if(windRoseChart)windRoseChart.destroy(); if(!total){windRoseChart=new Chart(document.getElementById('windRoseChart'),{type:'polarArea',data:{labels:['No wind data'],datasets:[{data:[1],backgroundColor:['rgba(128,128,128,0.15)']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}}); return;} const datasets=built.bins.map((bin,bi)=>({label:bin.label,binIndex:bi,data:built.dirs.map((_,di)=>built.counts[di][bi]),fill:true,backgroundColor:bin.color,borderColor:bin.border,borderWidth:1.2,pointRadius:0,order:bi})); windRoseChart=new Chart(document.getElementById('windRoseChart'),{type:'radar',data:{labels:built.dirs,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,elements:{line:{tension:0}},plugins:{legend:{position:'bottom',onClick:()=>{},labels:{color:c.text,boxWidth:10,boxHeight:10,font:{size:10},generateLabels:(chart)=>built.bins.map((bin,bi)=>({text:bin.label,fillStyle:bin.color,strokeStyle:bin.border,lineWidth:1,hidden:false,datasetIndex:bi}))}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${ctx.parsed.r}`}}},scales:{r:{beginAtZero:true,angleLines:{color:c.grid},grid:{color:c.grid},pointLabels:{color:c.text,font:{size:9,family:"'Courier Prime', monospace"}},ticks:{display:false}}}}});}
+function renderWindRose(ids){
+  const canvas=document.getElementById('windRoseChart');
+  const container=canvas.parentElement;
+  // Destroy any existing Chart.js instance on this canvas
+  if(windRoseChart){try{windRoseChart.destroy();}catch(e){}windRoseChart=null;}
+  // Clean up any prior resize observer we attached
+  if(canvas._windRoseCleanup){canvas._windRoseCleanup();canvas._windRoseCleanup=null;}
+  const built=buildWindRoseDatasets(ids);
+  const total=built.counts.flat().reduce((a,b)=>a+b,0);
+  const c=chartTextColors();
+
+  function draw(){
+    const rect=container.getBoundingClientRect();
+    const dpr=window.devicePixelRatio||1;
+    const W=rect.width, H=rect.height;
+    canvas.width=W*dpr; canvas.height=H*dpr;
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    const ctx=canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,W,H);
+    if(!total){
+      ctx.fillStyle=c.text; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font="12px 'Courier Prime', monospace";
+      ctx.fillText('No wind data', W/2, H/2);
+      return;
+    }
+    const legendH=44;
+    const chartH=Math.max(60, H-legendH);
+    const cx=W/2, cy=chartH/2;
+    const R=Math.max(20, Math.min(W, chartH)/2 - 24);
+
+    // Find the maximum stacked total across all directions (radius = R at max stack)
+    const dirTotals=built.dirs.map((_,di)=>built.counts[di].reduce((a,b)=>a+b,0));
+    const maxTotal=Math.max(1, ...dirTotals);
+
+    // Grid rings + tick labels
+    const rings=4;
+    ctx.strokeStyle=c.grid; ctx.lineWidth=0.5; ctx.fillStyle=c.text;
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.font="9px 'Courier Prime', monospace";
+    for(let k=1;k<=rings;k++){
+      const rr=R*k/rings;
+      ctx.beginPath(); ctx.arc(cx,cy,rr,0,Math.PI*2); ctx.stroke();
+    }
+
+    // Sector width
+    const sectorAngle=(Math.PI*2)/built.dirs.length; // 22.5°
+    // Each sector centered on its compass direction. N = up = -PI/2 in canvas coords.
+    // dir 0 = N (up), dir 4 = E (right), etc. Angle = -PI/2 + di*sectorAngle.
+    for(let di=0;di<built.dirs.length;di++){
+      const centerAngle=-Math.PI/2 + di*sectorAngle;
+      const a0=centerAngle - sectorAngle/2;
+      const a1=centerAngle + sectorAngle/2;
+      // Stack bands from center outward
+      let innerR=0;
+      for(let bi=0;bi<built.bins.length;bi++){
+        const count=built.counts[di][bi];
+        if(count<=0){continue;}
+        const bandHeight=(count/maxTotal)*R;
+        const outerR=innerR+bandHeight;
+        ctx.beginPath();
+        ctx.arc(cx,cy,outerR,a0,a1);
+        ctx.arc(cx,cy,innerR,a1,a0,true);
+        ctx.closePath();
+        ctx.fillStyle=built.bins[bi].color;
+        ctx.fill();
+        ctx.strokeStyle=built.bins[bi].border;
+        ctx.lineWidth=0.6;
+        ctx.stroke();
+        innerR=outerR;
+      }
+    }
+
+    // Cardinal + intercardinal labels
+    ctx.fillStyle=c.text; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font="10px 'Courier Prime', monospace";
+    const labelR=R+12;
+    for(let di=0;di<built.dirs.length;di++){
+      // Only draw labels for the 8 main directions to reduce clutter
+      if(di%2!==0){continue;}
+      const centerAngle=-Math.PI/2 + di*sectorAngle;
+      const lx=cx+Math.cos(centerAngle)*labelR;
+      const ly=cy+Math.sin(centerAngle)*labelR;
+      ctx.fillText(built.dirs[di], lx, ly);
+    }
+
+    // Legend at bottom
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.font="10px 'Courier Prime', monospace";
+    const legendY=chartH+legendH/2;
+    // Measure total legend width and center it
+    let totalW=0;
+    const gap=14, sw=12, tp=5;
+    const widths=built.bins.map(b=>{const w=ctx.measureText(b.label).width; return sw+tp+w;});
+    totalW=widths.reduce((a,b)=>a+b,0)+gap*(built.bins.length-1);
+    let x=(W-totalW)/2;
+    for(let bi=0;bi<built.bins.length;bi++){
+      const bin=built.bins[bi];
+      ctx.fillStyle=bin.color;
+      ctx.fillRect(x, legendY-6, sw, 12);
+      ctx.strokeStyle=bin.border; ctx.lineWidth=0.6;
+      ctx.strokeRect(x, legendY-6, sw, 12);
+      ctx.fillStyle=c.text;
+      ctx.fillText(bin.label, x+sw+tp, legendY);
+      x+=widths[bi]+gap;
+    }
+  }
+
+  draw();
+  const ro=new ResizeObserver(()=>draw());
+  ro.observe(container);
+  canvas._windRoseCleanup=()=>ro.disconnect();
+}
 function renderGust(ids){
   const c=chartTextColors();
   const focusIds=windFocusIds(ids);
