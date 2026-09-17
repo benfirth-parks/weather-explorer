@@ -88,73 +88,124 @@ export default async (req) => {
   }
 
   const store = getStore(STORE_NAME);
-  const existing = await store.get(archiveKey(stationId), { type: "json" });
-  const existingObservations = existing?.observations && Array.isArray(existing.observations)
-    ? existing.observations : [];
-  const existingBefore = existingObservations.length;
 
-  // Merge with EXISTING WINS
+  // ------------------------------------------------------------------
+  // Merge with EXISTING WINS, protected against Netlify Blobs eventual
+  // consistency: use getWithMetadata to grab the current etag, then
+  // setJSON with onlyIfMatch. On 412 (someone else wrote between our
+  // read and write) reload and retry up to 5 times with exponential
+  // backoff. Without this, chunked imports silently overwrite each
+  // other because the second chunk's get() returns pre-write state.
+  // ------------------------------------------------------------------
   const cutoff = Date.now() - RETENTION_MS;
-  const byTs = new Map();
-  // seed with existing (retention already applied historically)
-  for (const rec of existingObservations) {
-    const t = new Date(rec.measurementDateTime).getTime();
-    if (!Number.isFinite(t)) continue;
-    // do NOT re-apply cutoff to existing records — trust what's there
-    byTs.set(rec.measurementDateTime, rec);
-  }
   let newlyAdded = 0;
   let overlapKeptExisting = 0;
   let droppedByRetention = 0;
   let droppedInvalid = 0;
+  let existingBefore = 0;
+  let mergedLength = 0;
+  let finalArchive = null;
 
-  for (const rec of incoming) {
-    const iso = String(rec?.measurementDateTime || "");
-    const t = new Date(iso).getTime();
-    if (!iso || !Number.isFinite(t)) { droppedInvalid++; continue; }
-    if (t < cutoff) { droppedByRetention++; continue; }
-    if (byTs.has(iso)) { overlapKeptExisting++; continue; }
-    // sanitize to known fields only (schema unchanged)
-    const clean = {};
-    for (const [k, v] of Object.entries(rec)) {
-      if (KNOWN_FIELDS.has(k) && v !== null && v !== undefined) clean[k] = v;
+  const MAX_ATTEMPTS = 6;
+  let attempt = 0;
+  while (attempt < MAX_ATTEMPTS) {
+    attempt++;
+    // reset per-attempt counters
+    newlyAdded = 0;
+    overlapKeptExisting = 0;
+    droppedByRetention = 0;
+    droppedInvalid = 0;
+
+    const existingRes = await store.getWithMetadata(archiveKey(stationId), { type: "json" });
+    const existing = existingRes?.data ?? null;
+    const etag = existingRes?.etag ?? null;
+    const existingObservations = existing?.observations && Array.isArray(existing.observations)
+      ? existing.observations : [];
+    existingBefore = existingObservations.length;
+
+    const byTs = new Map();
+    for (const rec of existingObservations) {
+      const t = new Date(rec.measurementDateTime).getTime();
+      if (!Number.isFinite(t)) continue;
+      byTs.set(rec.measurementDateTime, rec);
     }
-    if (!clean.measurementDateTime) { droppedInvalid++; continue; }
-    byTs.set(iso, clean);
-    newlyAdded++;
+
+    for (const rec of incoming) {
+      const iso = String(rec?.measurementDateTime || "");
+      const t = new Date(iso).getTime();
+      if (!iso || !Number.isFinite(t)) { droppedInvalid++; continue; }
+      if (t < cutoff) { droppedByRetention++; continue; }
+      if (byTs.has(iso)) { overlapKeptExisting++; continue; }
+      const clean = {};
+      for (const [k, v] of Object.entries(rec)) {
+        if (KNOWN_FIELDS.has(k) && v !== null && v !== undefined) clean[k] = v;
+      }
+      if (!clean.measurementDateTime) { droppedInvalid++; continue; }
+      byTs.set(iso, clean);
+      newlyAdded++;
+    }
+
+    const merged = [...byTs.values()]
+      .sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
+    mergedLength = merged.length;
+
+    const archive = {
+      archiveVersion: 1,
+      stationId,
+      retainedYears: 3,
+      lastSyncedAt: existing?.lastSyncedAt || new Date().toISOString(),
+      lastHistoricalImportAt: new Date().toISOString(),
+      observationCount: merged.length,
+      observations: merged
+    };
+    if (existing?.lastFtsRequestStart) archive.lastFtsRequestStart = existing.lastFtsRequestStart;
+    if (existing?.lastFtsRecordCount !== undefined) archive.lastFtsRecordCount = existing.lastFtsRecordCount;
+
+    try {
+      // If the key didn't exist yet, etag is null: use onlyIfNew to prevent
+      // a race where another writer created it in the meantime.
+      const opts = etag ? { onlyIfMatch: etag } : { onlyIfNew: true };
+      const res = await store.setJSON(archiveKey(stationId), archive, opts);
+      // Docs: setJSON with condition returns { modified: bool } (or throws).
+      if (res && res.modified === false) {
+        // condition failed — someone wrote first, retry
+        await new Promise(r => setTimeout(r, 150 * Math.pow(2, attempt - 1)));
+        continue;
+      }
+      finalArchive = archive;
+      break;
+    } catch (err) {
+      // Some SDK versions throw on precondition failure instead of returning
+      // modified:false. Retry on any error — last attempt will surface it.
+      if (attempt >= MAX_ATTEMPTS) {
+        return json(500, {
+          ok: false, error: "blob-write-conflict-persisted",
+          message: String(err?.message || err),
+          attempts: attempt
+        });
+      }
+      await new Promise(r => setTimeout(r, 150 * Math.pow(2, attempt - 1)));
+    }
   }
 
-  const merged = [...byTs.values()]
-    .sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
-
-  const archive = {
-    archiveVersion: 1,
-    stationId,
-    retainedYears: 3,
-    lastSyncedAt: existing?.lastSyncedAt || new Date().toISOString(),
-    lastHistoricalImportAt: new Date().toISOString(),
-    observationCount: merged.length,
-    observations: merged
-  };
-  // preserve any other fields the live sync writes
-  if (existing?.lastFtsRequestStart) archive.lastFtsRequestStart = existing.lastFtsRequestStart;
-  if (existing?.lastFtsRecordCount !== undefined) archive.lastFtsRecordCount = existing.lastFtsRecordCount;
-
-  await store.setJSON(archiveKey(stationId), archive);
+  if (!finalArchive) {
+    return json(409, { ok: false, error: "conflict-max-attempts", attempts: attempt });
+  }
 
   return json(200, {
     ok: true,
     stationId,
     incoming: incoming.length,
     existingBefore,
-    kept: merged.length,
+    kept: mergedLength,
     newlyAdded,
     overlapKeptExisting,
     droppedByRetention,
     droppedInvalid,
-    totalAfter: merged.length,
-    lastSyncedAt: archive.lastSyncedAt,
-    lastHistoricalImportAt: archive.lastHistoricalImportAt
+    totalAfter: mergedLength,
+    attempts: attempt,
+    lastSyncedAt: finalArchive.lastSyncedAt,
+    lastHistoricalImportAt: finalArchive.lastHistoricalImportAt
   });
 };
 
