@@ -83,8 +83,8 @@ export default async (req) => {
   if (!stationId || !incoming) {
     return json(400, { ok: false, error: "missing-fields", need: ["stationId", "observations[]"] });
   }
-  if (incoming.length > 20000) {
-    return json(413, { ok: false, error: "chunk-too-large", max: 20000, got: incoming.length });
+  if (incoming.length > 30000) {
+    return json(413, { ok: false, error: "chunk-too-large", max: 30000, got: incoming.length });
   }
 
   const store = getStore(STORE_NAME);
