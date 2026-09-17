@@ -43,43 +43,68 @@ from typing import Iterable
 # ---------------------------------------------------------------------------
 # Station catalog: NESDIS DCP address -> station-id used in the site.
 #
-# NOTE: Values marked "TODO" are placeholders — Avalanche Canada exposed the
-# 8-hex NESDIS ID for most stations, but a subset (Rogers/Fidelity/Abbott/
-# Asulkan/Heather Hill/Hermit/MacDonald/Rockfall/Round Hill/Klotz) is
-# listed by station code, not NESDIS ID. Those need to be looked up in the
-# NOAA PDT (Platform Description Table) once we have LRGS access, or matched
-# via the DCP name field.
+# All 8-hex DCP addresses cross-verified against the NOAA authoritative
+# Platform Description Table (PDT) dump at
+#   https://dcs1.noaa.gov/pdts_compressed.txt
+# on 2026-09-17. PDT description and decoded lat/lon confirmed each mapping.
+#
+# Ownership breakdown (from PDT owner code, cols 0-6):
+#   PCGCCA  — Parks Canada (Government of Canada)
+#   ALBERT  — Alberta Environment / Water Supply
+#
+# TODO — no NESDIS address yet for:
+#   * Glacier / Rogers Pass BC MoTI stations: ROGER_60, FID_60, ABB_60,
+#     Asulk_60, HTHR_60, HERM_60, MACD_60, ROCKF_60, RHILL_60, KLOTZ_60
+#     (Avalanche Canada exposes them by station code, not DCP address)
+#   * fts-tangleridge — no matching station in current PDT dump
 # ---------------------------------------------------------------------------
 STATIONS: dict[str, str] = {
-    # confirmed 8-hex NESDIS DCP addresses (from Avalanche Canada API)
-    "CBA5910C": "fts-boslo",            # Bosworth Lower
-    "CBA5B7E0": "fts-bosup",            # Bosworth Upper
-    "CBA270CA": "fts-vulture",          # Vulture Peak
-    "C2B16F9E": "fts-bigbend",          # Big Bend  (skip per user)
-    "CBA56188": "fts-tangleridge",      # Tangle Ridge  (skip per user)
-    "CBA233C0": "fts-bowsummit",        # Bow Summit
-    "C2B00882": "fts-maligne",          # Maligne
-    "C2B17CE8": "fts-coleman",          # Coleman
-    "CBA47004": "fts-boulder",          # Boulder Creek
-    "CBA5E79C": "fts-lookout",          # Lookout
-    "CBA25626": "fts-simplo",           # Simpson Lower
-    "CBA263BC": "fts-simpup",           # Simpson Upper
-    "CBA5C170": "fts-stanley",          # Stanley
-    "C2B02E6E": "fts-whymper",          # Whymper
-    "44548250": "fts-sunshine",         # Sunshine Village
-    "CBA06648": "fts-waterton",         # Waterton Townsite (not currently in site)
-    "CBA096CC": "fts-summitlake",       # Summit Lake       (not currently in site)
-    "4441041A": "fts-akamina",          # Akamina Pass      (not currently in site)
-    # TODO — need NESDIS lookup for these Glacier / Rogers Pass stations:
-    #   ROGER_60, FID_60, ABB_60, Asulk_60, HTHR_60, HERM_60, MACD_60,
-    #   ROCKF_60, RHILL_60, KLOTZ_60
+    # --- Avalanche Canada / Parks Canada FTS (PDT owner PCGCCA) --------
+    "CBA5910C": "fts-boslo",            # AVI BOSWORTH LOWER - LLYK
+    "CBA5B7E0": "fts-bosup",            # AVI BOSWORTH UPPER - LLYK
+    "CBA270CA": "fts-vulture",          # AVI VULTURE PEAK - LLYK
+    "CBA233C0": "fts-bowsummit",        # AVI BOW SUMMIT - LLYK
+    "C2B00882": "fts-maligne",          # MALIGNE - JASPER NP
+    "C2B17CE8": "fts-coleman",          # AVI COLEMAN - JASPER NP
+    "CBA47004": "fts-boulder",          # BOULDER CREEK - LLYK
+    "CBA5E79C": "fts-lookout",          # AVI LOOKOUT - BANFF NP
+    "CBA25626": "fts-simplo",           # AVI SIMPSON LOWER - LLYK
+    "CBA263BC": "fts-simpup",           # AVI SIMPSON UPPER - LLYK
+    "CBA5C170": "fts-stanley",          # AVI STANLEY LOWER - LLYK
+    "C2B02E6E": "fts-whymper",          # AVI WHYMPER - BANFF NP
+    "C2B01BF4": "fts-lakelouise",       # LAKE LOUISE - LLYK
+    "CBA4A66C": "fts-vermillion",       # VERMILLION CROSSING - LLYK
+    "C2B14972": "fts-castle",           # CASTLE - BANFF NP
+    "CBA15128": "fts-devona",           # DEVONA - JASPER NP
+    "C2B058FE": "fts-rangercreek",      # RANGER CREEK - JASPER NP
+    # --- Alberta / other FTS (PDT owner ALBERT) ------------------------
+    "44548250": "fts-sunshine",         # SUNSHINE VILLAGE
+    "4441E7E8": "fts-skoki",            # SKOKI
+    "4454C15A": "fts-pikarun",          # PIKA RUN
+    "4455A646": "fts-bowprecip",        # BOW SUMMIT (Alberta precip gauge)
+    # --- Skip-per-user (kept for LRGS request completeness) ------------
+    "C2B16F9E": "fts-bigbend",          # AVI BIG BEND - JASPER NP  (skip)
+    "CBA56188": "fts-parkerupper",      # AVI PARKER UPPER - JASPER NP (skip; was mislabeled tangleridge)
+    "CBA24550": "fts-saskcrossing",     # SASKATCH CROSSING - LLYK  (skip)
+    "C2B0DEEA": "fts-jasperqd1",        # JASPER QD1 - JASPER NP    (skip)
+    "CBA164B2": "fts-dorothy",          # DOROTHY - JASPER NP       (skip)
+    # --- Not yet in site (Waterton, per-user disregard) ----------------
+    "CBA06648": "fts-waterton",         # WATERTON TOWNSITE - WATERTON NP (skip)
+    "CBA096CC": "fts-summitlake",       # SUMMIT LAKE - WATERTON NP       (skip)
+    "4441041A": "fts-akamina",          # AKAMINA PASS 2                  (skip)
 }
 
-# Stations to skip per user instruction ("disregard jasper stations":
-# baseline-failing set).
+# Stations to skip per user instruction:
+#   "disregard jasper stations" — 5 baseline-failing
+#   "disregard Waterton stations" — Akamina, Summit Lake, Waterton Townsite,
+#      plus Bertha Mid/Ridge (no NESDIS)
+#   "disregard the five new stations" — Parker Upper, Yoho (EnvCan), Waterton set
 SKIP_STATIONS = {
+    # Baseline-failing Jasper set
     "fts-jasperqd1", "fts-dorothy", "fts-saskcrossing",
     "fts-bigbend", "fts-tangleridge",
+    # New / Waterton set
+    "fts-parkerupper", "fts-waterton", "fts-summitlake", "fts-akamina",
 }
 
 
