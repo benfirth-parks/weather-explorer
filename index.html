@@ -1239,6 +1239,7 @@ function renderKPIs(ids){
       const summaries=partners.map(stationSummary);
       const card=document.createElement('div');
       card.className='kpi kpi-pair';
+      card.dataset.pairIds=pair.ids.join(',');
       card.style.background=`linear-gradient(90deg, ${summaries[0].station.color}14, ${summaries[summaries.length-1].station.color}14), var(--color-surface-offset)`;
       card.innerHTML=`<div class="kpi-pair-title">${pair.label}</div>`+
         `<div class="kpi-pair-body">`+
@@ -2103,5 +2104,15 @@ function renderSummaryMarkdown(md){
   setInterval(fetchOnce, POLL_MS);
 })();
 </script>
+<script>
+window.weatherPairComparisonHost = {
+  stations: STATION_BY_ID,
+  noPrecipGaugeIds: NO_PRECIP_GAUGE_IDS,
+  hiddenWindIds: HIDE_WIND_IDS,
+  fetchRecords: fetchFTS360Station
+};
+</script>
+<link rel="stylesheet" href="/assets/pair-comparisons.css">
+<script type="module" src="/assets/pair-comparisons.js"></script>
 </body>
 </html>

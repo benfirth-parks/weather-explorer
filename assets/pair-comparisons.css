@@ -1,0 +1,26 @@
+/* Scoped to the new drill-down; inherit the existing desktop/mobile theme. */
+.kpi-pair:has(.pair-compare) { align-self:start; }
+.pair-compare { margin-top:12px; border-top:1px solid var(--color-border); color:var(--color-text); font-size:12px; min-width:0; }
+.pair-compare > summary { display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:44px; color:var(--color-primary); font-size:13px; font-weight:600; cursor:pointer; list-style:none; }
+.pair-compare > summary::-webkit-details-marker { display:none; }
+.pair-compare > summary::after { content:"+"; font-size:19px; font-weight:400; }
+.pair-compare[open] > summary::after { content:"−"; }
+.pair-compare > summary:focus-visible, .pair-compare button:focus-visible { outline:2px solid var(--color-primary); outline-offset:3px; border-radius:4px; }
+.pair-compare-controls { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
+.pair-compare-group { display:flex; flex-wrap:wrap; gap:3px; }
+.pair-compare button { font:inherit; cursor:pointer; background:var(--color-surface); color:var(--color-text-muted); border:1px solid var(--color-border); border-radius:4px; padding:6px 8px; min-height:34px; }
+.pair-compare button[aria-pressed="true"] { background:var(--color-primary-highlight); border-color:var(--color-primary); color:var(--color-primary); font-weight:600; }
+.pair-compare button:hover { border-color:var(--color-primary); color:var(--color-text); }
+.pair-compare-legend { display:grid; gap:6px; margin-bottom:10px; line-height:1.5; }
+.pair-compare-legend > span { display:flex; align-items:baseline; gap:7px; min-width:0; overflow-wrap:anywhere; }
+.pair-compare-swatch { display:inline-block; width:16px; flex:0 0 16px; border-top:3px solid; }
+.pair-compare-legend > span:nth-child(2) .pair-compare-swatch { border-top-style:dashed; }
+.pair-compare-chart { position:relative; height:230px; min-width:0; }
+.pair-compare-chart[hidden] { display:none; }
+.pair-compare-status { color:var(--color-text-muted); line-height:1.6; margin:10px 0 0; font-size:12px; }
+.pair-compare-note { color:var(--color-text-muted); line-height:1.6; margin:7px 0 0; font-size:12px; }
+.pair-compare-retry { margin-top:8px; }
+@media (max-width:768px) {
+  .pair-compare button { min-height:40px; padding:7px 9px; }
+  .pair-compare-chart { height:240px; }
+}
