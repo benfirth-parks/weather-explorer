@@ -42,3 +42,11 @@ test('no accumulation spans missing hours or crosses the start boundary', () => 
   assert.equal(result.total, 1);
   assert.equal(result.partial, true);
 });
+test('HS change is relative to the window start and rejects spikes', async () => {
+  const {hsChangeSeries} = await import('../assets/pair-comparison-data.js');
+  const rows = [100, 102, 180, 105, 103].map((v, i) => record(i, {snowHeight: v}));
+  const result = hsChangeSeries(rows, 0, 6 * HOUR);
+  assert.deepEqual(result.points.map(p => p.y), [0, 2, null, 5, 3]);
+  assert.equal(result.total, 3);
+  assert.equal(hsChangeSeries([record(1, {snowHeight: null})], 0, 2 * HOUR).total, null);
+});

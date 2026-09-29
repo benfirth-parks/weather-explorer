@@ -91,3 +91,28 @@ export function matchedDifference(first, second, tolerance = 30 * 60000) {
   }
   return {count, difference: count ? sum / count : null};
 }
+// Change in HS since the window start (cm). Positive values are snow gain; settlement shows as a decline.
+// Uses the dashboard's HS rules: 0–600 cm and no step over 30 cm from the last accepted reading.
+export function hsChangeSeries(records, from, to) {
+  const rows = ordered(records).filter(r => r.x <= to);
+  let last = null, baseline = null, partial = false;
+  const points = [];
+  for (const row of rows) {
+    const raw = numeric(row.snowHeight);
+    let value = raw !== null && raw >= 0 && raw <= 600 ? raw : null;
+    if (value !== null && last && Math.abs(value - last.value) > 30) value = null;
+    if (row.x < from) {
+      if (value !== null) last = {x: row.x, value};
+      continue;
+    }
+    if (value === null) { partial = true; points.push({x: row.x, y: null}); continue; }
+    if (baseline === null) {
+      // Anchor to a reading just before the window if one exists within the gap tolerance.
+      baseline = last && from - last.x <= MAX_GAP ? last.value : value;
+    }
+    points.push({x: row.x, y: Math.round((value - baseline) * 10) / 10});
+    last = {x: row.x, value};
+  }
+  const valid = points.filter(p => p.y !== null);
+  return {points: withGaps(points), partial, total: valid.length ? valid.at(-1).y : null, method: 'HS change'};
+}
