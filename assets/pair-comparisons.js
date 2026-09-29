@@ -12,6 +12,11 @@ const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days']];
 const HS_PRECIP_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo']);
 /* Pairs whose precipitation is drawn as rolling HN24 / HW24 bars; all others show the rolling 24 h change in HS. */
 const BAR_PAIRS = new Set(['fts-vulture,fts-bowsummit', 'fts-lookout,fts-sunshine']);
+/* Extra 24 h precipitation bars: the Bow Summit AB Env gauge's HW24 alongside Bow Summit's HN24.
+   (Sunshine's own gauge HW24 is already drawn; its new-snow field is not usable as HN24.) */
+const EXTRA_PRECIP = {
+  'fts-vulture,fts-bowsummit': [{id: 'fts-bowprecip', kind: 'hw24'}]
+};
 const clock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
 const dayClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', month:'short', day:'numeric'});
 const hourClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', hour:'2-digit', minute:'2-digit', hour12:false});
@@ -120,12 +125,36 @@ async function render(view) {
   view.legend.replaceChildren();
   view.chartBox.hidden = true;
   view.retry.hidden = true;
-  const results = await Promise.allSettled(ids.map(id => records(id, hours)));
+  const extras = (EXTRA_PRECIP[ids.join(',')] || []).filter(e => host.stations[e.id]);
+  const [results, extraResults] = await Promise.all([
+    Promise.allSettled(ids.map(id => records(id, hours))),
+    Promise.allSettled(extras.map(e => records(e.id, hours)))
+  ]);
   if (version !== view.version || !view.card.isConnected || !view.state.open) return;
   view.panel.setAttribute('aria-busy', 'false');
 
   const datasets = [], facts = [], notes = [];
   const precipUnits = new Set();
+  const bars = BAR_PAIRS.has(ids.join(','));
+  const series = {hn24: hn24Series, hs24: hs24Series, hw24: hw24Series};
+  // One precipitation series; centimetre (HN24/ΔHS) and millimetre (HW24) values get separate axes.
+  function addPrecip(station, data, kind) {
+    const precip = series[kind](data, from, to), name = station.name, color = station.color;
+    if (!precip.latest) return;
+    const unit = kind === 'hw24' ? 'mm' : 'cm', label = precip.method, axis = unit === 'mm' ? 'yMm' : 'yCm';
+    precipUnits.add(unit);
+    datasets.push(bars
+      ? {type: 'bar', label: `${name} ${label}`, unit, kind: 'bar', data: precip.points, yAxisID: axis, order: 10,
+          borderColor: color, backgroundColor: unit === 'mm' ? color + '30' : color + '99', borderWidth: unit === 'mm' ? 1 : 0,
+          barPercentage: 0.95, categoryPercentage: 1, grouped: true}
+      : {label: `${name} ${label}`, unit, kind: 'precip', data: precip.points, yAxisID: axis,
+          borderColor: color, backgroundColor: color + '22', borderWidth: 1.6, borderDash: [7, 3], fill: 'origin', tension: 0.2});
+    const sign = v => (kind === 'hs24' && v > 0 ? '+' : '');
+    let fact = `${name} ${label} now **${sign(precip.latest.y)}${precip.latest.y.toFixed(1)} ${unit}**`;
+    if (precip.peak && precip.peak.y > precip.latest.y) fact += `, peak **${sign(precip.peak.y)}${precip.peak.y.toFixed(1)} ${unit}** at ${when(precip.peak.x, hours)}`;
+    facts.push(fact);
+    if (precip.partial) notes.push(`${name}: some ${label} values unavailable (missing or rejected readings, or no baseline 24 h earlier).`);
+  }
   results.forEach((result, i) => {
     const id = ids[i], station = host.stations[id], color = station.color;
     const name = station.name;
@@ -149,24 +178,16 @@ async function render(view) {
         if (pk) facts.push(`${name} peak wind **${pk.y.toFixed(0)} km/h** at ${when(pk.x, hours)}`);
       }
     }
-    const bars = BAR_PAIRS.has(ids.join(','));
-    let precip = null, unit = 'mm';
-    if (HS_PRECIP_IDS.has(id)) { precip = bars ? hn24Series(data, from, to) : hs24Series(data, from, to); unit = 'cm'; }
-    else if (!host.noPrecipGaugeIds.has(id)) precip = hw24Series(data, from, to);
-    if (precip && precip.latest) {
-      const label = precip.method;
-      precipUnits.add(`${label} ${unit}`);
-      datasets.push(bars
-        ? {type: 'bar', label: `${name} ${label}`, unit, kind: 'bar', data: precip.points, yAxisID: 'yPrecip', order: 10,
-            borderColor: color, backgroundColor: color + '66', borderWidth: 0, barPercentage: 1, categoryPercentage: 1, grouped: false}
-        : {label: `${name} ${label}`, unit, kind: 'precip', data: precip.points, yAxisID: 'yPrecip',
-            borderColor: color, backgroundColor: color + '22', borderWidth: 1.6, borderDash: [7, 3], fill: 'origin', tension: 0.2});
-      const sign = v => (unit === 'cm' && label !== 'HN24' && v > 0 ? '+' : '');
-      let fact = `${name} ${label} now **${sign(precip.latest.y)}${precip.latest.y.toFixed(1)} ${unit}**`;
-      if (precip.peak && precip.peak.y > precip.latest.y) fact += `, peak **${sign(precip.peak.y)}${precip.peak.y.toFixed(1)} ${unit}** at ${when(precip.peak.x, hours)}`;
-      facts.push(fact);
-      if (precip.partial) notes.push(`${name}: some ${label} values unavailable (missing or rejected readings, or no baseline 24 h earlier).`);
-    }
+    let kind = null;
+    if (HS_PRECIP_IDS.has(id)) kind = bars ? 'hn24' : 'hs24';
+    else if (!host.noPrecipGaugeIds.has(id)) kind = 'hw24';
+    if (kind) addPrecip(station, data, kind);
+  });
+
+  extraResults.forEach((result, i) => {
+    const station = host.stations[extras[i].id];
+    if (result.status === 'fulfilled') addPrecip(station, result.value, extras[i].kind);
+    else notes.push(`${station.name}: archive unavailable.`);
   });
 
   if (!datasets.length) {
@@ -182,7 +203,7 @@ async function render(view) {
     const item = element('span');
     const swatch = element('i', `pair-compare-swatch ${d.kind}`);
     swatch.style.borderColor = d.borderColor;
-    if (d.kind === 'precip' || d.kind === 'bar') swatch.style.background = d.backgroundColor;
+    if (d.kind === 'precip' || d.kind === 'bar') { swatch.style.background = d.backgroundColor; if (d.unit === 'mm' && d.kind === 'bar') swatch.style.borderStyle = 'solid'; }
     swatch.setAttribute('aria-hidden', 'true');
     item.append(swatch, document.createTextNode(`${d.label} (${d.unit})`));
     view.legend.append(item);
@@ -191,7 +212,7 @@ async function render(view) {
   view.note.textContent = [
     `Rolling ${ranges.find(r => r[0] === hours)[1]} ending ${clock.format(to)} MST.`,
     datasets.some(d => d.kind === 'bar')
-      ? 'Solid = temperature, dotted = wind, bars = rolling 24 h totals at each reading (HN24 from HS in cm; HW24 from the gauge in mm).'
+      ? 'Solid = temperature, dotted = wind, bars = rolling 24 h totals at each reading (HN24 in cm, from the new-snow sensor or HS; HW24 in mm, from the precipitation gauge).'
       : 'Solid = temperature, dotted = wind, dashed/shaded = change in HS over the previous 24 h at each reading (cm; settlement is negative).',
     ...notes
   ].join(' ');
@@ -201,9 +222,8 @@ async function render(view) {
   const text = css.getPropertyValue('--color-text-muted').trim();
   const grid = css.getPropertyValue('--color-divider').trim();
   const tick = {color: text, font: {size: 11}};
-  const precipTitle = [...precipUnits].join(' / ');
+  const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && (d.kind === 'bar' || d.kind === 'precip')).map(d => d.label.split(' ').at(-1) === '24h' ? 'ΔHS 24h' : d.label.split(' ').at(-1)))].join(' / ') + ' ' + unit;
   const hasWind = datasets.some(d => d.kind === 'wind');
-  const hasPrecip = precipUnits.size > 0;
   view.chart = new window.Chart(view.canvas, {
     type: 'line',
     data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
@@ -227,7 +247,9 @@ async function render(view) {
             callback: value => hours === 24 ? hourClock.format(value) : (hours === 72 ? `${dayClock.format(value)} ${hourClock.format(value)}` : dayClock.format(value))}},
         yTemp: {position: 'left', title: {display: true, text: '°C', color: text}, grid: {color: grid}, ticks: tick},
         yWind: {display: hasWind, position: 'right', beginAtZero: true, title: {display: true, text: 'km/h', color: text}, grid: {drawOnChartArea: false}, ticks: tick},
-        yPrecip: {display: hasPrecip, position: 'right', title: {display: true, text: precipTitle, color: text}, grid: {drawOnChartArea: false}, ticks: tick,
+        yCm: {display: precipUnits.has('cm'), position: 'right', title: {display: true, text: axisTitle('cm'), color: text}, grid: {drawOnChartArea: false}, ticks: tick,
+          suggestedMin: 0, suggestedMax: 2},
+        yMm: {display: precipUnits.has('mm'), position: 'right', title: {display: true, text: axisTitle('mm'), color: text}, grid: {drawOnChartArea: false}, ticks: tick,
           suggestedMin: 0, suggestedMax: 2}
       }
     }
