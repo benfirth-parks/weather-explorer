@@ -106,6 +106,35 @@ function bearingDelta(a, b) {
 /* Round to 1 decimal, or return null. */
 function round1(v) { return v === null ? null : Math.round(v * 10) / 10; }
 
+/* Stations with no precipitation gauge — mirrors NO_PRECIP_GAUGE_IDS in index.html. */
+const NO_PRECIP_GAUGE_IDS = new Set(["fts-vulture", "fts-simpup", "fts-simplo", "fts-bowsummit"]);
+const PC_MAX_STEP = 50;
+/* 24h gauge precipitation (HW24), computed the same way as the dashboard's 24h station
+   summary table: sum the positive steps of the running total (ignoring gauge-service resets
+   and >50 mm jumps), fall back to per-interval increments when the total is dead, and
+   reject implausible 24h totals (>150 mm). */
+function hw24(meta, observations) {
+  if (NO_PRECIP_GAUGE_IDS.has(meta.stationId)) return null;
+  let fromTotal = null, prev = null, totalPts = 0;
+  for (const o of observations) {
+    const v = num(o.precipTotal);
+    if (v === null || v < 0 || v > 5000) continue;
+    totalPts += 1;
+    if (prev !== null) { const step = v - prev; if (step >= 0 && step <= PC_MAX_STEP) fromTotal = (fromTotal || 0) + step; }
+    prev = v;
+  }
+  if (totalPts >= 2 && fromTotal === null) fromTotal = 0;
+  let fromIncr = null;
+  for (const o of observations) {
+    const v = num(o.precipIncr);
+    if (v === null || v < 0 || v > PC_MAX_STEP) continue;
+    fromIncr = (fromIncr || 0) + v;
+  }
+  let total = fromTotal === null ? fromIncr : (fromIncr !== null && fromTotal === 0 && fromIncr > 0 ? fromIncr : fromTotal);
+  if (total === null || total < 0 || total > 150) return null;
+  return Math.round(total * 10) / 10;
+}
+
 /* Roll a single station's 24h archive slice into a compact snapshot.
    `station_id` (opaque) replaces the station name in the LLM payload so
    the model has no proper noun to name-drop — it can only report by
@@ -189,11 +218,7 @@ function summarizeStation(meta, observations, lastSyncedAt) {
   const earlyPrecip = precipDelta(earlyObs);
   const latePrecip  = precipDelta(lateObs);
 
-  const precipStart = observations.find((o) => num(o.precipTotal) !== null);
-  const precipEndVal = latest(observations, "precipTotal");
-  const precip24h = (precipStart !== undefined && precipEndVal !== null && num(precipStart?.precipTotal) !== null)
-    ? Math.max(0, precipEndVal - num(precipStart.precipTotal))
-    : null;
+  const precip24h = hw24(meta, observations);
 
   const snowStart = observations.find((o) => num(o.snowHeight) !== null);
   const snowEndVal = latest(observations, "snowHeight");
@@ -246,6 +271,33 @@ function summarizeStation(meta, observations, lastSyncedAt) {
    buildSnapshot({ groups: [1, 2, 3, 4] }) for everything. */
 export const DEFAULT_GROUPS = [1, 2];
 
+/* Which station(s) set each network-wide extreme. Ties list every tied station.
+   Names are the verbatim dashboard labels. */
+function networkExtremes(stations) {
+  function pick(key, wantMax, digits) {
+    const rows = stations.filter((s) => typeof s[key] === "number" && Number.isFinite(s[key]));
+    if (!rows.length) return null;
+    const best = wantMax ? Math.max(...rows.map((s) => s[key])) : Math.min(...rows.map((s) => s[key]));
+    const round = (v) => Math.round(v * 10 ** digits) / 10 ** digits;
+    const tied = rows.filter((s) => round(s[key]) === round(best));
+    return {
+      value: round(best),
+      stations: tied.map((s) => s.name),
+      elevation_m: tied.map((s) => s.elevation_m),
+      hour_mst: key === "temp_high_c" ? tied[0].temp_high_hour_mst : key === "temp_low_c" ? tied[0].temp_low_hour_mst : undefined
+    };
+  }
+  const precip = pick("precip_24h_mm", true, 1);
+  return {
+    temp_high_c: pick("temp_high_c", true, 0),
+    temp_low_c: pick("temp_low_c", false, 0),
+    peak_gust_kmh: pick("wind_peak_gust_kmh", true, 0),
+    /* null when no gauge reported; value 0 means gauges reported but none measured precipitation. */
+    highest_precip_24h_mm: precip && precip.value > 0 ? precip : (precip ? { value: 0, stations: [] } : null),
+    stations_with_measurable_precip: stations.filter((s) => typeof s.precip_24h_mm === "number" && s.precip_24h_mm > 0).length
+  };
+}
+
 /* Build the snapshot for stations in the selected groups, in parallel.
    Stations with an empty archive are auto-seeded (same behaviour as
    fts.mjs) so a first-ever call still returns something useful. */
@@ -272,6 +324,7 @@ export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS } = {}
   return {
     generated_at: new Date().toISOString(),
     window_hours: hours,
+    network_extremes: networkExtremes(results),
     groups_included: groups,
     group_labels_included: groups.map((g) => GROUP_LABELS[g]).filter(Boolean),
     station_count: results.length,
@@ -291,9 +344,11 @@ Write one or two short sentences that summarize observed conditions across the n
 
 Then a blank line, then write exactly three detail bullets as a Markdown unordered list, in this order (one sentence per bullet, each line starts with "- "):
 
-- State the 24-hour high, low, and network-average temperature, and note the elevation contrast (alpine vs treeline vs below treeline) when the data shows a meaningful difference.
-- State the average wind speed, peak gust, and prevailing wind direction across the network when available.
-- State the highest single-station 24-hour precipitation total (in mm) and how many stations recorded any measurable precipitation, and precipitation type when it can be inferred from the data (rain when freezing level is above the highest reporting station; snow when new-snow or snow-depth change is present at alpine), or explicitly state that no measurable precipitation was recorded. Never sum precipitation across stations — each station's \`precip_24h_mm\` is that station's own total, not additive across the network.
+- State the 24-hour high and low temperature and the network-average temperature, naming the station that recorded the high and the station that recorded the low, and note the elevation contrast (alpine vs treeline vs below treeline) when the data shows a meaningful difference.
+- State the average wind speed, the peak gust with the station that recorded it, and prevailing wind direction across the network when available.
+- State the highest single-station 24-hour precipitation total (in mm) with the station that recorded it, and how many stations recorded any measurable precipitation, and precipitation type when it can be inferred from the data (rain when freezing level is above the highest reporting station; snow when new-snow or snow-depth change is present at alpine), or explicitly state that no measurable precipitation was recorded. Never sum precipitation across stations — each station's \`precip_24h_mm\` is that station's own total, not additive across the network.
+
+Station attribution: the snapshot's \`network_extremes\` object already identifies the station(s) for the network high temperature (\`temp_high_c\`), low temperature (\`temp_low_c\`), peak gust (\`peak_gust_kmh\`) and highest 24-hour precipitation (\`highest_precip_24h_mm\`). Use those values and station names exactly — do not re-rank stations yourself. If an extreme lists more than one station, name them all. If \`highest_precip_24h_mm\` has no stations or is null, say no measurable precipitation was recorded and name no station. Write station names verbatim from the \`stations\` list — the same label the dashboard's 24h station summary table shows, including any trailing operator suffix like " - AB Env", "- Fire", or "- AB ENV/ LLSA". Do not shorten or re-punctuate names. Example: "The high was **9 °C** at Castle - Fire and the low **-6 °C** at Vulture Peak."
 
 Add a fourth bullet (same list, same "- " prefix) ONLY when the supplied data verifies a meaningful anomaly, outlier, sharp change, unusual timing, or regional contrast (north/south or east/west of Lake Louise). When naming a station in this bullet, use the \`name\` field verbatim — the same label the dashboard's 24h station summary table shows, including any trailing operator suffix like " - AB Env", "- Fire", or "- AB ENV/ LLSA". Do not shorten or re-punctuate the name.
 
@@ -307,7 +362,7 @@ Round: temperatures to whole °C, wind to whole km/h, precipitation to 0.1 mm.
 
 Time-of-day references use Mountain Standard Time (MST). Fields ending \`_hour_mst\` are already MST hours (0–23). Never mention UTC. Prefer plain phrasing ("peaked mid-afternoon", "coldest just before dawn", "overnight") over exact clock times.
 
-Keep the entire summary under 110 words.
+Keep the entire summary under 130 words.
 
 Do not mention operational groups or agencies as prose (no "Visitor Safety", "VS", "Fire crew", "Banff Fire"). Suffixes that appear inside a station's verbatim \`name\` (e.g. "- Fire", "- AB Env") are fine when quoting that name.
 

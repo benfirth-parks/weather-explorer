@@ -16,7 +16,7 @@
 import { getStore } from "@netlify/blobs";
 import { buildSnapshot, SYSTEM_PROMPT } from "./_ai-summary.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v1";
+const CACHE_STORE = "rockies-weather-ai-summary-v2"; /* v2: station-attributed extremes */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
@@ -99,7 +99,7 @@ export default async (request) => {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user",   content: userContent }
         ],
-        max_tokens: 300,
+        max_tokens: 380,
         temperature: 0.2,
         disable_search: true
       })
