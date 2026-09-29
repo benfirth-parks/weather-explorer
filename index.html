@@ -1302,14 +1302,16 @@ function renderHighLow(ids){
    the mean of the per-station HW increments (stations without a gauge are excluded), accumulated. */
 function selectedAverageSeries(ids,bucketMs){
   const key=t=>Math.floor(t/bucketMs)*bucketMs;
-  const temp=new Map(), wind=new Map(), precip=new Map();
+  const temp=new Map(), wind=new Map(), precip=new Map(), dirVec=new Map();
   const add=(map,k,id,v)=>{let b=map.get(k); if(!b){b=new Map(); map.set(k,b);} const s=b.get(id)||{sum:0,n:0}; s.sum+=v; s.n++; b.set(id,s);};
   const precipIds=[];
   ids.forEach(id=>{
     const rows=windowedData(id);
     rows.forEach(d=>{const t=new Date(d.measurementDateTime).getTime(); if(!Number.isFinite(t)) return; const k=key(t);
       const a=numOf(d.airTempAvg); if(Number.isFinite(a)&&a>-60&&a<50) add(temp,k,id,a);
-      const w=numOf(d.windSpeedAvg); if(Number.isFinite(w)&&w>=0&&w<250) add(wind,k,id,w);});
+      const w=numOf(d.windSpeedAvg); if(Number.isFinite(w)&&w>=0&&w<250){ add(wind,k,id,w);
+        /* Speed-weighted vector sum of direction for the bucket (all selected stations). */
+        const dir=numOf(d.windDirAvg); if(Number.isFinite(dir)&&dir>=0&&dir<=360&&w>0){const r=dir*Math.PI/180; const v=dirVec.get(k)||{x:0,y:0}; v.x+=w*Math.sin(r); v.y+=w*Math.cos(r); dirVec.set(k,v);} }});
     if(NO_PRECIP_GAUGE_IDS.has(id)) return;
     const acc=precipAccumSeries(rows); if(acc.length<2) return; precipIds.push(id);
     for(let i=1;i<acc.length;i++){const inc=acc[i].hw-acc[i-1].hw; if(!Number.isFinite(inc)||inc<0||inc>50) continue; const t=new Date(acc[i].measurementDateTime).getTime(); const k=key(t); let b=precip.get(k); if(!b){b=new Map(); precip.set(k,b);} b.set(id,(b.get(id)||0)+inc);}
@@ -1317,7 +1319,10 @@ function selectedAverageSeries(ids,bucketMs){
   const meanOf=map=>[...map.entries()].sort((a,b)=>a[0]-b[0]).map(([k,b])=>{const vals=[...b.values()].map(s=>s.sum/s.n); return {x:new Date(k+bucketMs/2),y:Math.round(vals.reduce((p,q)=>p+q,0)/vals.length*10)/10,n:vals.length};});
   const keys=[...new Set([...precip.keys()])].sort((a,b)=>a-b); let running=0;
   const precipLine=precipIds.length?keys.map(k=>{const b=precip.get(k); running+=precipIds.reduce((s,id)=>s+(b.get(id)||0),0)/precipIds.length; return {x:new Date(k+bucketMs/2),y:Math.round(running*10)/10};}):[];
-  return {temp:meanOf(temp),wind:meanOf(wind),precip:precipLine,precipCount:precipIds.length};
+  /* Wind arrows: mean direction every 4 h (thinned on long ranges), same convention as the average-wind chart. */
+  const arrowStep=bucketMs>3600000?null:windArrowStepHours(hours);
+  const windPts=meanOf(wind).map(p=>{const k=p.x.getTime()-bucketMs/2; const v=dirVec.get(k); let dir=null; if(v&&(v.x||v.y)){dir=Math.atan2(v.x,v.y)*180/Math.PI; if(dir<0) dir+=360;} return {...p,dir,arrow:dir!==null&&(arrowStep===null||isWindArrowTime(k,arrowStep))};});
+  return {temp:meanOf(temp),wind:windPts,precip:precipLine,precipCount:precipIds.length};
 }
 function renderTrendAverage(ids,bounds,windowHours){
   const bucketMs=(windowHours>24*21?24:1)*3600000;
@@ -1330,15 +1335,15 @@ function renderTrendAverage(ids,bounds,windowHours){
   if(trendChart) trendChart.destroy();
   trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets:[
     {label:'Avg air temperature (°C)',data:s.temp,yAxisID:'yTemp',borderColor:colors.temp,backgroundColor:colors.temp+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false},
-    {label:'Avg wind speed (km/h)',data:s.wind,yAxisID:'yWind',borderColor:colors.wind,backgroundColor:colors.wind+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false},
+    {label:'Avg wind speed (km/h)',data:s.wind,yAxisID:'yWind',arrowColor:colors.wind,borderColor:colors.wind,backgroundColor:colors.wind+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false},
     {label:'Avg precipitation HW (mm, accumulated)',data:s.precip,yAxisID:'yPrecip',borderColor:colors.precip,backgroundColor:colors.precip+'33',borderWidth:2,pointRadius:0,tension:.1,fill:'origin',stepped:false}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const d=ctx.raw; const unit=ctx.dataset.yAxisID==='yTemp'?' °C':ctx.dataset.yAxisID==='yWind'?' km/h':' mm'; return `${ctx.dataset.label.split(' (')[0]}: ${d.y}${unit}${d.n?` (${d.n} stn)`:''}`;}}}},
+  ]},plugins:[windArrowPlugin],options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const d=ctx.raw; const unit=ctx.dataset.yAxisID==='yTemp'?' °C':ctx.dataset.yAxisID==='yWind'?' km/h':' mm'; return `${ctx.dataset.label.split(' (')[0]}: ${d.y}${unit}${d.dir!=null?` · from ${Math.round(d.dir)}°`:''}${d.n?` (${d.n} stn)`:''}`;}}}},
     scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit:timeUnitFor(windowHours)},ticks:{color:c.text,font},grid:{color:c.grid}},
       yTemp:{position:'left',title:{display:true,text:'°C',color:colors.temp,font},ticks:{color:colors.temp,font},grid:{color:c.grid}},
       yWind:{position:'right',beginAtZero:true,title:{display:true,text:'km/h',color:colors.wind,font},ticks:{color:colors.wind,font},grid:{drawOnChartArea:false}},
       yPrecip:{position:'right',beginAtZero:true,min:0,title:{display:true,text:'mm',color:colors.precip,font},ticks:{color:colors.precip,font},grid:{drawOnChartArea:false}}}}});
-  document.getElementById('trendLegend').innerHTML=[['temp','Avg air temperature (°C)'],['wind','Avg wind speed (km/h)'],['precip',`Avg precipitation HW, accumulated (mm) · ${s.precipCount} gauge${s.precipCount===1?'':'s'}`]].map(([k,l])=>`<span class="legend-item"><span class="legend-dot" style="background:${colors[k]}"></span>${l}</span>`).join('');
+  document.getElementById('trendLegend').innerHTML=[['temp','Avg air temperature (°C)'],['wind','Avg wind speed (km/h) · arrows show direction the wind blows toward'],['precip',`Avg precipitation HW, accumulated (mm) · ${s.precipCount} gauge${s.precipCount===1?'':'s'}`]].map(([k,l])=>`<span class="legend-item"><span class="legend-dot" style="background:${colors[k]}"></span>${l}</span>`).join('');
 }
 function renderTrend(ids){if(metric==='selectedAvg'){renderTrendAverage(ids,axisBounds(),hours);return;} const meta=METRIC_META[metric]; const bounds=axisBounds(); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw.filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join('');}
 function windFocusIds(ids){const hi=ids.filter(id=>WIND_DEFAULT_IDS.has(id)); return hi.length?hi:ids;}
