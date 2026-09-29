@@ -1482,6 +1482,23 @@ function windArrowImage(color){
   g.beginPath(); g.moveTo(8,1); g.lineTo(12.5,7); g.lineTo(3.5,7); g.closePath(); g.fill();
   windArrowCache[color]=cv; return cv;
 }
+/* Draws the direction arrows a few pixels above each line (screen space, so the offset
+   doesn't rotate with the arrow). */
+const WIND_ARROW_OFFSET_PX=11;
+const windArrowPlugin={id:'windArrows',afterDatasetsDraw(chart){
+  const g=chart.ctx, area=chart.chartArea;
+  g.save(); g.beginPath(); g.rect(area.left,area.top-WIND_ARROW_OFFSET_PX-8,area.right-area.left,area.bottom-area.top+WIND_ARROW_OFFSET_PX+8); g.clip();
+  chart.data.datasets.forEach((ds,i)=>{
+    const meta=chart.getDatasetMeta(i); if(meta.hidden||!chart.isDatasetVisible(i)) return;
+    const img=windArrowImage(ds.arrowColor||ds.borderColor);
+    meta.data.forEach((el,j)=>{
+      const p=ds.data[j]; if(!p||!p.arrow||p.dir===null) return;
+      g.save(); g.translate(el.x, el.y-WIND_ARROW_OFFSET_PX); g.rotate(((p.dir+180)%360)*Math.PI/180);
+      g.drawImage(img,-img.width/2,-img.height/2); g.restore();
+    });
+  });
+  g.restore();
+}};
 function windArrowStepHours(spanHours){return spanHours<=168?4:spanHours<=720?12:24;}
 function isWindArrowTime(ms,stepHours){const mstHour=Math.floor((ms-7*3600000)/3600000); return ((mstHour%stepHours)+stepHours)%stepHours===0;}
 function renderGust(ids){
@@ -1496,17 +1513,15 @@ function renderGust(ids){
       const arrowStep=windArrowStepHours(viewHours());
       const points=data.map(d=>{const t=new Date(d.measurementDateTime); const dir=numOf(d.windDirAvg); return {x:t,y:d.windSpeedAvg,dir:Number.isFinite(dir)&&dir>=0&&dir<=360?dir:null,arrow:isWindArrowTime(t.getTime(),arrowStep)};});
       const arrowColor=focused?s.color:s.color+'88';
-      const showArrow=ctx=>{const p=ctx.raw; return !!(p&&p.arrow&&p.dir!==null);};
       datasets.push({
         label:s.name,
         data:points,
         borderColor:focused?s.color:s.color+'55',
         backgroundColor:focused?s.color+'22':s.color+'11',
         borderWidth:focused?2.4:1.2,
-        pointStyle:ctx=>showArrow(ctx)?windArrowImage(arrowColor):'circle',
-        rotation:ctx=>showArrow(ctx)?(ctx.raw.dir+180)%360:0,
-        pointRadius:ctx=>showArrow(ctx)?8:0,
-        pointHoverRadius:ctx=>showArrow(ctx)?8:3,
+        arrowColor:arrowColor,
+        pointRadius:0,
+        pointHoverRadius:3,
         tension:.2,
         fill:false
       });
@@ -1516,6 +1531,7 @@ function renderGust(ids){
   gustChart=new Chart(document.getElementById('gustChart'),{
     type:'line',
     data:{datasets},
+    plugins:[windArrowPlugin],
     options:{
       responsive:true,
       maintainAspectRatio:false,
