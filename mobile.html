@@ -305,7 +305,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
       <div class="kpi-row" id="kpiRow"></div>
       <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">24h station summary</div><div class="panel-title-sub">Most recent rolling 24-hour window. HW is gauge precipitation in mm; HN24 is new snow in cm, from a direct sensor where available or otherwise the 24-hour depth change; HS is the most recent snow depth / height of snow in cm where a usable snow sensor is available.</div></div></div><div style="overflow:auto;"><table class="hl-table"><colgroup><col style="width:20%"><col style="width:10%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"></colgroup><thead><tr><th>Station</th><th class="hl-compact">Last updated</th><th class="hl-compact">Elev</th><th class="hl-focus">High</th><th class="hl-focus">Low</th><th class="hl-focus">Latest</th><th class="hl-focus">HW 24h</th><th class="hl-focus">HN24</th><th class="hl-focus">HS</th><th class="hl-focus">Avg wind</th><th class="hl-focus">Peak gust</th></tr></thead><tbody id="highLowBody"></tbody></table></div></div>
       <div class="panel" style="margin:var(--space-5);">
-        <div class="panel-header"><div><div class="panel-title" id="trendTitle">Temperature trend</div><div class="panel-title-sub" id="trendSub">Hourly observations</div></div><div><select class="small-select" id="mainMetricSelect"><option value="airTempAvg">Air temperature</option><option value="snowHeight">Snow height</option><option value="windSpeedAvg">Wind speed avg</option><option value="relativeHumidity">Relative humidity</option><option value="precipTotal">Precipitation HW (mm)</option></select></div></div>
+        <div class="panel-header"><div><div class="panel-title" id="trendTitle">Temperature trend</div><div class="panel-title-sub" id="trendSub">Hourly observations</div></div><div><select class="small-select" id="mainMetricSelect"><option value="airTempAvg">Air temperature</option><option value="snowHeight">Snow height</option><option value="windSpeedAvg">Wind speed avg</option><option value="relativeHumidity">Relative humidity</option><option value="precipTotal">Precipitation HW (mm)</option><option value="selectedAvg">Averages: temp, wind, precip</option></select></div></div>
         <div class="chart-box tall"><canvas id="trendChart"></canvas></div>
         <div class="legend-row" id="trendLegend"></div>
         <div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>
@@ -378,7 +378,8 @@ const METRIC_META = {
   windSpeedAvg: {label:'Wind Speed (avg)', unit:'km/h'},
   relativeHumidity: {label:'Relative Humidity', unit:'%'},
   snowHeight: {label:'Snow Height', unit:'cm'},
-  precipTotal: {label:'Precipitation (HW)', unit:'mm'}
+  precipTotal: {label:'Precipitation (HW)', unit:'mm'},
+  selectedAvg: {label:'Selected-Station Averages', unit:''}
 };
 /* ---- Only Group 1 (Banff VS) is selected on load; enable the rest from the group chips. */
 let groupFilter = new Set([1]);
@@ -947,7 +948,51 @@ function renderHighLow(ids){
     body.appendChild(tr);
   });
 }
-function renderTrend(ids){const meta=METRIC_META[metric]; const bounds=axisBounds(hours); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw,'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join('');}
+/* ---- Selected-station averages: mean temperature, mean wind and mean precipitation across the
+   stations currently selected, combined on one chart. Each station is first reduced to one value per
+   time bucket so a station reporting every 15 min does not outweigh an hourly one. Precipitation is
+   the mean of the per-station HW increments (stations without a gauge are excluded), accumulated. */
+function selectedAverageSeries(ids,bucketMs){
+  const key=t=>Math.floor(t/bucketMs)*bucketMs;
+  const temp=new Map(), wind=new Map(), precip=new Map();
+  const add=(map,k,id,v)=>{let b=map.get(k); if(!b){b=new Map(); map.set(k,b);} const s=b.get(id)||{sum:0,n:0}; s.sum+=v; s.n++; b.set(id,s);};
+  const precipIds=[];
+  ids.forEach(id=>{
+    const rows=windowedData(id);
+    rows.forEach(d=>{const t=new Date(d.measurementDateTime).getTime(); if(!Number.isFinite(t)) return; const k=key(t);
+      const a=numOf(d.airTempAvg); if(Number.isFinite(a)&&a>-60&&a<50) add(temp,k,id,a);
+      const w=numOf(d.windSpeedAvg); if(Number.isFinite(w)&&w>=0&&w<250) add(wind,k,id,w);});
+    if(NO_PRECIP_GAUGE_IDS.has(id)) return;
+    const acc=precipAccumSeries(rows); if(acc.length<2) return; precipIds.push(id);
+    for(let i=1;i<acc.length;i++){const inc=acc[i].hw-acc[i-1].hw; if(!Number.isFinite(inc)||inc<0||inc>50) continue; const t=new Date(acc[i].measurementDateTime).getTime(); const k=key(t); let b=precip.get(k); if(!b){b=new Map(); precip.set(k,b);} b.set(id,(b.get(id)||0)+inc);}
+  });
+  const meanOf=map=>[...map.entries()].sort((a,b)=>a[0]-b[0]).map(([k,b])=>{const vals=[...b.values()].map(s=>s.sum/s.n); return {x:new Date(k+bucketMs/2),y:Math.round(vals.reduce((p,q)=>p+q,0)/vals.length*10)/10,n:vals.length};});
+  const keys=[...new Set([...precip.keys()])].sort((a,b)=>a-b); let running=0;
+  const precipLine=precipIds.length?keys.map(k=>{const b=precip.get(k); running+=precipIds.reduce((s,id)=>s+(b.get(id)||0),0)/precipIds.length; return {x:new Date(k+bucketMs/2),y:Math.round(running*10)/10};}):[];
+  return {temp:meanOf(temp),wind:meanOf(wind),precip:precipLine,precipCount:precipIds.length};
+}
+function renderTrendAverage(ids,bounds,windowHours){
+  const bucketMs=(windowHours>24*21?24:1)*3600000;
+  const s=selectedAverageSeries(ids,bucketMs);
+  const c=chartTextColors(), font={family:"'Courier Prime', monospace",size:11};
+  const colors={temp:'#d9534f',wind:'#2f7fb8',precip:'#3a9d5d'};
+  const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase();
+  document.getElementById('trendTitle').textContent='Selected-Station Averages';
+  document.getElementById('trendSub').textContent=`Mean of ${ids.length} selected station${ids.length===1?'':'s'} · ${bucketMs>3600000?'daily':'hourly'} means · ${windowLabel} window`+(s.temp.length||s.wind.length||s.precip.length?'':' · no data available in this range');
+  if(trendChart) trendChart.destroy();
+  trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets:[
+    {label:'Avg air temperature (°C)',data:s.temp,yAxisID:'yTemp',borderColor:colors.temp,backgroundColor:colors.temp+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false},
+    {label:'Avg wind speed (km/h)',data:s.wind,yAxisID:'yWind',borderColor:colors.wind,backgroundColor:colors.wind+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false},
+    {label:'Avg precipitation HW (mm, accumulated)',data:s.precip,yAxisID:'yPrecip',borderColor:colors.precip,backgroundColor:colors.precip+'33',borderWidth:2,pointRadius:0,tension:.1,fill:'origin',stepped:false}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const d=ctx.raw; const unit=ctx.dataset.yAxisID==='yTemp'?' °C':ctx.dataset.yAxisID==='yWind'?' km/h':' mm'; return `${ctx.dataset.label.split(' (')[0]}: ${d.y}${unit}${d.n?` (${d.n} stn)`:''}`;}}}},
+    scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit:timeUnitFor(windowHours)},ticks:{color:c.text,font},grid:{color:c.grid}},
+      yTemp:{position:'left',title:{display:true,text:'°C',color:colors.temp,font},ticks:{color:colors.temp,font},grid:{color:c.grid}},
+      yWind:{position:'right',beginAtZero:true,title:{display:true,text:'km/h',color:colors.wind,font},ticks:{color:colors.wind,font},grid:{drawOnChartArea:false}},
+      yPrecip:{position:'right',beginAtZero:true,min:0,title:{display:true,text:'mm',color:colors.precip,font},ticks:{color:colors.precip,font},grid:{drawOnChartArea:false}}}}});
+  document.getElementById('trendLegend').innerHTML=[['temp','Avg air temperature (°C)'],['wind','Avg wind speed (km/h)'],['precip',`Avg precipitation HW, accumulated (mm) · ${s.precipCount} gauge${s.precipCount===1?'':'s'}`]].map(([k,l])=>`<span class="legend-item"><span class="legend-dot" style="background:${colors[k]}"></span>${l}</span>`).join('');
+}
+function renderTrend(ids){if(metric==='selectedAvg'){renderTrendAverage(ids,axisBounds(hours),hours);return;} const meta=METRIC_META[metric]; const bounds=axisBounds(hours); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw,'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join('');}
 function windFocusIds(ids){const hi=ids.filter(id=>WIND_DEFAULT_IDS.has(id)); return hi.length?hi:ids;}
 /* Wind speed classes per CAA OGRS 2016 (Observation Guidelines and Recording
    Standards for Weather, Snowpack and Avalanches), section 1.4.17 Wind speed.
