@@ -25,10 +25,12 @@ function withGaps(points) {
 }
 export function metricSeries(records, metric, from, to) {
   const key = metric === 'temperature' ? 'airTempAvg' : 'windSpeedAvg';
+  // Readings without this field are skipped (some loggers mix 15-min precip rows with hourly temps);
+  // real gaps over 90 min are still broken by withGaps().
   const points = ordered(records).filter(r => r.x >= from && r.x <= to).map(r => {
     const value = numeric(r[key]);
     return {x: r.x, y: value !== null && (metric !== 'wind' || value >= 0) ? value : null};
-  });
+  }).filter(p => p.y !== null);
   return {points: withGaps(points), partial: false};
 }
 export function precipitationSeries(records, from, to) {
@@ -115,4 +117,66 @@ export function hsChangeSeries(records, from, to) {
   }
   const valid = points.filter(p => p.y !== null);
   return {points: withGaps(points), partial, total: valid.length ? valid.at(-1).y : null, method: 'HS change'};
+}
+// ---- Rolling 24-hour values (the dashboard's HN24 / HW24 definitions, evaluated at every reading) ----
+const DAY = 24 * HOUR;
+// Valid HS readings: 0–600 cm and no step over 30 cm from the last accepted reading.
+export function hsValues(records) {
+  const out = [];
+  for (const row of ordered(records)) {
+    const raw = numeric(row.snowHeight);
+    if (raw === null || raw < 0 || raw > 600) continue;
+    if (out.length && Math.abs(raw - out.at(-1).y) > 30) continue;
+    out.push({x: row.x, y: raw});
+  }
+  return out;
+}
+// value(t) − value(latest reading at or before t − 24 h), only when that baseline is within 90 min of t − 24 h.
+function rolling(valid, from, to, accept) {
+  const points = [];
+  let j = 0;
+  for (const p of valid) {
+    if (p.x < from || p.x > to) continue;
+    const target = p.x - DAY;
+    while (j + 1 < valid.length && valid[j + 1].x <= target) j++;
+    const base = valid[j];
+    let y = null;
+    if (base && base.x <= target && target - base.x <= MAX_GAP) y = accept(Math.round((p.y - base.y) * 10) / 10);
+    points.push({x: p.x, y});
+  }
+  return points;
+}
+function summarise(points, method) {
+  const valid = points.filter(p => p.y !== null);
+  let peak = null;
+  for (const p of valid) if (!peak || p.y > peak.y) peak = p;
+  return {points: withGaps(points), latest: valid.length ? valid.at(-1) : null, peak, partial: valid.length < points.length, method};
+}
+// HN24 from HS: new snow over the previous 24 h; <0 or >50 cm is rejected, as on the dashboard.
+// Like the dashboard, a direct new-snow sensor wins: HN24(t) = sum of valid newSnow readings in (t − 24 h, t].
+export function hn24Series(records, from, to) {
+  const rows = ordered(records).filter(r => r.x <= to);
+  const direct = rows.map(r => ({x: r.x, v: numeric(r.newSnow)})).filter(r => r.v !== null && r.v >= 0 && r.v <= 50);
+  if (direct.length) {
+    const points = [];
+    let i = 0, sum = 0, k = 0;
+    for (const r of rows) {
+      if (r.x < from) continue;
+      while (k < direct.length && direct[k].x <= r.x) sum += direct[k++].v;
+      while (i < k && direct[i].x <= r.x - DAY) sum -= direct[i++].v;
+      const total = Math.round(sum * 10) / 10;
+      points.push({x: r.x, y: i < k && total <= 50 ? total : null});
+    }
+    return summarise(points, 'HN24');
+  }
+  return summarise(rolling(hsValues(records), from, to, v => (v < 0 || v > 50 ? null : v)), 'HN24');
+}
+// Signed change in HS over the previous 24 h (settlement is negative).
+export function hs24Series(records, from, to) {
+  return summarise(rolling(hsValues(records), from, to, v => (Math.abs(v) > 50 ? null : v)), 'ΔHS 24h');
+}
+// HW24 from the gauge: accumulated water equivalent over the previous 24 h; >150 mm is rejected.
+export function hw24Series(records, from, to) {
+  const cumulative = precipitationSeries(records, from - DAY - MAX_GAP, to).points.filter(p => p.y !== null);
+  return summarise(rolling(cumulative, from, to, v => (v < 0 || v > 150 ? null : v)), 'HW24');
 }

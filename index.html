@@ -542,14 +542,14 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
       <div class="kpi-row" id="kpiRow"></div>
       <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">24h station summary</div><div class="panel-title-sub">Most recent rolling 24-hour window. HW is gauge precipitation in mm; HN24 is new snow in cm, from a direct sensor where available or otherwise the 24-hour depth change; HS is the most recent snow depth / height of snow in cm where a usable snow sensor is available.</div></div></div><div style="overflow:auto;"><table class="hl-table"><colgroup><col style="width:20%"><col style="width:10%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"></colgroup><thead><tr><th>Station</th><th class="hl-compact">Last updated</th><th class="hl-compact">Elev</th><th class="hl-focus">High</th><th class="hl-focus">Low</th><th class="hl-focus">Latest</th><th class="hl-focus">HW 24h</th><th class="hl-focus">HN24</th><th class="hl-focus">HS</th><th class="hl-focus">Avg wind</th><th class="hl-focus">Peak gust</th></tr></thead><tbody id="highLowBody"></tbody></table></div></div>
       <div class="panel" style="margin:var(--space-5);">
-        <div class="panel-header"><div><div class="panel-title" id="trendTitle">Temperature trend</div><div class="panel-title-sub" id="trendSub">Hourly observations</div></div><div><select class="small-select" id="mainMetricSelect"><option value="airTempAvg">Air temperature</option><option value="snowHeight">Snow height</option><option value="windSpeedAvg">Wind speed avg</option><option value="relativeHumidity">Relative humidity</option><option value="precipTotal">Precipitation HW (mm)</option><option value="selectedAvg">Averages: temp, wind, precip</option></select></div></div>
+        <div class="panel-header"><div><div class="panel-title" id="trendTitle">Temperature trend</div><div class="panel-title-sub" id="trendSub">Hourly observations</div></div><div><select class="small-select" id="mainMetricSelect"><option value="airTempAvg">Air temperature</option><option value="snowHeight">Snow height</option><option value="windSpeedAvg">Wind speed avg</option><option value="relativeHumidity">Relative humidity</option><option value="precipTotal">Precipitation HW (mm)</option><option value="selectedAvg" selected>Averages: temp, wind, precip</option></select></div></div>
         <div class="chart-box tall"><canvas id="trendChart"></canvas></div>
         <div class="legend-row" id="trendLegend"></div>
         <div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>
       </div>
       <div class="panel-grid" style="margin-top:var(--space-5);">
         <div class="panel" id="windRosePanel"><div class="panel-header"><div><div class="panel-title">Wind rose</div><div class="panel-title-sub">Spokes show winds coming from each direction, stacked by CAA OGRS wind speed class (km/h). All classes are always shown.</div></div></div><div class="chart-box"><canvas id="windRoseChart"></canvas></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
-        <div class="panel" id="gustPanel"><div class="panel-header"><div><div class="panel-title">Average wind speed</div><div class="panel-title-sub">Average wind speeds across selected stations; higher stations are emphasized</div></div></div><div class="chart-box"><canvas id="gustChart"></canvas></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
+        <div class="panel" id="gustPanel"><div class="panel-header"><div><div class="panel-title">Average wind speed</div><div class="panel-title-sub">Average wind speeds across selected stations; higher stations are emphasized. Arrows every 4 h show the direction the wind is blowing toward</div></div></div><div class="chart-box"><canvas id="gustChart"></canvas></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
       </div>
       <div class="panel" id="gustPeakPanel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Wind gusts</div><div class="panel-title-sub">Peak recorded gust per observation across selected stations; higher stations are emphasized</div></div></div><div class="chart-box"><canvas id="gustPeakChart"></canvas></div><div class="legend-row" id="gustPeakNote" style="color:var(--color-text-faint);font-size:var(--text-xs);"></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
       <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Snow depth &amp; precipitation by station</div><div class="panel-title-sub">Each station has its own metric selector and time slider, default 24h. Precipitation-gauge stations show HW, the accumulated water equivalent in mm; snow stations show depth, floored at 0. AB Env gauges offer both and open on HW.</div></div></div><div class="per-station-grid" id="snowCards"></div></div>
@@ -638,7 +638,7 @@ function mstMidnightFromIso(iso){const parts=iso.split('-').map(Number); return 
 let viewRange = (function(){const to=new Date(); return {from:new Date(to.getTime()-72*3600000), to:to, preset:72};})();
 function viewHours(){return Math.max(1, Math.round((viewRange.to.getTime()-viewRange.from.getTime())/3600000));}
 Object.defineProperty(window,'hours',{get:function(){return viewHours();}, configurable:true});
-let metric = 'airTempAvg';
+let metric = 'selectedAvg';
 let lassoActive = false;
 let cache = {};
 let trendChart, windRoseChart, gustChart, hsCompareChart;
@@ -1470,6 +1470,20 @@ function renderWindRose(ids){
   ro.observe(container);
   canvas._windRoseCleanup=()=>ro.disconnect();
 }
+/* Wind-direction arrows on the average-wind chart: one arrow per station every 4 h (MST hours
+   0,4,8,...), pointing the way the wind blows toward (reported direction + 180°). Longer ranges
+   thin to every 12 h (≤30 d) or 24 h so the arrows stay legible. */
+const windArrowCache={};
+function windArrowImage(color){
+  if(windArrowCache[color]) return windArrowCache[color];
+  const size=16, cv=document.createElement('canvas'); cv.width=size; cv.height=size;
+  const g=cv.getContext('2d'); g.fillStyle=color; g.strokeStyle=color; g.lineWidth=1.8; g.lineCap='round';
+  g.beginPath(); g.moveTo(8,14); g.lineTo(8,5); g.stroke();
+  g.beginPath(); g.moveTo(8,1); g.lineTo(12.5,7); g.lineTo(3.5,7); g.closePath(); g.fill();
+  windArrowCache[color]=cv; return cv;
+}
+function windArrowStepHours(spanHours){return spanHours<=168?4:spanHours<=720?12:24;}
+function isWindArrowTime(ms,stepHours){const mstHour=Math.floor((ms-7*3600000)/3600000); return ((mstHour%stepHours)+stepHours)%stepHours===0;}
 function renderGust(ids){
   const c=chartTextColors();
   const focusIds=windFocusIds(ids);
@@ -1479,13 +1493,20 @@ function renderGust(ids){
     const focused=focusIds.includes(id);
     const data=windowedData(id).filter(d=>d.windSpeedAvg!=null);
     if(data.length){
+      const arrowStep=windArrowStepHours(viewHours());
+      const points=data.map(d=>{const t=new Date(d.measurementDateTime); const dir=numOf(d.windDirAvg); return {x:t,y:d.windSpeedAvg,dir:Number.isFinite(dir)&&dir>=0&&dir<=360?dir:null,arrow:isWindArrowTime(t.getTime(),arrowStep)};});
+      const arrowColor=focused?s.color:s.color+'88';
+      const showArrow=ctx=>{const p=ctx.raw; return !!(p&&p.arrow&&p.dir!==null);};
       datasets.push({
         label:s.name,
-        data:data.map(d=>({x:new Date(d.measurementDateTime),y:d.windSpeedAvg})),
+        data:points,
         borderColor:focused?s.color:s.color+'55',
         backgroundColor:focused?s.color+'22':s.color+'11',
         borderWidth:focused?2.4:1.2,
-        pointRadius:0,
+        pointStyle:ctx=>showArrow(ctx)?windArrowImage(arrowColor):'circle',
+        rotation:ctx=>showArrow(ctx)?(ctx.raw.dir+180)%360:0,
+        pointRadius:ctx=>showArrow(ctx)?8:0,
+        pointHoverRadius:ctx=>showArrow(ctx)?8:3,
         tension:.2,
         fill:false
       });
@@ -1499,7 +1520,7 @@ function renderGust(ids){
       responsive:true,
       maintainAspectRatio:false,
       interaction:{mode:'nearest',intersect:false},
-      plugins:{legend:{position:'bottom',labels:{color:c.text,font:{size:9},boxWidth:8,boxHeight:2}}},
+      plugins:{legend:{position:'bottom',labels:{color:c.text,font:{size:9},boxWidth:8,boxHeight:2}},tooltip:{callbacks:{label:ctx=>{const p=ctx.raw||{}; const d=p.dir!=null?` · from ${Math.round(p.dir)}°`:''; return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} km/h${d}`;}}}},
       scales:{
         x:{type:'time',min:axisBounds().min,max:axisBounds().max,time:{unit:timeUnitFor(viewHours())},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},
         y:{beginAtZero:true,min:0,ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid},title:{display:true,text:'km/h',color:c.text}}

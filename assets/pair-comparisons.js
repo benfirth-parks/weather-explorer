@@ -1,4 +1,4 @@
-import {HOUR, metricSeries, precipitationSeries, hsChangeSeries} from './pair-comparison-data.js';
+import {HOUR, metricSeries, hn24Series, hs24Series, hw24Series} from './pair-comparison-data.js';
 
 /* Paired-station timing chart: temperature, wind and precipitation for both stations on one
    time axis. The pair card itself expands; nothing inside it is labelled "Compare pair". */
@@ -8,8 +8,10 @@ const states = new Map();
 const mounted = new Map();
 const requests = new Map();
 const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days']];
-/* These stations report precipitation as the change in HS (cm), not gauge HW. */
+/* These stations report precipitation from HS (cm), not gauge HW. */
 const HS_PRECIP_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo']);
+/* Pairs whose precipitation is drawn as rolling HN24 / HW24 bars; all others show the rolling 24 h change in HS. */
+const BAR_PAIRS = new Set(['fts-vulture,fts-bowsummit', 'fts-lookout,fts-sunshine']);
 const clock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
 const dayClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', month:'short', day:'numeric'});
 const hourClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', hour:'2-digit', minute:'2-digit', hour12:false});
@@ -25,7 +27,7 @@ async function records(id, hours) {
   let item = requests.get(key);
   if (!item || Date.now() - item.at > 5 * 60000) {
     item = {at: Date.now()};
-    item.promise = host.fetchRecords(id, hours + 2).then(data => {
+    item.promise = host.fetchRecords(id, hours + 26).then(data => {
       if (!Array.isArray(data)) throw new Error('Invalid archive response');
       return data;
     }).catch(error => {
@@ -147,15 +149,23 @@ async function render(view) {
         if (pk) facts.push(`${name} peak wind **${pk.y.toFixed(0)} km/h** at ${when(pk.x, hours)}`);
       }
     }
-    let precip = null, unit = 'mm', label = 'HW';
-    if (HS_PRECIP_IDS.has(id)) { precip = hsChangeSeries(data, from, to); unit = 'cm'; label = 'ΔHS'; }
-    else if (!host.noPrecipGaugeIds.has(id)) precip = precipitationSeries(data, from, to);
-    if (precip && precip.points.some(p => p.y !== null)) {
-      precipUnits.add(unit);
-      datasets.push({label: `${name} ${label}`, unit, kind: 'precip', data: precip.points, yAxisID: 'yPrecip',
-        borderColor: color, backgroundColor: color + '33', borderWidth: 1.4, borderDash: [], stepped: true, fill: 'origin', tension: 0});
-      facts.push(`${name} ${label} **${precip.total >= 0 ? '+' : ''}${precip.total.toFixed(1)} ${unit}**`);
-      if (precip.partial) notes.push(`${name}: some ${label} readings missing or rejected.`);
+    const bars = BAR_PAIRS.has(ids.join(','));
+    let precip = null, unit = 'mm';
+    if (HS_PRECIP_IDS.has(id)) { precip = bars ? hn24Series(data, from, to) : hs24Series(data, from, to); unit = 'cm'; }
+    else if (!host.noPrecipGaugeIds.has(id)) precip = hw24Series(data, from, to);
+    if (precip && precip.latest) {
+      const label = precip.method;
+      precipUnits.add(`${label} ${unit}`);
+      datasets.push(bars
+        ? {type: 'bar', label: `${name} ${label}`, unit, kind: 'bar', data: precip.points, yAxisID: 'yPrecip', order: 10,
+            borderColor: color, backgroundColor: color + '66', borderWidth: 0, barPercentage: 1, categoryPercentage: 1, grouped: false}
+        : {label: `${name} ${label}`, unit, kind: 'precip', data: precip.points, yAxisID: 'yPrecip',
+            borderColor: color, backgroundColor: color + '22', borderWidth: 1.6, borderDash: [7, 3], fill: 'origin', tension: 0.2});
+      const sign = v => (unit === 'cm' && label !== 'HN24' && v > 0 ? '+' : '');
+      let fact = `${name} ${label} now **${sign(precip.latest.y)}${precip.latest.y.toFixed(1)} ${unit}**`;
+      if (precip.peak && precip.peak.y > precip.latest.y) fact += `, peak **${sign(precip.peak.y)}${precip.peak.y.toFixed(1)} ${unit}** at ${when(precip.peak.x, hours)}`;
+      facts.push(fact);
+      if (precip.partial) notes.push(`${name}: some ${label} values unavailable (missing or rejected readings, or no baseline 24 h earlier).`);
     }
   });
 
@@ -172,7 +182,7 @@ async function render(view) {
     const item = element('span');
     const swatch = element('i', `pair-compare-swatch ${d.kind}`);
     swatch.style.borderColor = d.borderColor;
-    if (d.kind === 'precip') swatch.style.background = d.backgroundColor;
+    if (d.kind === 'precip' || d.kind === 'bar') swatch.style.background = d.backgroundColor;
     swatch.setAttribute('aria-hidden', 'true');
     item.append(swatch, document.createTextNode(`${d.label} (${d.unit})`));
     view.legend.append(item);
@@ -180,7 +190,9 @@ async function render(view) {
   view.status.innerHTML = facts.map(f => f.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')).join(' · ');
   view.note.textContent = [
     `Rolling ${ranges.find(r => r[0] === hours)[1]} ending ${clock.format(to)} MST.`,
-    'Solid = temperature, dotted = wind, shaded = accumulated precipitation since the window start (HW in mm; ΔHS in cm, where settlement shows as a decline).',
+    datasets.some(d => d.kind === 'bar')
+      ? 'Solid = temperature, dotted = wind, bars = rolling 24 h totals at each reading (HN24 from HS in cm; HW24 from the gauge in mm).'
+      : 'Solid = temperature, dotted = wind, dashed/shaded = change in HS over the previous 24 h at each reading (cm; settlement is negative).',
     ...notes
   ].join(' ');
   view.chartBox.hidden = false;
@@ -189,7 +201,7 @@ async function render(view) {
   const text = css.getPropertyValue('--color-text-muted').trim();
   const grid = css.getPropertyValue('--color-divider').trim();
   const tick = {color: text, font: {size: 11}};
-  const precipTitle = [...precipUnits].map(u => u === 'cm' ? 'ΔHS cm' : 'HW mm').join(' / ');
+  const precipTitle = [...precipUnits].join(' / ');
   const hasWind = datasets.some(d => d.kind === 'wind');
   const hasPrecip = precipUnits.size > 0;
   view.chart = new window.Chart(view.canvas, {
@@ -203,7 +215,7 @@ async function render(view) {
         label: c => `${c.dataset.label}: ${c.parsed.y?.toFixed(1)} ${c.dataset.unit}`
       }}},
       scales: {
-        x: {type: 'time', min: from, max: to, grid: {color: grid},
+        x: {type: 'time', min: from, max: to, offset: false, grid: {color: grid},
           // Ticks on fixed-MST boundaries (MST midnight = 07:00 UTC), independent of the viewer's time zone.
           afterBuildTicks: axis => {
             const step = (hours === 24 ? 6 : hours === 72 ? 12 : 24) * HOUR, offset = 7 * HOUR;
