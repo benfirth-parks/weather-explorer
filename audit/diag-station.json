@@ -1,0 +1,1167 @@
+{
+ "at": "2026-10-01T17:51:44.582Z",
+ "before": {
+  "fts-sunshine": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:12.885Z",
+   "selfHealed": "false",
+   "n": 16,
+   "last": {
+    "measurementDateTime": "2026-10-01T15:45:00.000Z",
+    "snowHeight": 9,
+    "newSnow": 11,
+    "precipTotal": 930.3
+   }
+  },
+  "fts-bowprecip": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:14.420Z",
+   "selfHealed": "false",
+   "n": 20,
+   "last": {
+    "measurementDateTime": "2026-10-01T16:45:00.000Z",
+    "snowHeight": 1,
+    "precipTotal": 755.1
+   }
+  },
+  "fts-pikarun": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:11.958Z",
+   "selfHealed": "false",
+   "n": 20,
+   "last": {
+    "measurementDateTime": "2026-10-01T16:45:00.000Z",
+    "airTempAvg": -0.6,
+    "snowHeight": 6,
+    "precipTotal": 1018.8
+   }
+  },
+  "fts-skoki": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:11.718Z",
+   "selfHealed": "false",
+   "n": 19,
+   "last": {
+    "measurementDateTime": "2026-10-01T16:30:00.000Z",
+    "newSnow": 0.1,
+    "precipTotal": 412.2
+   }
+  },
+  "fts-boslo": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:13.087Z",
+   "selfHealed": "false",
+   "n": 6,
+   "last": {
+    "measurementDateTime": "2026-10-01T17:00:00.000Z",
+    "airTempAvg": 0.5,
+    "snowHeight": 7.8,
+    "relativeHumidity": 55
+   }
+  }
+ },
+ "inspect": {
+  "fts-sunshine": {
+   "1": {
+    "status": 200,
+    "lineCount": 1,
+    "headerIndex": -1,
+    "dataRows": null,
+    "sampleRows": []
+   },
+   "2": {
+    "status": 200,
+    "lineCount": 1,
+    "headerIndex": -1,
+    "dataRows": null,
+    "sampleRows": []
+   },
+   "3": {
+    "status": 200,
+    "lineCount": 5,
+    "headerIndex": 0,
+    "dataRows": 4,
+    "sampleRows": [
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-10-01T15:00:00Z",
+      "SD2": "4.0",
+      "SD": "7.0",
+      "PC": "930.3",
+      "SW": "11.0",
+      "VB": "12.6",
+      "TA": "-5.4"
+     },
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-10-01T15:15:00Z",
+      "SD2": "4.0",
+      "SD": "8.0",
+      "PC": "930.3",
+      "SW": "11.0",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-10-01T15:30:00Z",
+      "SD2": "5.0",
+      "SD": "8.0",
+      "PC": "930.3",
+      "SW": "11.0",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   },
+   "6": {
+    "status": 200,
+    "lineCount": 17,
+    "headerIndex": 0,
+    "dataRows": 16,
+    "headers": [
+     "Station name",
+     "Station ID",
+     "Date",
+     "SD2",
+     "SD",
+     "PC",
+     "SW",
+     "VB",
+     "TA"
+    ],
+    "preHeaderLines": [],
+    "sampleRows": [
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-10-01T12:00:00Z",
+      "SD2": "4.0",
+      "SD": "8.0",
+      "PC": "930.3",
+      "SW": "13.0",
+      "VB": "12.7",
+      "TA": "-5.5"
+     },
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-10-01T12:15:00Z",
+      "SD2": "4.0",
+      "SD": "8.0",
+      "PC": "930.3",
+      "SW": "13.0",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-10-01T12:30:00Z",
+      "SD2": "4.0",
+      "SD": "8.0",
+      "PC": "930.3",
+      "SW": "12.0",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   },
+   "30": {
+    "status": 200,
+    "lineCount": 113,
+    "headerIndex": 0,
+    "dataRows": 112,
+    "sampleRows": [
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-09-30T12:00:00Z",
+      "SD2": "4.0",
+      "SD": "9.0",
+      "PC": "928.6",
+      "SW": "11.0",
+      "VB": "12.6",
+      "TA": "-0.6"
+     },
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-09-30T12:15:00Z",
+      "SD2": "3.0",
+      "SD": "8.0",
+      "PC": "928.6",
+      "SW": "11.0",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Sunshine Village-  AB Env",
+      "Station ID": "6160c6b964699463087281e8",
+      "Date": "2026-09-30T12:30:00Z",
+      "SD2": "4.0",
+      "SD": "8.0",
+      "PC": "928.6",
+      "SW": "11.0",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   }
+  },
+  "fts-bowprecip": {
+   "1": {
+    "status": 200,
+    "lineCount": 1,
+    "headerIndex": -1,
+    "dataRows": null,
+    "sampleRows": []
+   },
+   "2": {
+    "status": 200,
+    "lineCount": 5,
+    "headerIndex": 0,
+    "dataRows": 4,
+    "sampleRows": [
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T16:00:00Z",
+      "SD": "1.0",
+      "USH_Dist": "2708.0",
+      "PC": "755.1",
+      "VB": "12.7",
+      "USH_TA": "-3.8",
+      "TA": "-3.0"
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T16:15:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T16:30:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     }
+    ]
+   },
+   "3": {
+    "status": 200,
+    "lineCount": 9,
+    "headerIndex": 0,
+    "dataRows": 8,
+    "sampleRows": [
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T15:00:00Z",
+      "SD": "1.0",
+      "USH_Dist": "2708.0",
+      "PC": "755.1",
+      "VB": "12.7",
+      "USH_TA": "-5.9",
+      "TA": "-5.2"
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T15:15:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T15:30:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     }
+    ]
+   },
+   "6": {
+    "status": 200,
+    "lineCount": 21,
+    "headerIndex": 0,
+    "dataRows": 20,
+    "headers": [
+     "Station name",
+     "Station ID",
+     "Date",
+     "SD",
+     "USH_Dist",
+     "PC",
+     "VB",
+     "USH_TA",
+     "TA"
+    ],
+    "preHeaderLines": [],
+    "sampleRows": [
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T12:00:00Z",
+      "SD": "1.0",
+      "USH_Dist": "2708.0",
+      "PC": "755.1",
+      "VB": "12.8",
+      "USH_TA": "-5.5",
+      "TA": "-5.0"
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T12:15:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-10-01T12:30:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     }
+    ]
+   },
+   "30": {
+    "status": 200,
+    "lineCount": 117,
+    "headerIndex": 0,
+    "dataRows": 116,
+    "sampleRows": [
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-09-30T12:00:00Z",
+      "SD": "1.0",
+      "USH_Dist": "2707.0",
+      "PC": "755.1",
+      "VB": "12.8",
+      "USH_TA": "-3.1",
+      "TA": "-2.5"
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-09-30T12:15:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Bow Summit Precip Gauge - AB Env",
+      "Station ID": "6160c6ba6469946308728202",
+      "Date": "2026-09-30T12:30:00Z",
+      "SD": "1.0",
+      "USH_Dist": "",
+      "PC": "755.1",
+      "VB": "",
+      "USH_TA": "",
+      "TA": ""
+     }
+    ]
+   }
+  },
+  "fts-pikarun": {
+   "1": {
+    "status": 200,
+    "lineCount": 5,
+    "headerIndex": 0,
+    "dataRows": 4,
+    "sampleRows": [
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T17:00:00Z",
+      "NS_Qual": "206.0",
+      "SD_qual": "206.0",
+      "PC": "1018.8",
+      "RH": "51.9",
+      "New_sno": "3.0",
+      "VB": "13.1",
+      "TA": "-0.8",
+      "Depth": "7.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T17:15:00Z",
+      "NS_Qual": "222.0",
+      "SD_qual": "205.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "3.0",
+      "VB": "",
+      "TA": "-0.4",
+      "Depth": "7.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T17:30:00Z",
+      "NS_Qual": "217.0",
+      "SD_qual": "205.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "3.0",
+      "VB": "",
+      "TA": "-0.1",
+      "Depth": "7.0"
+     }
+    ]
+   },
+   "2": {
+    "status": 200,
+    "lineCount": 9,
+    "headerIndex": 0,
+    "dataRows": 8,
+    "sampleRows": [
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T16:00:00Z",
+      "NS_Qual": "211.0",
+      "SD_qual": "203.0",
+      "PC": "1018.8",
+      "RH": "60.2",
+      "New_sno": "3.0",
+      "VB": "12.9",
+      "TA": "-2.1",
+      "Depth": "6.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T16:15:00Z",
+      "NS_Qual": "208.0",
+      "SD_qual": "206.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "3.0",
+      "VB": "",
+      "TA": "-1.9",
+      "Depth": "7.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T16:30:00Z",
+      "NS_Qual": "212.0",
+      "SD_qual": "205.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "3.0",
+      "VB": "",
+      "TA": "-1.1",
+      "Depth": "7.0"
+     }
+    ]
+   },
+   "3": {
+    "status": 200,
+    "lineCount": 13,
+    "headerIndex": 0,
+    "dataRows": 12,
+    "sampleRows": [
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T15:00:00Z",
+      "NS_Qual": "208.0",
+      "SD_qual": "214.0",
+      "PC": "1018.8",
+      "RH": "77.9",
+      "New_sno": "3.0",
+      "VB": "12.8",
+      "TA": "-5.9",
+      "Depth": "7.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T15:15:00Z",
+      "NS_Qual": "208.0",
+      "SD_qual": "207.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "2.0",
+      "VB": "",
+      "TA": "-4.9",
+      "Depth": "6.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T15:30:00Z",
+      "NS_Qual": "212.0",
+      "SD_qual": "202.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "3.0",
+      "VB": "",
+      "TA": "-4.2",
+      "Depth": "6.0"
+     }
+    ]
+   },
+   "6": {
+    "status": 200,
+    "lineCount": 25,
+    "headerIndex": 0,
+    "dataRows": 24,
+    "headers": [
+     "Station name",
+     "Station ID",
+     "Date",
+     "NS_Qual",
+     "SD_qual",
+     "PC",
+     "RH",
+     "New_sno",
+     "VB",
+     "TA",
+     "Depth"
+    ],
+    "preHeaderLines": [],
+    "sampleRows": [
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T12:00:00Z",
+      "NS_Qual": "200.0",
+      "SD_qual": "205.0",
+      "PC": "1018.8",
+      "RH": "82.2",
+      "New_sno": "3.0",
+      "VB": "12.8",
+      "TA": "-4.9",
+      "Depth": "6.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T12:15:00Z",
+      "NS_Qual": "211.0",
+      "SD_qual": "208.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "3.0",
+      "VB": "",
+      "TA": "-5.1",
+      "Depth": "6.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-10-01T12:30:00Z",
+      "NS_Qual": "212.0",
+      "SD_qual": "209.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "3.0",
+      "VB": "",
+      "TA": "-4.9",
+      "Depth": "6.0"
+     }
+    ]
+   },
+   "30": {
+    "status": 200,
+    "lineCount": 121,
+    "headerIndex": 0,
+    "dataRows": 120,
+    "sampleRows": [
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-09-30T12:00:00Z",
+      "NS_Qual": "280.0",
+      "SD_qual": "249.0",
+      "PC": "1018.8",
+      "RH": "89.2",
+      "New_sno": "1.0",
+      "VB": "12.9",
+      "TA": "-2.7",
+      "Depth": "6.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-09-30T12:15:00Z",
+      "NS_Qual": "256.0",
+      "SD_qual": "234.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "2.0",
+      "VB": "",
+      "TA": "-3.2",
+      "Depth": "6.0"
+     },
+     {
+      "Station name": "Pika Run -AB ENV/ LLSA",
+      "Station ID": "61e09ba56a379f48b21582f6",
+      "Date": "2026-09-30T12:30:00Z",
+      "NS_Qual": "235.0",
+      "SD_qual": "253.0",
+      "PC": "1018.8",
+      "RH": "",
+      "New_sno": "1.0",
+      "VB": "",
+      "TA": "-3.3",
+      "Depth": "7.0"
+     }
+    ]
+   }
+  },
+  "fts-skoki": {
+   "1": {
+    "status": 200,
+    "lineCount": 4,
+    "headerIndex": 0,
+    "dataRows": 3,
+    "sampleRows": [
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T17:00:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "13.3",
+      "TA": "2.4"
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T17:15:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T17:30:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   },
+   "2": {
+    "status": 200,
+    "lineCount": 8,
+    "headerIndex": 0,
+    "dataRows": 7,
+    "sampleRows": [
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T16:00:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "13.6",
+      "TA": "-0.6"
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T16:15:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T16:30:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   },
+   "3": {
+    "status": 200,
+    "lineCount": 12,
+    "headerIndex": 0,
+    "dataRows": 11,
+    "sampleRows": [
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T15:00:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "12.6",
+      "TA": "-7.1"
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T15:15:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T15:30:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   },
+   "6": {
+    "status": 200,
+    "lineCount": 24,
+    "headerIndex": 0,
+    "dataRows": 23,
+    "headers": [
+     "Station name",
+     "Station ID",
+     "Date",
+     "PC",
+     "SW",
+     "VB",
+     "TA"
+    ],
+    "preHeaderLines": [],
+    "sampleRows": [
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T12:00:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "12.6",
+      "TA": "-7.3"
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T12:15:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-10-01T12:30:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   },
+   "30": {
+    "status": 200,
+    "lineCount": 120,
+    "headerIndex": 0,
+    "dataRows": 119,
+    "sampleRows": [
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-09-30T12:00:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "12.6",
+      "TA": "-2.1"
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-09-30T12:15:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     },
+     {
+      "Station name": "Skoki - AB Env",
+      "Station ID": "61e09ba56a379f48b21582f7",
+      "Date": "2026-09-30T12:30:00Z",
+      "PC": "412.2",
+      "SW": "0.1",
+      "VB": "",
+      "TA": ""
+     }
+    ]
+   }
+  },
+  "fts-boslo": {
+   "1": {
+    "status": 200,
+    "lineCount": 2,
+    "headerIndex": 0,
+    "dataRows": 1,
+    "sampleRows": [
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T17:00:00Z",
+      "Islr": "0.0",
+      "Temp": "0.5",
+      "Rh": "55",
+      "Vbat": "14.5",
+      "Vtx": "14.0",
+      "Vslr": "19.4",
+      "HS": "7.8",
+      "Vb": "14.8",
+      "Ibat": "-0.1"
+     }
+    ]
+   },
+   "2": {
+    "status": 200,
+    "lineCount": 3,
+    "headerIndex": 0,
+    "dataRows": 2,
+    "sampleRows": [
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T16:00:00Z",
+      "Islr": "0.2",
+      "Temp": "-0.3",
+      "Rh": "51",
+      "Vbat": "14.3",
+      "Vtx": "13.2",
+      "Vslr": "17.1",
+      "HS": "6.9",
+      "Vb": "14.2",
+      "Ibat": "0.1"
+     },
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T17:00:00Z",
+      "Islr": "0.0",
+      "Temp": "0.5",
+      "Rh": "55",
+      "Vbat": "14.5",
+      "Vtx": "14.0",
+      "Vslr": "19.4",
+      "HS": "7.8",
+      "Vb": "14.8",
+      "Ibat": "-0.1"
+     }
+    ]
+   },
+   "3": {
+    "status": 200,
+    "lineCount": 4,
+    "headerIndex": 0,
+    "dataRows": 3,
+    "sampleRows": [
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T15:00:00Z",
+      "Islr": "0.1",
+      "Temp": "-3.3",
+      "Rh": "65",
+      "Vbat": "13.2",
+      "Vtx": "12.4",
+      "Vslr": "13.0",
+      "HS": "8.1",
+      "Vb": "13.6",
+      "Ibat": "0.1"
+     },
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T16:00:00Z",
+      "Islr": "0.2",
+      "Temp": "-0.3",
+      "Rh": "51",
+      "Vbat": "14.3",
+      "Vtx": "13.2",
+      "Vslr": "17.1",
+      "HS": "6.9",
+      "Vb": "14.2",
+      "Ibat": "0.1"
+     },
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T17:00:00Z",
+      "Islr": "0.0",
+      "Temp": "0.5",
+      "Rh": "55",
+      "Vbat": "14.5",
+      "Vtx": "14.0",
+      "Vslr": "19.4",
+      "HS": "7.8",
+      "Vb": "14.8",
+      "Ibat": "-0.1"
+     }
+    ]
+   },
+   "6": {
+    "status": 200,
+    "lineCount": 7,
+    "headerIndex": 0,
+    "dataRows": 6,
+    "headers": [
+     "Station name",
+     "Station ID",
+     "Date",
+     "Islr",
+     "Temp",
+     "Rh",
+     "Vbat",
+     "Vtx",
+     "Vslr",
+     "HS",
+     "Vb",
+     "Ibat"
+    ],
+    "preHeaderLines": [],
+    "sampleRows": [
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T12:00:00Z",
+      "Islr": "0.0",
+      "Temp": "-4.0",
+      "Rh": "70",
+      "Vbat": "13.1",
+      "Vtx": "12.6",
+      "Vslr": "0.0",
+      "HS": "7.8",
+      "Vb": "13.1",
+      "Ibat": "-0.1"
+     },
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T13:00:00Z",
+      "Islr": "0.0",
+      "Temp": "-4.3",
+      "Rh": "67",
+      "Vbat": "13.1",
+      "Vtx": "12.5",
+      "Vslr": "0.0",
+      "HS": "7.9",
+      "Vb": "13.1",
+      "Ibat": "-0.1"
+     },
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-10-01T14:00:00Z",
+      "Islr": "0.2",
+      "Temp": "-4.7",
+      "Rh": "69",
+      "Vbat": "13.0",
+      "Vtx": "12.5",
+      "Vslr": "3.6",
+      "HS": "8.1",
+      "Vb": "13.0",
+      "Ibat": "-0.1"
+     }
+    ]
+   },
+   "30": {
+    "status": 200,
+    "lineCount": 31,
+    "headerIndex": 0,
+    "dataRows": 30,
+    "sampleRows": [
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-09-30T12:00:00Z",
+      "Islr": "0.0",
+      "Temp": "-2.7",
+      "Rh": "83",
+      "Vbat": "13.1",
+      "Vtx": "12.5",
+      "Vslr": "0.0",
+      "HS": "9.9",
+      "Vb": "13.1",
+      "Ibat": "-0.1"
+     },
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-09-30T13:00:00Z",
+      "Islr": "0.0",
+      "Temp": "-3.7",
+      "Rh": "92",
+      "Vbat": "13.1",
+      "Vtx": "12.5",
+      "Vslr": "0.0",
+      "HS": "9.9",
+      "Vb": "13.0",
+      "Ibat": "-0.1"
+     },
+     {
+      "Station name": "Bosworth Lower",
+      "Station ID": "6160c6b964699463087281d9",
+      "Date": "2026-09-30T14:00:00Z",
+      "Islr": "0.2",
+      "Temp": "-3.8",
+      "Rh": "86",
+      "Vbat": "13.0",
+      "Vtx": "12.4",
+      "Vslr": "3.4",
+      "HS": "9.8",
+      "Vb": "13.0",
+      "Ibat": "-0.1"
+     }
+    ]
+   }
+  }
+ },
+ "sync": {
+  "status": 200,
+  "durationMs": 9774,
+  "succeeded": 26,
+  "failed": 0,
+  "results": [
+   {
+    "stationId": "fts-boslo",
+    "ok": true,
+    "fetched": 31,
+    "retained": 26116,
+    "lastSyncedAt": "2026-10-01T17:52:03.341Z"
+   },
+   {
+    "stationId": "fts-sunshine",
+    "ok": true,
+    "fetched": 121,
+    "retained": 31380,
+    "lastSyncedAt": "2026-10-01T17:52:01.799Z"
+   },
+   {
+    "stationId": "fts-bowprecip",
+    "ok": true,
+    "fetched": 121,
+    "retained": 31452,
+    "lastSyncedAt": "2026-10-01T17:52:01.545Z"
+   },
+   {
+    "stationId": "fts-pikarun",
+    "ok": true,
+    "fetched": 125,
+    "retained": 7182,
+    "lastSyncedAt": "2026-10-01T17:52:01.358Z"
+   },
+   {
+    "stationId": "fts-skoki",
+    "ok": true,
+    "fetched": 125,
+    "retained": 7180,
+    "lastSyncedAt": "2026-10-01T17:52:03.221Z"
+   }
+  ]
+ },
+ "after": {
+  "fts-sunshine": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:12.885Z",
+   "selfHealed": "false",
+   "n": 16,
+   "last": {
+    "measurementDateTime": "2026-10-01T15:45:00.000Z",
+    "snowHeight": 9,
+    "newSnow": 11,
+    "precipTotal": 930.3
+   }
+  },
+  "fts-bowprecip": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:14.420Z",
+   "selfHealed": "false",
+   "n": 20,
+   "last": {
+    "measurementDateTime": "2026-10-01T16:45:00.000Z",
+    "snowHeight": 1,
+    "precipTotal": 755.1
+   }
+  },
+  "fts-pikarun": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:11.958Z",
+   "selfHealed": "false",
+   "n": 20,
+   "last": {
+    "measurementDateTime": "2026-10-01T16:45:00.000Z",
+    "airTempAvg": -0.6,
+    "snowHeight": 6,
+    "precipTotal": 1018.8
+   }
+  },
+  "fts-skoki": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:11.718Z",
+   "selfHealed": "false",
+   "n": 19,
+   "last": {
+    "measurementDateTime": "2026-10-01T16:30:00.000Z",
+    "newSnow": 0.1,
+    "precipTotal": 412.2
+   }
+  },
+  "fts-boslo": {
+   "status": 200,
+   "lastSynced": "2026-10-01T17:30:13.087Z",
+   "selfHealed": "false",
+   "n": 6,
+   "last": {
+    "measurementDateTime": "2026-10-01T17:00:00.000Z",
+    "airTempAvg": 0.5,
+    "snowHeight": 7.8,
+    "relativeHumidity": 55
+   }
+  }
+ }
+}
