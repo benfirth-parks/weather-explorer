@@ -941,11 +941,15 @@ const SENSOR_PLAUSIBLE_RANGE = {
 const SENSOR_MAX_STEP = {
   snowHeight: 30
 };
+const SNOW_HEIGHT_ZERO_NOISE_CM=5;
 function sanitizeRecords(records){
   const sorted=(records||[]).slice().sort((a,b)=>new Date(a.measurementDateTime)-new Date(b.measurementDateTime));
   let prevSnowHeight=null;
   sorted.forEach(rec=>{
-    const hs=numOf(rec.snowHeight);
+    let hs=numOf(rec.snowHeight);
+    /* Bare ground: the HS sensor reads a few cm either side of zero. Readings down to
+       -SNOW_HEIGHT_ZERO_NOISE_CM are taken as 0 cm instead of being rejected. */
+    if(Number.isFinite(hs) && hs<0 && hs>=-SNOW_HEIGHT_ZERO_NOISE_CM){hs=0; rec.snowHeight=0;}
     if(Number.isFinite(hs)){
       const [lo,hi]=SENSOR_PLAUSIBLE_RANGE.snowHeight;
       if(hs<lo || hs>hi || (prevSnowHeight!=null && Math.abs(hs-prevSnowHeight)>SENSOR_MAX_STEP.snowHeight)) rec.snowHeight=null;

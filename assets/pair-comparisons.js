@@ -343,7 +343,7 @@ async function render(view) {
   // asLine draws HS as a plain line over the bars in the bar panes.
   function addPrecip(station, data, kind, preferredSlot, asLine = false) {
     const precip = series[kind](data, from, to), name = station.name;
-    if (!precip.latest) return;
+    if (!precip.latest) { notes.push(`${name}: no valid ${precip.method} in this period.`); return; }
     const unit = kind === 'hw24' ? 'mm' : 'cm', label = precip.method, axis = unit === 'mm' ? 'yMm' : 'yCm';
     const type = unit === 'mm' ? 'hw' : kind === 'hs24' ? 'hs' : 'snow', slot = slotFor(type, preferredSlot), color = TYPE_COLORS[type][slot];
     precipUnits.add(unit);
