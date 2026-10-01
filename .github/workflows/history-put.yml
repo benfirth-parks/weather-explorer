@@ -1,0 +1,29 @@
+# One-shot upload of long-term history (pre-3-year) to history/<station>/<year>.json.
+name: History upload (one-shot)
+on:
+  push:
+    branches: [archive-fill]
+    paths: ["history/**", "scripts/history_put.mjs"]
+permissions:
+  contents: write
+concurrency: { group: archive-fill, cancel-in-progress: false }
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - name: Upload and verify
+        env:
+          ADMIN_TOKEN: ${{ secrets.ARCHIVE_ADMIN_TOKEN }}
+        run: node scripts/history_put.mjs
+      - name: Commit results
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add audit
+          git commit -m "History upload results [skip netlify] [skip ci]" || true
+          git push
