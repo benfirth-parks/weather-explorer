@@ -9,6 +9,11 @@
 // "incoming wins" behaviour) — matches user's "just use the existing
 // archive" instruction for the overlap window.
 //
+// Optional "mode": "fill-fields" (opt-in; default behaviour unchanged):
+// existing values still win, but an existing record's EMPTY fields are
+// filled from the incoming row instead of the whole row being dropped.
+// Used to back-fill wind/RH/precip into hours that already hold temp/snow.
+//
 // Auth: x-admin-token header must equal env.ARCHIVE_ADMIN_TOKEN
 // (same secret used by fts-sync-manual).
 //
@@ -80,6 +85,7 @@ export default async (req) => {
 
   const stationId = String(payload?.stationId || "").trim();
   const incoming = Array.isArray(payload?.observations) ? payload.observations : null;
+  const fillFields = payload?.mode === "fill-fields";
   if (!stationId || !incoming) {
     return json(400, { ok: false, error: "missing-fields", need: ["stationId", "observations[]"] });
   }
@@ -102,6 +108,8 @@ export default async (req) => {
   let overlapKeptExisting = 0;
   let droppedByRetention = 0;
   let droppedInvalid = 0;
+  let recordsFilled = 0;
+  let fieldsFilled = 0;
   let existingBefore = 0;
   let mergedLength = 0;
   let finalArchive = null;
@@ -115,6 +123,8 @@ export default async (req) => {
     overlapKeptExisting = 0;
     droppedByRetention = 0;
     droppedInvalid = 0;
+    recordsFilled = 0;
+    fieldsFilled = 0;
 
     const existingRes = await store.getWithMetadata(archiveKey(stationId), { type: "json" });
     const existing = existingRes?.data ?? null;
@@ -135,7 +145,20 @@ export default async (req) => {
       const t = new Date(iso).getTime();
       if (!iso || !Number.isFinite(t)) { droppedInvalid++; continue; }
       if (t < cutoff) { droppedByRetention++; continue; }
-      if (byTs.has(iso)) { overlapKeptExisting++; continue; }
+      if (byTs.has(iso)) {
+        if (fillFields) {
+          const current = byTs.get(iso);
+          let added = 0;
+          const next = { ...current };
+          for (const [k, v] of Object.entries(rec)) {
+            if (!KNOWN_FIELDS.has(k) || v === null || v === undefined) continue;
+            if (next[k] === null || next[k] === undefined) { next[k] = v; added++; }
+          }
+          if (added) { byTs.set(iso, next); recordsFilled++; fieldsFilled += added; }
+        }
+        overlapKeptExisting++;
+        continue;
+      }
       const clean = {};
       for (const [k, v] of Object.entries(rec)) {
         if (KNOWN_FIELDS.has(k) && v !== null && v !== undefined) clean[k] = v;
@@ -195,6 +218,7 @@ export default async (req) => {
   return json(200, {
     ok: true,
     stationId,
+    mode: fillFields ? "fill-fields" : "existing-wins",
     incoming: incoming.length,
     existingBefore,
     kept: mergedLength,
@@ -202,6 +226,8 @@ export default async (req) => {
     overlapKeptExisting,
     droppedByRetention,
     droppedInvalid,
+    recordsFilled,
+    fieldsFilled,
     totalAfter: mergedLength,
     attempts: attempt,
     lastSyncedAt: finalArchive.lastSyncedAt,
