@@ -1,0 +1,103 @@
+{
+ "at": "2026-10-01T16:43:02.917Z",
+ "report": {
+  "fts-boslo": {
+   "rows": 23272,
+   "newlyAdded": 0,
+   "recordsFilled": 23272,
+   "fieldsFilled": 24703,
+   "totalAfter": 24026
+  },
+  "fts-bosup": {
+   "rows": 23198,
+   "newlyAdded": 0,
+   "recordsFilled": 23198,
+   "fieldsFilled": 89928,
+   "totalAfter": 23700
+  },
+  "fts-boulder": {
+   "rows": 21768,
+   "newlyAdded": 0,
+   "recordsFilled": 21768,
+   "fieldsFilled": 54073,
+   "totalAfter": 23723
+  },
+  "fts-bowprecip": {
+   "rows": 22713,
+   "newlyAdded": 22155,
+   "recordsFilled": 558,
+   "fieldsFilled": 558,
+   "totalAfter": 19329
+  },
+  "fts-bowsummit": {
+   "rows": 23614,
+   "newlyAdded": 0,
+   "recordsFilled": 23614,
+   "fieldsFilled": 25046,
+   "totalAfter": 24115
+  },
+  "fts-coleman": {
+   "rows": 0,
+   "newlyAdded": 0,
+   "recordsFilled": 0,
+   "fieldsFilled": 0,
+   "totalAfter": 0
+  },
+  "fts-lookout": {
+   "rows": 13458,
+   "newlyAdded": 0,
+   "recordsFilled": 13458,
+   "fieldsFilled": 53826,
+   "totalAfter": 13489
+  },
+  "fts-simplo": {
+   "rows": 23537,
+   "newlyAdded": 0,
+   "recordsFilled": 23537,
+   "fieldsFilled": 24967,
+   "totalAfter": 24041
+  },
+  "fts-simpup": {
+   "rows": 23606,
+   "newlyAdded": 0,
+   "recordsFilled": 23606,
+   "fieldsFilled": 91561,
+   "totalAfter": 24110
+  },
+  "fts-stanley": {
+   "rows": 23531,
+   "newlyAdded": 0,
+   "recordsFilled": 23531,
+   "fieldsFilled": 24959,
+   "totalAfter": 24033
+  },
+  "fts-sunshine": {
+   "rows": 23374,
+   "newlyAdded": 0,
+   "recordsFilled": 23374,
+   "fieldsFilled": 25365,
+   "totalAfter": 29262
+  },
+  "fts-vermillion": {
+   "rows": 22168,
+   "newlyAdded": 0,
+   "recordsFilled": 22168,
+   "fieldsFilled": 55257,
+   "totalAfter": 24123
+  },
+  "fts-vulture": {
+   "rows": 23530,
+   "newlyAdded": 0,
+   "recordsFilled": 23530,
+   "fieldsFilled": 91262,
+   "totalAfter": 24035
+  },
+  "fts-whymper": {
+   "rows": 22159,
+   "newlyAdded": 1,
+   "recordsFilled": 22158,
+   "fieldsFilled": 88632,
+   "totalAfter": 24092
+  }
+ }
+}
