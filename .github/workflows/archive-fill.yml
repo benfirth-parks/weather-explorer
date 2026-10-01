@@ -1,4 +1,4 @@
-# One-shot gap fill (run 2: strong-consistency importer + Oct-Dec 2023 from local historical DB). Runs only on pushes to the `archive-fill` branch:
+# One-shot gap fill (run 3: single-station FTS historical reports for Bow Summit, Simpson Lower/Upper, Sunshine).
 # posts fill/*.json.gz with mode=fill-fields, then re-dumps the archive
 # so the result can be verified, and commits both back to this branch.
 name: Archive gap fill (one-shot)
