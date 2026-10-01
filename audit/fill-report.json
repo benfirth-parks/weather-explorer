@@ -1,96 +1,33 @@
 {
- "at": "2026-10-01T16:48:49.640Z",
+ "at": "2026-10-01T17:12:04.714Z",
  "report": {
-  "fts-boslo": {
-   "rows": 25361,
-   "newlyAdded": 2089,
-   "recordsFilled": 10000,
-   "fieldsFilled": 10000,
-   "totalAfter": 26115
-  },
-  "fts-bosup": {
-   "rows": 25317,
-   "newlyAdded": 2119,
-   "recordsFilled": 10000,
-   "fieldsFilled": 40000,
-   "totalAfter": 25819
-  },
-  "fts-boulder": {
-   "rows": 21768,
-   "newlyAdded": 0,
-   "recordsFilled": 10000,
-   "fieldsFilled": 27919,
-   "totalAfter": 23723
-  },
-  "fts-bowprecip": {
-   "rows": 24832,
-   "newlyAdded": 12119,
-   "recordsFilled": 0,
-   "fieldsFilled": 0,
-   "totalAfter": 31448
-  },
   "fts-bowsummit": {
-   "rows": 25733,
-   "newlyAdded": 2119,
-   "recordsFilled": 10000,
-   "fieldsFilled": 10000,
+   "rows": 2095,
+   "newlyAdded": 0,
+   "recordsFilled": 2095,
+   "fieldsFilled": 9009,
    "totalAfter": 26234
   },
-  "fts-lookout": {
-   "rows": 15577,
-   "newlyAdded": 2119,
-   "recordsFilled": 5000,
-   "fieldsFilled": 19997,
-   "totalAfter": 15608
-  },
   "fts-simplo": {
-   "rows": 25628,
-   "newlyAdded": 2091,
-   "recordsFilled": 10000,
-   "fieldsFilled": 10000,
+   "rows": 2067,
+   "newlyAdded": 0,
+   "recordsFilled": 2067,
+   "fieldsFilled": 6209,
    "totalAfter": 26132
   },
   "fts-simpup": {
-   "rows": 25724,
-   "newlyAdded": 2118,
-   "recordsFilled": 10000,
-   "fieldsFilled": 40000,
+   "rows": 2094,
+   "newlyAdded": 0,
+   "recordsFilled": 2094,
+   "fieldsFilled": 4188,
    "totalAfter": 26228
   },
-  "fts-stanley": {
-   "rows": 25621,
-   "newlyAdded": 2090,
-   "recordsFilled": 10000,
-   "fieldsFilled": 10000,
-   "totalAfter": 26123
-  },
   "fts-sunshine": {
-   "rows": 25491,
-   "newlyAdded": 2117,
-   "recordsFilled": 10000,
-   "fieldsFilled": 10000,
-   "totalAfter": 31379
-  },
-  "fts-vermillion": {
-   "rows": 24197,
-   "newlyAdded": 2029,
-   "recordsFilled": 10000,
-   "fieldsFilled": 27889,
-   "totalAfter": 26152
-  },
-  "fts-vulture": {
-   "rows": 25619,
-   "newlyAdded": 2089,
-   "recordsFilled": 10000,
-   "fieldsFilled": 40000,
-   "totalAfter": 26124
-  },
-  "fts-whymper": {
-   "rows": 24278,
-   "newlyAdded": 2119,
-   "recordsFilled": 10000,
-   "fieldsFilled": 40000,
-   "totalAfter": 26211
+   "rows": 2094,
+   "newlyAdded": 1,
+   "recordsFilled": 2093,
+   "fieldsFilled": 4922,
+   "totalAfter": 31380
   }
  }
 }
