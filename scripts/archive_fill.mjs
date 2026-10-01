@@ -8,7 +8,7 @@ import { gunzipSync } from "node:zlib";
 const SITE = process.env.SITE_URL || "https://rockiesweatherdataexplorer.netlify.app";
 const TOKEN = process.env.ADMIN_TOKEN;
 if (!TOKEN) { console.error("ADMIN_TOKEN missing"); process.exit(1); }
-const CHUNK = 5000;
+const CHUNK = 13000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const busy = (m) => (m >= 13 && m <= 19) || (m >= 23 && m <= 28) || (m >= 53 && m <= 58);
 async function clearOfSync() { while (busy(new Date().getUTCMinutes())) await sleep(20000); }
@@ -30,6 +30,7 @@ for (const file of readdirSync("fill").filter((f) => f.endsWith(".json.gz")).sor
         for (const k of ["newlyAdded", "recordsFilled", "fieldsFilled"]) tot[k] += out[k] || 0;
         tot.totalAfter = out.totalAfter;
         console.log(stationId, `chunk ${i / CHUNK + 1}`, JSON.stringify(out));
+        await sleep(3000);
         break;
       }
       console.log(stationId, `chunk ${i / CHUNK + 1} attempt ${attempt}: HTTP ${res.status}`, JSON.stringify(out).slice(0, 300));

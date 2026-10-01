@@ -1,4 +1,4 @@
-# One-shot gap fill. Runs only on pushes to the `archive-fill` branch:
+# One-shot gap fill (run 2: strong-consistency importer + Oct-Dec 2023 from local historical DB). Runs only on pushes to the `archive-fill` branch:
 # posts fill/*.json.gz with mode=fill-fields, then re-dumps the archive
 # so the result can be verified, and commits both back to this branch.
 name: Archive gap fill (one-shot)
@@ -21,9 +21,9 @@ jobs:
         env:
           ADMIN_TOKEN: ${{ secrets.ARCHIVE_ADMIN_TOKEN }}
         run: node scripts/archive_fill.mjs
-      - name: Re-audit
+      - name: Re-audit (after reads settle)
         if: always()
-        run: node scripts/archive_audit.mjs
+        run: sleep 120 && node scripts/archive_audit.mjs
       - name: Commit results
         if: always()
         run: |
