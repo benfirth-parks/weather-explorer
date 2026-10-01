@@ -93,7 +93,9 @@ export default async (req) => {
     return json(413, { ok: false, error: "chunk-too-large", max: 30000, got: incoming.length });
   }
 
-  const store = getStore(STORE_NAME);
+  // Strong consistency: read-modify-write must see the latest version, or
+  // consecutive imports can overwrite each other with a stale copy.
+  const store = getStore({ name: STORE_NAME, consistency: "strong" });
 
   // ------------------------------------------------------------------
   // Merge with EXISTING WINS, protected against Netlify Blobs eventual
