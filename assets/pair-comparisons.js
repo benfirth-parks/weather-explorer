@@ -15,6 +15,8 @@ const HS_PRECIP_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts
 const BAR_PAIRS = new Set(['fts-vulture,fts-bowsummit', 'fts-lookout,fts-sunshine']);
 /* Extra 24 h precipitation bars: the Bow Summit AB Env gauge's HW alongside Bow Summit's HN.
    (Sunshine's own gauge HW is already drawn; its new-snow field is not usable as HN.) */
+/* In the bar panes, these stations also get their rolling 24 h HS drawn as a line over the bars. */
+const BAR_PAIR_HS_IDS = new Set(['fts-bowsummit', 'fts-sunshine']);
 const EXTRA_PRECIP = {
   'fts-vulture,fts-bowsummit': [{id: 'fts-bowprecip', kind: 'hw24'}]
 };
@@ -24,6 +26,7 @@ const TYPE_COLORS = {
   temp: ['#d9472b', '#f2a083'],
   wind: ['#0e9488', '#6fd3c4'],
   snow: ['#7c4dcc', '#bba3ec'],
+  hs:   ['#b7791f', '#e6b85c'],
   hw:   ['#2f6fe0', '#93b6f6']
 };
 const SLOT_DASH = [[], [6, 4]];
@@ -329,7 +332,7 @@ async function render(view) {
   const bars = BAR_PAIRS.has(ids.join(','));
   const series = {hn24: hn24Series, hs24: hs24Series, hw24: hw24Series};
   const narrow = view.body.clientWidth < 560;
-  const used = {temp: new Set(), wind: new Set(), snow: new Set(), hw: new Set()};
+  const used = {temp: new Set(), wind: new Set(), snow: new Set(), hs: new Set(), hw: new Set()};
   // Station 1 takes slot 0, station 2 slot 1; an extra gauge takes whichever slot is free for its type.
   function slotFor(type, preferred) {
     const slot = used[type].has(preferred) ? 1 - preferred : preferred;
@@ -337,13 +340,17 @@ async function render(view) {
     return slot;
   }
   // One precipitation series; centimetre (HN/HS) and millimetre (HW) values get separate axes.
-  function addPrecip(station, data, kind, preferredSlot) {
+  // asLine draws HS as a plain line over the bars in the bar panes.
+  function addPrecip(station, data, kind, preferredSlot, asLine = false) {
     const precip = series[kind](data, from, to), name = station.name;
     if (!precip.latest) return;
     const unit = kind === 'hw24' ? 'mm' : 'cm', label = precip.method, axis = unit === 'mm' ? 'yMm' : 'yCm';
-    const type = unit === 'mm' ? 'hw' : 'snow', slot = slotFor(type, preferredSlot), color = TYPE_COLORS[type][slot];
+    const type = unit === 'mm' ? 'hw' : kind === 'hs24' ? 'hs' : 'snow', slot = slotFor(type, preferredSlot), color = TYPE_COLORS[type][slot];
     precipUnits.add(unit);
-    datasets.push(bars
+    datasets.push(asLine
+      ? {label: `${name} ${label}`, unit, kind: 'hsline', slot, data: precip.points, yAxisID: axis, order: 3,
+          borderColor: color, backgroundColor: color, borderWidth: 2.2, borderDash: SLOT_DASH[slot], tension: 0.2}
+      : bars
       ? {type: 'bar', label: `${name} ${label}`, unit, kind: 'bar', slot, data: precip.points, yAxisID: axis, order: 10,
           borderColor: color, backgroundColor: slot ? color + '80' : color + 'cc', borderWidth: slot ? 1 : 0,
           barPercentage: 0.95, categoryPercentage: 1, grouped: true}
@@ -385,6 +392,7 @@ async function render(view) {
     if (HS_PRECIP_IDS.has(id)) kind = bars ? 'hn24' : 'hs24';
     else if (!host.noPrecipGaugeIds.has(id)) kind = 'hw24';
     if (kind) addPrecip(station, data, kind, i);
+    if (bars && BAR_PAIR_HS_IDS.has(id)) addPrecip(station, data, 'hs24', i, true);
   });
 
   extraResults.forEach((result, i) => {
@@ -412,12 +420,14 @@ async function render(view) {
     view.legend.append(item);
   }
   view.status.innerHTML = facts.map(f => f.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')).join(' · ');
-  const precipNote = datasets.some(d => d.kind === 'bar')
-    ? 'Bars = rolling 24 h totals at each reading: HN in cm (new-snow sensor or HS), HW in mm (precipitation gauge).'
-    : datasets.some(d => d.kind === 'precip') ? 'Shaded = HS over the previous 24 h at each reading (cm; settlement is negative).' : '';
+  const precipNote = [
+    datasets.some(d => d.kind === 'bar') ? 'Bars = rolling 24 h totals at each reading: HN in cm (new-snow sensor or HS), HW in mm (precipitation gauge).' : '',
+    datasets.some(d => d.kind === 'hsline') ? 'Amber line = HS over the previous 24 h at each reading (cm; settlement is negative).' : '',
+    datasets.some(d => d.kind === 'precip') ? 'Shaded = HS over the previous 24 h at each reading (cm; settlement is negative).' : ''
+  ].filter(Boolean).join(' ');
   view.note.textContent = [
     `Rolling ${ranges.find(r => r[0] === hours)[1]} ending ${clock.format(to)} MST.`,
-    'Red = temperature, teal = wind, purple = HN/HS, blue = HW. Solid/dark = first station, dashed/light = second.',
+    'Red = temperature, teal = wind, purple = HN, amber = HS, blue = HW. Solid/dark = first station, dashed/light = second.',
     `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
     precipNote,
     ...notes
@@ -429,8 +439,11 @@ async function render(view) {
   const grid = css.getPropertyValue('--color-divider').trim();
   const tick = {color: text, font: {size: 11}};
   const typeTick = color => ({...tick, color});
-  const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && (d.kind === 'bar' || d.kind === 'precip')).map(d => d.label.split(' ').at(-1)))].join(' / ') + ' ' + unit;
+  const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && (d.kind === 'bar' || d.kind === 'precip' || d.kind === 'hsline')).map(d => d.label.split(' ').at(-1)))].join(' / ') + ' ' + unit;
   const hasWind = datasets.some(d => d.kind === 'wind');
+  // The cm axis takes the HN or HS colour when only one of them is on it; neutral when both are.
+  const cmHasHn = datasets.some(d => d.unit === 'cm' && d.kind === 'bar'), cmHasHs = datasets.some(d => d.kind === 'hsline' || d.kind === 'precip');
+  const cmColor = cmHasHn && cmHasHs ? text : cmHasHn ? TYPE_COLORS.snow[0] : TYPE_COLORS.hs[0];
   view.chart = new window.Chart(view.canvas, {
     type: 'line',
     data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
@@ -460,7 +473,7 @@ async function render(view) {
             callback: value => hours === 24 ? hourClock.format(value) : (hours === 72 ? `${dayClock.format(value)} ${hourClock.format(value)}` : dayClock.format(value))}},
         yTemp: {position: 'left', title: {display: true, text: '°C', color: TYPE_COLORS.temp[0]}, grid: {color: grid}, ticks: typeTick(TYPE_COLORS.temp[0])},
         yWind: {display: hasWind, position: 'right', beginAtZero: true, title: {display: true, text: 'Wind km/h', color: TYPE_COLORS.wind[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.wind[0])},
-        yCm: {display: precipUnits.has('cm'), position: 'right', title: {display: true, text: axisTitle('cm'), color: TYPE_COLORS.snow[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.snow[0]),
+        yCm: {display: precipUnits.has('cm'), position: 'right', title: {display: true, text: axisTitle('cm'), color: cmColor}, grid: {drawOnChartArea: false}, ticks: typeTick(cmColor),
           suggestedMin: 0, suggestedMax: 2},
         yMm: {display: precipUnits.has('mm'), position: 'right', title: {display: true, text: axisTitle('mm'), color: TYPE_COLORS.hw[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hw[0]),
           suggestedMin: 0, suggestedMax: 2}
