@@ -185,3 +185,116 @@ export function hw24Series(records, from, to) {
   const cumulative = precipitationSeries(records, from - DAY - MAX_GAP, to).points.filter(p => p.y !== null);
   return summarise(rolling(cumulative, from, to, v => (v < 0 || v > 150 ? null : v)), 'HW');
 }
+
+// ---- Interval precipitation (when it fell) and storm totals (how much) ----
+// Bins are aligned to fixed-MST boundaries (MST = UTC-7) so they line up with the chart's ticks.
+const MST_OFFSET = 7 * HOUR;
+export function binStepHours(spanHours) { return spanHours <= 24 ? 1 : spanHours <= 72 ? 3 : 6; }
+export function bins(from, to, stepHours) {
+  const step = stepHours * HOUR, out = [];
+  for (let start = Math.floor((from - MST_OFFSET) / step) * step + MST_OFFSET; start < to; start += step) {
+    const b = {start: Math.max(start, from), end: Math.min(start + step, to)};
+    b.sliver = b.end - b.start < step; // clipped by the window edge
+    out.push(b);
+  }
+  return out;
+}
+// Bars at the bin mid-point; null where the bin has no valid data. Cumulative line starts at 0 at `from`
+// and breaks (null) after a missing bin rather than pretending nothing fell.
+function intervalResult(allBins, allValues, method, source, partial) {
+  // An edge sliver with no reading in it is dropped rather than reported as missing data.
+  const keep = allBins.map((b, i) => !(b.sliver && allValues[i] === null));
+  const binList = allBins.filter((_, i) => keep[i]), values = allValues.filter((_, i) => keep[i]);
+  const points = binList.map((b, i) => ({x: (b.start + b.end) / 2, start: b.start, end: b.end, y: values[i]}));
+  const cumulative = [];
+  let total = 0, any = false, broken = false, peak = null;
+  binList.forEach((b, i) => {
+    const v = values[i];
+    if (i === 0) cumulative.push({x: b.start, y: v === null ? null : 0});
+    if (v === null) { broken = true; cumulative.push({x: b.end, y: null}); return; }
+    any = true;
+    total = Math.round((total + v) * 10) / 10;
+    cumulative.push({x: b.end, y: total});
+    if (v > 0 && (!peak || v > peak.y)) peak = points[i];
+  });
+  return {points, cumulative, total: any ? total : null, peak, partial: partial || broken, method, source};
+}
+// HN per interval. A direct new-snow sensor is summed per bin. Otherwise HN comes from HS: the HS
+// trace is smoothed (3 h running median), then a ratchet credits each rise of >= 2 cm above the
+// last reference level as new snow and lets settlement lower the reference, so noise of a cm or
+// two is not counted as snowfall and slow, steady snowfall still is.
+export const HN_FROM_HS_THRESHOLD_CM = 2;
+export function smoothedHs(records, windowMs = 3 * HOUR) {
+  const valid = hsValues(records), out = [];
+  let lo = 0, hi = 0;
+  for (let i = 0; i < valid.length; i++) {
+    const x = valid[i].x;
+    while (valid[lo].x < x - windowMs / 2) lo++;
+    while (hi + 1 < valid.length && valid[hi + 1].x <= x + windowMs / 2) hi++;
+    const ys = valid.slice(lo, hi + 1).map(p => p.y).sort((a, b) => a - b);
+    const m = ys.length >> 1;
+    out.push({x, y: ys.length % 2 ? ys[m] : (ys[m - 1] + ys[m]) / 2});
+  }
+  return out;
+}
+export function hnIntervals(records, from, to, stepHours) {
+  const binList = bins(from, to, stepHours);
+  const rows = ordered(records).filter(r => r.x > from - 6 * HOUR && r.x <= to);
+  const direct = rows.map(r => ({x: r.x, v: numeric(r.newSnow)})).filter(r => r.v !== null && r.v >= 0 && r.v <= 50);
+  if (direct.length) {
+    const values = binList.map(b => {
+      const inBin = direct.filter(r => r.x > b.start && r.x <= b.end);
+      return inBin.length ? Math.round(inBin.reduce((s, r) => s + r.v, 0) * 10) / 10 : null;
+    });
+    return intervalResult(binList, values, 'HN', 'new-snow sensor', false);
+  }
+  const smooth = smoothedHs(rows);
+  const credit = binList.map(() => 0), seen = binList.map(() => false);
+  let ref = null, last = null, partial = false;
+  for (const p of smooth) {
+    if (last && p.x - last.x > MAX_GAP) { ref = null; if (p.x > from) partial = true; } // a gap resets the reference
+    last = p;
+    if (ref === null || p.y < ref) { ref = p.y; }
+    else if (p.y - ref >= HN_FROM_HS_THRESHOLD_CM) {
+      const gain = p.y - ref;
+      ref = p.y;
+      const i = binList.findIndex(b => p.x > b.start && p.x <= b.end);
+      if (i >= 0 && gain <= 50) credit[i] += gain;
+    }
+    const i = binList.findIndex(b => p.x > b.start && p.x <= b.end);
+    if (i >= 0) seen[i] = true;
+  }
+  const values = credit.map((c, i) => (seen[i] ? Math.round(c * 10) / 10 : null));
+  return intervalResult(binList, values, 'HN', 'HS', partial);
+}
+// HW per interval from the gauge (mm), using the same reset/spike rules as precipitationSeries.
+export function hwIntervals(records, from, to, stepHours) {
+  const binList = bins(from, to, stepHours);
+  // Accumulate from a little before the window so the first interval has a baseline reading.
+  const acc = precipitationSeries(records, from - 2 * HOUR, to);
+  const valid = acc.points.filter(p => p.y !== null);
+  const before = valid.filter(p => p.x <= from);
+  let prev = before.length ? before.at(-1).y : null;
+  let partial = acc.points.some(p => p.x > from && p.y === null);
+  const values = binList.map(b => {
+    const inBin = valid.filter(p => p.x > b.start && p.x <= b.end);
+    if (!inBin.length) return null;
+    const end = inBin.at(-1).y;
+    if (prev === null) { prev = inBin[0].y; partial = true; } // no baseline: the first step is lost
+    const v = Math.max(0, Math.round((end - prev) * 10) / 10);
+    prev = end;
+    return v;
+  });
+  return intervalResult(binList, values, 'HW', acc.method, partial);
+}
+// HS as depth (cm), using the dashboard's validity rules.
+export function hsDepthSeries(records, from, to) {
+  const points = hsValues(records).filter(p => p.x >= from && p.x <= to);
+  const first = points[0] || null, latest = points.at(-1) || null;
+  return {points: withGaps(points), latest, change: first && latest ? Math.round((latest.y - first.y) * 10) / 10 : null, method: 'HS'};
+}
+// Storm density from co-located HN (cm) and HW (mm): 1 mm of water in 1 cm of snow = 100 kg/m³.
+export function stormDensity(hnTotal, hwTotal, minHn = 2) {
+  if (hnTotal === null || hwTotal === null || hnTotal < minHn || hwTotal <= 0) return null;
+  return Math.round(hwTotal / hnTotal * 100);
+}

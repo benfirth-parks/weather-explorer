@@ -77,3 +77,41 @@ test('wind points carry a validated direction; series use plain HS / HN / HW lab
   assert.equal(hs24Series([], 0, HOUR).method, 'HS');
   assert.equal(hw24Series([], 0, HOUR).method, 'HW');
 });
+test('interval bins align to MST and HW intervals sum to the window total', async () => {
+  const {bins, hwIntervals} = await import('../assets/pair-comparison-data.js');
+  const b = bins(0, 24 * HOUR, 3);
+  assert.equal(Math.abs((b[1].start - 7 * HOUR) % (3 * HOUR)), 0);
+  const gauge = Array.from({length: 13}, (_, h) => record(h, {precipTotal: 100 + (h >= 4 && h <= 8 ? (h - 3) * 2 : h > 8 ? 10 : 0)}));
+  const hw = hwIntervals(gauge, 0, 12 * HOUR, 1);
+  assert.equal(hw.total, 10);
+  assert.equal(hw.points.find(p => p.end === 4 * HOUR).y, 2);
+  assert.equal(hw.cumulative.at(-1).y, 10);
+});
+test('HN from HS ignores sensor noise and settlement but counts slow snowfall', async () => {
+  const {hnIntervals} = await import('../assets/pair-comparison-data.js');
+  const noise = [-0.9, 0.9, -0.4, 0.6, 0, 0.8, -0.3, 0.5, 0, 0.7].map((v, h) => record(h, {snowHeight: Math.max(0, 50 + v)}));
+  assert.equal(hnIntervals(noise, 0, 10 * HOUR, 1).total, 0);
+  const slow = Array.from({length: 14}, (_, h) => record(h, {snowHeight: 50 + Math.min(h, 10) * 0.5}));
+  const hn = hnIntervals(slow, 0, 14 * HOUR, 1);
+  assert.ok(hn.total >= 4 && hn.total <= 5, `slow snowfall total ${hn.total}`);
+  const settle = Array.from({length: 10}, (_, h) => record(h, {snowHeight: 80 - h}));
+  assert.equal(hnIntervals(settle, 0, 10 * HOUR, 1).total, 0);
+});
+test('direct new-snow sensor is summed per bin; density needs both totals', async () => {
+  const {hnIntervals, stormDensity} = await import('../assets/pair-comparison-data.js');
+  const rows = Array.from({length: 6}, (_, h) => record(h + 1, {newSnow: h < 3 ? 2 : 0, snowHeight: 100}));
+  const hn = hnIntervals(rows, 0, 6 * HOUR, 3);
+  assert.equal(hn.source, 'new-snow sensor');
+  assert.equal(hn.total, 6);
+  assert.equal(stormDensity(10, 8), 80);
+  assert.equal(stormDensity(1, 8), null);
+  assert.equal(stormDensity(10, 0), null);
+});
+test('an empty edge sliver is not reported as a missing interval', async () => {
+  const {hwIntervals} = await import('../assets/pair-comparison-data.js');
+  const from = 7 * HOUR + 0.75 * HOUR; // window starts at :45 past an MST hour
+  const gauge = Array.from({length: 8}, (_, h) => record(6 + h, {precipTotal: 100 + h}));
+  const hw = hwIntervals(gauge, from, 13 * HOUR, 1);
+  assert.equal(hw.partial, false);
+  assert.equal(hw.total, 6); // 101 mm at 07:00 (baseline before the window) to 107 mm at 13:00
+});

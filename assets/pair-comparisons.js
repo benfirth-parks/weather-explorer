@@ -1,4 +1,4 @@
-import {HOUR, metricSeries, hn24Series, hs24Series, hw24Series} from './pair-comparison-data.js';
+import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_FROM_HS_THRESHOLD_CM} from './pair-comparison-data.js';
 
 /* Paired-station timing chart: temperature, wind and precipitation for both stations on one
    time axis, plus a wind rose for each station that reports usable wind. The pair card itself
@@ -9,17 +9,19 @@ const states = new Map();
 const mounted = new Map();
 const requests = new Map();
 const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days']];
-/* These stations report precipitation from HS (cm), not gauge HW. */
-const HS_PRECIP_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo']);
-/* Pairs whose precipitation is drawn as rolling HN / HW bars; all others show the rolling 24 h HS difference. */
-const BAR_PAIRS = new Set(['fts-vulture,fts-bowsummit', 'fts-lookout,fts-sunshine']);
-/* Extra 24 h precipitation bars: the Bow Summit AB Env gauge's HW alongside Bow Summit's HN.
-   (Sunshine's own gauge HW is already drawn; its new-snow field is not usable as HN.) */
-/* In the bar panes, these stations also get their rolling 24 h HS drawn as a line over the bars. */
-const BAR_PAIR_HS_IDS = new Set(['fts-bowsummit', 'fts-sunshine']);
+/* Precipitation is drawn as interval bars (when it fell) plus a running total from the window
+   start (how much), with HS drawn as snow depth on its own axis.
+   HN stations: new snow in cm, from a new-snow sensor where there is one, otherwise derived from HS. */
+const HN_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo']);
+/* Stations whose HS (snow depth) is drawn. Sunshine's AB Env gauge reports a usable depth but
+   its new-snow field is not usable as HN, so it gets HS depth + HW only. */
+const HS_DEPTH_IDS = new Set([...HN_IDS, 'fts-sunshine']);
+/* Extra gauges drawn with a pair: the Bow Summit AB Env gauge's HW alongside Bow Summit's HN. */
 const EXTRA_PRECIP = {
-  'fts-vulture,fts-bowsummit': [{id: 'fts-bowprecip', kind: 'hw24'}]
+  'fts-vulture,fts-bowsummit': [{id: 'fts-bowprecip', kind: 'hw'}]
 };
+/* Co-located HN (cm) and HW (mm) sources, used for storm density. */
+const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip']];
 /* Colour encodes the data type; shade + line style encode the station.
    Slot 0 = first (upper) station: dark shade, solid. Slot 1 = second station: light shade, dashed. */
 const TYPE_COLORS = {
@@ -329,38 +331,45 @@ async function render(view) {
 
   const datasets = [], facts = [], notes = [], winds = [];
   const precipUnits = new Set();
-  const bars = BAR_PAIRS.has(ids.join(','));
-  const series = {hn24: hn24Series, hs24: hs24Series, hw24: hw24Series};
+  const step = binStepHours(hours);
   const narrow = view.body.clientWidth < 560;
   const used = {temp: new Set(), wind: new Set(), snow: new Set(), hs: new Set(), hw: new Set()};
+  const totals = {};
+  let hnFromHs = false, hasGauge = false;
   // Station 1 takes slot 0, station 2 slot 1; an extra gauge takes whichever slot is free for its type.
   function slotFor(type, preferred) {
     const slot = used[type].has(preferred) ? 1 - preferred : preferred;
     used[type].add(slot);
     return slot;
   }
-  // One precipitation series; centimetre (HN/HS) and millimetre (HW) values get separate axes.
-  // asLine draws HS as a plain line over the bars in the bar panes.
-  function addPrecip(station, data, kind, preferredSlot, asLine = false) {
-    const precip = series[kind](data, from, to), name = station.name;
-    if (!precip.latest) { notes.push(`${name}: no valid ${precip.method} in this period.`); return; }
-    const unit = kind === 'hw24' ? 'mm' : 'cm', label = precip.method, axis = unit === 'mm' ? 'yMm' : 'yCm';
-    const type = unit === 'mm' ? 'hw' : kind === 'hs24' ? 'hs' : 'snow', slot = slotFor(type, preferredSlot), color = TYPE_COLORS[type][slot];
+  // HN (cm) or HW (mm): interval bars + running-total line on the same axis.
+  function addPrecip(id, data, kind, preferredSlot) {
+    const name = host.stations[id].name;
+    const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step);
+    const label = result.method, unit = kind === 'hw' ? 'mm' : 'cm', axis = unit === 'mm' ? 'yMm' : 'yCm';
+    if (result.total === null) { notes.push(`${name}: no valid ${label} in this period.`); return; }
+    const type = kind === 'hw' ? 'hw' : 'snow', slot = slotFor(type, preferredSlot), color = TYPE_COLORS[type][slot];
     precipUnits.add(unit);
-    datasets.push(asLine
-      ? {label: `${name} ${label}`, unit, kind: 'hsline', slot, data: precip.points, yAxisID: axis, order: 3,
-          borderColor: color, backgroundColor: color, borderWidth: 2.2, borderDash: SLOT_DASH[slot], tension: 0.2}
-      : bars
-      ? {type: 'bar', label: `${name} ${label}`, unit, kind: 'bar', slot, data: precip.points, yAxisID: axis, order: 10,
-          borderColor: color, backgroundColor: slot ? color + '80' : color + 'cc', borderWidth: slot ? 1 : 0,
-          barPercentage: 0.95, categoryPercentage: 1, grouped: true}
-      : {label: `${name} ${label}`, unit, kind: 'precip', slot, data: precip.points, yAxisID: axis, order: 5,
-          borderColor: color, backgroundColor: color + '26', borderWidth: 1.6, borderDash: SLOT_DASH[slot], fill: 'origin', tension: 0.2});
-    const sign = v => (kind === 'hs24' && v > 0 ? '+' : '');
-    let fact = `${name} ${label} now **${sign(precip.latest.y)}${precip.latest.y.toFixed(1)} ${unit}**`;
-    if (precip.peak && precip.peak.y > precip.latest.y) fact += `, peak **${sign(precip.peak.y)}${precip.peak.y.toFixed(1)} ${unit}** at ${when(precip.peak.x, hours)}`;
+    totals[id] = {...(totals[id] || {}), [kind]: result.total};
+    if (kind === 'hw') hasGauge = true; else if (result.source === 'HS') hnFromHs = true;
+    datasets.push({type: 'bar', label: `${name} ${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
+      borderColor: color, backgroundColor: slot ? color + '80' : color + 'cc', borderWidth: slot ? 1 : 0,
+      barPercentage: 0.9, categoryPercentage: 1, grouped: true});
+    datasets.push({label: `${name} ${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
+      borderColor: color, backgroundColor: color, borderWidth: 1.8, borderDash: SLOT_DASH[slot], tension: 0});
+    let fact = `${name} ${label} **${result.total.toFixed(1)} ${unit}**`;
+    if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
     facts.push(fact);
-    if (precip.partial) notes.push(`${name}: some ${label} values unavailable (missing or rejected readings, or no baseline 24 h earlier).`);
+    if (result.partial) notes.push(`${name}: some ${label} intervals missing (gaps or rejected readings); total is for the intervals with data.`);
+  }
+  function addDepth(id, data, preferredSlot) {
+    const name = host.stations[id].name, hs = hsDepthSeries(data, from, to);
+    if (!hs.latest) { notes.push(`${name}: no valid HS in this period.`); return; }
+    const slot = slotFor('hs', preferredSlot), color = TYPE_COLORS.hs[slot];
+    datasets.push({label: `${name} HS depth`, unit: 'cm', kind: 'hsdepth', slot, data: hs.points, yAxisID: 'yHs', order: 3,
+      borderColor: color, backgroundColor: color, borderWidth: 2, borderDash: SLOT_DASH[slot], tension: 0.2});
+    const sign = hs.change > 0 ? '+' : '';
+    facts.push(`${name} HS **${hs.latest.y.toFixed(0)} cm**${hs.change !== null ? ` (${sign}${hs.change.toFixed(1)} cm over the period)` : ''}`);
   }
   results.forEach((result, i) => {
     const id = ids[i], station = host.stations[id];
@@ -388,18 +397,21 @@ async function render(view) {
         winds.push({name, points: wind.points});
       }
     }
-    let kind = null;
-    if (HS_PRECIP_IDS.has(id)) kind = bars ? 'hn24' : 'hs24';
-    else if (!host.noPrecipGaugeIds.has(id)) kind = 'hw24';
-    if (kind) addPrecip(station, data, kind, i);
-    if (bars && BAR_PAIR_HS_IDS.has(id)) addPrecip(station, data, 'hs24', i, true);
+    if (HN_IDS.has(id)) addPrecip(id, data, 'hn', i);
+    else if (!host.noPrecipGaugeIds.has(id)) addPrecip(id, data, 'hw', i);
+    if (HS_DEPTH_IDS.has(id)) addDepth(id, data, i);
   });
 
   extraResults.forEach((result, i) => {
-    const station = host.stations[extras[i].id];
-    if (result.status === 'fulfilled') addPrecip(station, result.value, extras[i].kind, 0);
-    else notes.push(`${station.name}: archive unavailable.`);
+    const id = extras[i].id;
+    if (result.status === 'fulfilled') addPrecip(id, result.value, extras[i].kind, 0);
+    else notes.push(`${host.stations[id].name}: archive unavailable.`);
   });
+  // Storm density where HN and HW come from the same site.
+  for (const [hnId, hwId] of DENSITY_PAIRS) {
+    const density = stormDensity(totals[hnId]?.hn ?? null, totals[hwId]?.hw ?? null);
+    if (density !== null) facts.push(`${host.stations[hnId].name} new-snow density ≈ **${density} kg/m³** (HW ${totals[hwId].hw.toFixed(1)} mm ÷ HN ${totals[hnId].hn.toFixed(1)} cm)`);
+  }
 
   if (!datasets.length) {
     view.status.textContent = 'No usable data for this pair in the selected period.';
@@ -414,19 +426,21 @@ async function render(view) {
     const item = element('span');
     const swatch = element('i', `pair-compare-swatch ${d.kind}${d.slot ? ' dashed' : ''}`);
     swatch.style.borderColor = d.borderColor;
-    if (d.kind === 'precip' || d.kind === 'bar') swatch.style.background = d.backgroundColor;
+    if (d.kind === 'bar') swatch.style.background = d.backgroundColor;
     swatch.setAttribute('aria-hidden', 'true');
     item.append(swatch, document.createTextNode(`${d.label} (${d.unit})${d.kind === 'wind' ? ' · arrows = blowing toward' : ''}`));
     view.legend.append(item);
   }
   view.status.innerHTML = facts.map(f => f.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')).join(' · ');
+  const hasPrecip = datasets.some(d => d.kind === 'bar'), hasDepth = datasets.some(d => d.kind === 'hsdepth');
   const precipNote = [
-    datasets.some(d => d.kind === 'bar') ? 'Bars = rolling 24 h totals at each reading: HN in cm (new-snow sensor or HS), HW in mm (precipitation gauge).' : '',
-    datasets.some(d => d.kind === 'hsline') ? 'Amber line = HS over the previous 24 h at each reading (cm; settlement is negative).' : '',
-    datasets.some(d => d.kind === 'precip') ? 'Shaded = HS over the previous 24 h at each reading (cm; settlement is negative).' : ''
+    hasPrecip ? `Bars = HN (cm) or HW (mm) that fell in each ${step} h interval; the matching line is the running total since the start of the period.` : '',
+    hasDepth ? 'Amber line = HS (snow depth, left axis).' : '',
+    hnFromHs ? `HN from an HS sensor counts rises of ${HN_FROM_HS_THRESHOLD_CM} cm or more in a 3 h-smoothed HS trace, so small storms may read low and some in-storm settlement is netted out.` : '',
+    hasGauge ? 'Gauge HW is a minimum: wind-exposed gauges under-catch snow.' : ''
   ].filter(Boolean).join(' ');
   view.note.textContent = [
-    `Rolling ${ranges.find(r => r[0] === hours)[1]} ending ${clock.format(to)} MST.`,
+    `${ranges.find(r => r[0] === hours)[1]} ending ${clock.format(to)} MST.`,
     'Red = temperature, teal = wind, purple = HN, amber = HS, blue = HW. Solid/dark = first station, dashed/light = second.',
     `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
     precipNote,
@@ -437,13 +451,11 @@ async function render(view) {
   const css = getComputedStyle(document.documentElement);
   const text = css.getPropertyValue('--color-text-muted').trim();
   const grid = css.getPropertyValue('--color-divider').trim();
-  const tick = {color: text, font: {size: 11}};
-  const typeTick = color => ({...tick, color});
-  const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && (d.kind === 'bar' || d.kind === 'precip' || d.kind === 'hsline')).map(d => d.label.split(' ').at(-1)))].join(' / ') + ' ' + unit;
+  const tick = {color: text, font: {size: narrow ? 9 : 11}};
+  // Phone width: tick colours identify each y-axis, so titles are dropped to give the plot room.
+  const typeTick = color => ({...tick, color, ...(narrow ? {maxTicksLimit: 6, padding: 1} : {})});
+  const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && d.kind === 'bar').map(d => d.method))].join(' / ') + ' ' + unit;
   const hasWind = datasets.some(d => d.kind === 'wind');
-  // The cm axis takes the HN or HS colour when only one of them is on it; neutral when both are.
-  const cmHasHn = datasets.some(d => d.unit === 'cm' && d.kind === 'bar'), cmHasHs = datasets.some(d => d.kind === 'hsline' || d.kind === 'precip');
-  const cmColor = cmHasHn && cmHasHs ? text : cmHasHn ? TYPE_COLORS.snow[0] : TYPE_COLORS.hs[0];
   view.chart = new window.Chart(view.canvas, {
     type: 'line',
     data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
@@ -456,6 +468,7 @@ async function render(view) {
         title: items => items.length ? `${clock.format(items[0].parsed.x)} MST` : '',
         label: c => {
           const p = c.raw || {};
+          if (c.dataset.kind === 'bar' && p.start !== undefined) return `${c.dataset.label}: ${c.parsed.y?.toFixed(1)} ${c.dataset.unit} (${hourClock.format(p.start)}–${hourClock.format(p.end)})`;
           const dir = c.dataset.kind === 'wind' && p.dir !== null && p.dir !== undefined ? ` from ${ROSE_DIRS[Math.floor(((p.dir % 360) + 11.25) % 360 / 22.5)]} (${Math.round(p.dir)}°)` : '';
           return `${c.dataset.label}: ${c.parsed.y?.toFixed(1)} ${c.dataset.unit}${dir}`;
         }
@@ -471,12 +484,14 @@ async function render(view) {
           },
           ticks: {...tick, maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
             callback: value => hours === 24 ? hourClock.format(value) : (hours === 72 ? `${dayClock.format(value)} ${hourClock.format(value)}` : dayClock.format(value))}},
-        yTemp: {position: 'left', title: {display: true, text: '°C', color: TYPE_COLORS.temp[0]}, grid: {color: grid}, ticks: typeTick(TYPE_COLORS.temp[0])},
-        yWind: {display: hasWind, position: 'right', beginAtZero: true, title: {display: true, text: 'Wind km/h', color: TYPE_COLORS.wind[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.wind[0])},
-        yCm: {display: precipUnits.has('cm'), position: 'right', title: {display: true, text: axisTitle('cm'), color: cmColor}, grid: {drawOnChartArea: false}, ticks: typeTick(cmColor),
-          suggestedMin: 0, suggestedMax: 2},
-        yMm: {display: precipUnits.has('mm'), position: 'right', title: {display: true, text: axisTitle('mm'), color: TYPE_COLORS.hw[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hw[0]),
-          suggestedMin: 0, suggestedMax: 2}
+        yTemp: {position: 'left', title: {display: !narrow, text: '°C', color: TYPE_COLORS.temp[0]}, grid: {color: grid}, ticks: typeTick(TYPE_COLORS.temp[0])},
+        yWind: {display: hasWind, position: 'right', beginAtZero: true, title: {display: !narrow, text: 'Wind km/h', color: TYPE_COLORS.wind[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.wind[0])},
+        yHs: {display: hasDepth, position: 'left', title: {display: !narrow, text: 'HS cm', color: TYPE_COLORS.hs[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hs[0]),
+          grace: '10%'},
+        yCm: {display: precipUnits.has('cm'), position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('cm'), color: TYPE_COLORS.snow[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.snow[0]),
+          suggestedMax: 2},
+        yMm: {display: precipUnits.has('mm'), position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('mm'), color: TYPE_COLORS.hw[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hw[0]),
+          suggestedMax: 2}
       }
     }
   });
