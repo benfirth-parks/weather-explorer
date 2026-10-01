@@ -3,7 +3,11 @@ import {
   INITIAL_SEED_HOURS,
   readArchive,
   syncStation,
-  selectHours
+  selectHours,
+  readHistory,
+  downsample,
+  RETENTION_HOURS,
+  MAX_REQUEST_HOURS
 } from "./_weather-archive.mjs";
 
 /* If the archive is stale by more than this many minutes, the read
@@ -77,7 +81,29 @@ export default async (request) => {
       }
     }
 
-    const observations = selectHours(archive, requestedHours);
+    let observations = selectHours(archive, requestedHours);
+
+    /* Windows longer than the 3-year hot archive: prepend long-term history
+       and thin to fixed buckets so the payload stays the size of a 3-year
+       hourly response. Windows of 3 years or less are unchanged (hourly). */
+    let resolutionHours = 1;
+    const hours = Math.min(Math.max(requestedHours || 24, 1), MAX_REQUEST_HOURS);
+    if (hours > RETENTION_HOURS) {
+      const fromMs = Date.now() - hours * 3_600_000;
+      const hotStartMs = observations.length
+        ? new Date(observations[0].measurementDateTime).getTime()
+        : Date.now();
+      if (fromMs < hotStartMs) {
+        try {
+          const history = await readHistory(stationId, fromMs, hotStartMs);
+          observations = history.concat(observations);
+        } catch (err) {
+          console.warn(JSON.stringify({ event: "history-read-failed", stationId, error: err.message }));
+        }
+      }
+      resolutionHours = Math.ceil(hours / RETENTION_HOURS);
+      observations = downsample(observations, resolutionHours);
+    }
 
     return new Response(JSON.stringify(observations), {
       status: 200,
@@ -88,7 +114,8 @@ export default async (request) => {
         "X-Weather-Data-Source": "netlify-blobs-archive",
         "X-Archive-Last-Synced": archive.lastSyncedAt || "",
         "X-Archive-Seeded": String(seeded),
-        "X-Archive-Self-Healed": String(refreshed)
+        "X-Archive-Self-Healed": String(refreshed),
+        "X-Archive-Resolution-Hours": String(resolutionHours)
       }
     });
   } catch (error) {

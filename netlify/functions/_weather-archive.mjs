@@ -42,6 +42,110 @@ function archiveKey(stationId) {
   return `stations/${stationId}.json`;
 }
 
+/* ---- Long-term history ----
+   The hot archive (stations/<id>.json) keeps a rolling 3 years and is what
+   the hourly sync reads and writes. Older records live in immutable
+   per-year files, history/<id>/<YYYY>.json, written once by the historical
+   import and then by freezeCompletedYear() each January — so data that
+   rolls out of the 3-year window is never lost. Reads prefer the hot
+   archive wherever it has coverage. */
+export const RETENTION_HOURS = Math.floor(RETENTION_MS / 3_600_000);
+export const MAX_REQUEST_HOURS = 20 * 8766;
+
+export function historyKey(stationId, year) {
+  return `history/${stationId}/${year}.json`;
+}
+
+export async function readHistory(stationId, fromMs, toMs) {
+  const store = archiveStore();
+  const out = [];
+  const y0 = new Date(fromMs).getUTCFullYear();
+  const y1 = new Date(toMs).getUTCFullYear();
+  for (let y = y0; y <= y1; y += 1) {
+    const data = await store.get(historyKey(stationId, y), { type: "json" });
+    const obs = Array.isArray(data?.observations) ? data.observations : [];
+    for (const rec of obs) {
+      const t = new Date(rec.measurementDateTime).getTime();
+      if (t >= fromMs && t < toMs) out.push(rec);
+    }
+  }
+  return out;
+}
+
+/* Copy last year's records from the hot archive into history once the year
+   is complete (after Jan 3 UTC, so the sync overlap has settled). Runs on
+   every sync but only writes when the year file does not exist yet. */
+async function freezeCompletedYear(stationId, observations) {
+  const now = new Date();
+  const year = now.getUTCFullYear() - 1;
+  if (now.getTime() < Date.UTC(year + 1, 0, 3)) return null;
+  const store = archiveStore();
+  const key = historyKey(stationId, year);
+  const existing = await store.getMetadata(key);
+  if (existing) return null;
+  const start = Date.UTC(year, 0, 1);
+  const end = Date.UTC(year + 1, 0, 1);
+  const rows = observations.filter((r) => {
+    const t = new Date(r.measurementDateTime).getTime();
+    return t >= start && t < end;
+  });
+  if (!rows.length) return null;
+  await store.setJSON(key, {
+    stationId, year, source: "hot-archive-freeze",
+    frozenAt: now.toISOString(), observationCount: rows.length, observations: rows
+  }, { onlyIfNew: true });
+  return rows.length;
+}
+
+/* Thin a record series to fixed buckets of `stepHours` for long windows so
+   responses stay well under the function payload limit. Means for levels,
+   min/max for extremes, last value for running totals, sum for increments,
+   vector mean for direction. */
+const MEAN_FIELDS = ["airTempAvg", "relativeHumidity", "windSpeedAvg", "snowHeight"];
+export function downsample(records, stepHours) {
+  if (!(stepHours > 1)) return records;
+  const step = stepHours * 3_600_000;
+  const buckets = new Map();
+  for (const r of records) {
+    const t = new Date(r.measurementDateTime).getTime();
+    if (!Number.isFinite(t)) continue;
+    const k = Math.floor(t / step) * step;
+    let b = buckets.get(k);
+    if (!b) { b = { sums: {}, counts: {}, rec: { measurementDateTime: new Date(k).toISOString() }, u: 0, v: 0, dn: 0 }; buckets.set(k, b); }
+    for (const f of MEAN_FIELDS) {
+      const x = r[f];
+      if (typeof x === "number" && Number.isFinite(x)) { b.sums[f] = (b.sums[f] || 0) + x; b.counts[f] = (b.counts[f] || 0) + 1; }
+    }
+    const take = (f, fn) => {
+      const x = r[f];
+      if (typeof x !== "number" || !Number.isFinite(x)) return;
+      b.rec[f] = b.rec[f] === undefined ? x : fn(b.rec[f], x);
+    };
+    take("airTempMin", Math.min);
+    take("airTempMax", Math.max);
+    take("windSpeedGust", Math.max);
+    take("newSnow", Math.max);
+    take("precipTotal", (_, x) => x);
+    take("windDirPeak", (_, x) => x);
+    take("precipIncr", (a, x) => a + x);
+    if (typeof r.windDirAvg === "number" && Number.isFinite(r.windDirAvg)) {
+      const rad = (r.windDirAvg * Math.PI) / 180;
+      b.u += Math.sin(rad); b.v += Math.cos(rad); b.dn += 1;
+    }
+  }
+  const out = [];
+  for (const k of [...buckets.keys()].sort((a, c) => a - c)) {
+    const b = buckets.get(k);
+    for (const f of MEAN_FIELDS) {
+      if (b.counts[f]) b.rec[f] = Math.round((b.sums[f] / b.counts[f]) * 100) / 100;
+    }
+    if (b.dn) b.rec.windDirAvg = Math.round(((Math.atan2(b.u, b.v) * 180) / Math.PI + 360) % 360);
+    if (typeof b.rec.precipIncr === "number") b.rec.precipIncr = Math.round(b.rec.precipIncr * 100) / 100;
+    out.push(b.rec);
+  }
+  return out;
+}
+
 function asNumber(value) {
   if (value === undefined || value === null || value === "" || value === "/////" || value === "///") {
     return null;
@@ -315,6 +419,11 @@ export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
     lastFtsRequestStart: start.toISOString(),
     lastFtsRecordCount: incoming.length
   });
+  try {
+    await freezeCompletedYear(stationId, observations);
+  } catch (err) {
+    console.warn(JSON.stringify({ event: "history-freeze-failed", stationId, error: err?.message || String(err) }));
+  }
   return { stationId, fetched: incoming.length, retained: saved.observationCount, lastSyncedAt: saved.lastSyncedAt };
 }
 
