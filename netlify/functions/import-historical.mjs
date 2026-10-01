@@ -14,6 +14,12 @@
 // filled from the incoming row instead of the whole row being dropped.
 // Used to back-fill wind/RH/precip into hours that already hold temp/snow.
 //
+// Optional "mode": "qc-patch" (data-quality cleanup): body carries
+// "patches": [{ measurementDateTime, set: { field: newValue|null },
+// expect: { field: currentValue } }]. A field is changed (null = removed)
+// ONLY if its current value still equals "expect", so a patch can never
+// overwrite newer or different data. No observations are added.
+//
 // Auth: x-admin-token header must equal env.ARCHIVE_ADMIN_TOKEN
 // (same secret used by fts-sync-manual).
 //
@@ -84,8 +90,13 @@ export default async (req) => {
   }
 
   const stationId = String(payload?.stationId || "").trim();
-  const incoming = Array.isArray(payload?.observations) ? payload.observations : null;
+  const qcPatch = payload?.mode === "qc-patch";
+  const patches = qcPatch && Array.isArray(payload?.patches) ? payload.patches : [];
+  const incoming = qcPatch ? [] : (Array.isArray(payload?.observations) ? payload.observations : null);
   const fillFields = payload?.mode === "fill-fields";
+  if (qcPatch && (!patches.length || patches.length > 30000)) {
+    return json(400, { ok: false, error: "patches-required", max: 30000 });
+  }
   if (!stationId || !incoming) {
     return json(400, { ok: false, error: "missing-fields", need: ["stationId", "observations[]"] });
   }
@@ -112,6 +123,9 @@ export default async (req) => {
   let droppedInvalid = 0;
   let recordsFilled = 0;
   let fieldsFilled = 0;
+  let qcApplied = 0;
+  let qcMismatch = 0;
+  let qcNotFound = 0;
   let existingBefore = 0;
   let mergedLength = 0;
   let finalArchive = null;
@@ -127,6 +141,9 @@ export default async (req) => {
     droppedInvalid = 0;
     recordsFilled = 0;
     fieldsFilled = 0;
+    qcApplied = 0;
+    qcMismatch = 0;
+    qcNotFound = 0;
 
     const existingRes = await store.getWithMetadata(archiveKey(stationId), { type: "json" });
     const existing = existingRes?.data ?? null;
@@ -140,6 +157,25 @@ export default async (req) => {
       const t = new Date(rec.measurementDateTime).getTime();
       if (!Number.isFinite(t)) continue;
       byTs.set(rec.measurementDateTime, rec);
+    }
+
+    for (const p of patches) {
+      const iso = String(p?.measurementDateTime || "");
+      const current = byTs.get(iso);
+      if (!current) { qcNotFound++; continue; }
+      const next = { ...current };
+      let changed = false;
+      for (const [k, v] of Object.entries(p?.set || {})) {
+        if (!KNOWN_FIELDS.has(k) || k === "measurementDateTime") continue;
+        const want = p?.expect?.[k];
+        const have = next[k];
+        const same = typeof want === "number" && typeof have === "number"
+          ? Math.abs(want - have) < 1e-9 : want === have;
+        if (!same) { qcMismatch++; continue; }
+        if (v === null) delete next[k]; else next[k] = v;
+        qcApplied++; changed = true;
+      }
+      if (changed) byTs.set(iso, next);
     }
 
     for (const rec of incoming) {
@@ -179,10 +215,12 @@ export default async (req) => {
       stationId,
       retainedYears: 3,
       lastSyncedAt: existing?.lastSyncedAt || new Date().toISOString(),
-      lastHistoricalImportAt: new Date().toISOString(),
+      lastHistoricalImportAt: qcPatch ? (existing?.lastHistoricalImportAt || null) : new Date().toISOString(),
       observationCount: merged.length,
       observations: merged
     };
+    if (qcPatch) archive.lastQcAt = new Date().toISOString();
+    else if (existing?.lastQcAt) archive.lastQcAt = existing.lastQcAt;
     if (existing?.lastFtsRequestStart) archive.lastFtsRequestStart = existing.lastFtsRequestStart;
     if (existing?.lastFtsRecordCount !== undefined) archive.lastFtsRecordCount = existing.lastFtsRecordCount;
 
@@ -220,7 +258,10 @@ export default async (req) => {
   return json(200, {
     ok: true,
     stationId,
-    mode: fillFields ? "fill-fields" : "existing-wins",
+    mode: qcPatch ? "qc-patch" : (fillFields ? "fill-fields" : "existing-wins"),
+    qcApplied,
+    qcMismatch,
+    qcNotFound,
     incoming: incoming.length,
     existingBefore,
     kept: mergedLength,
