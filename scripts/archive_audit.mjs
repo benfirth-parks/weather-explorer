@@ -11,7 +11,7 @@ mkdirSync("audit", { recursive: true });
 const summary = {};
 for (const id of ids) {
   try {
-    const r = await fetch(`${SITE}/api/fts?station=${id}&hours=26298`);
+    const r = await fetch(`${SITE}/api/fts?station=${id}&hours=26298&nocache=${Date.now()}`);
     const obs = await r.json();
     if (!Array.isArray(obs)) throw new Error(JSON.stringify(obs).slice(0, 200));
     writeFileSync(`audit/${id}.json.gz`, gzipSync(JSON.stringify(obs)));
