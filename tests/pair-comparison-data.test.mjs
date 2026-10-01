@@ -50,7 +50,7 @@ test('HS change is relative to the window start and rejects spikes', async () =>
   assert.equal(result.total, 3);
   assert.equal(hsChangeSeries([record(1, {snowHeight: null})], 0, 2 * HOUR).total, null);
 });
-test('rolling HN24 / ΔHS 24h / HW24 use a baseline 24 h earlier', async () => {
+test('rolling HN / HS / HW use a baseline 24 h earlier', async () => {
   const {hn24Series, hs24Series, hw24Series} = await import('../assets/pair-comparison-data.js');
   const hs = [0, 12, 24, 25, 26].map((h, i) => record(h, {snowHeight: [100, 100, 105, 98, 110][i]}));
   const hn = hn24Series(hs, 20 * HOUR, 27 * HOUR);
@@ -67,4 +67,13 @@ test('HN24 prefers a direct new-snow sensor summed over 24 h', async () => {
   const hn = hn24Series(rows, 25 * HOUR, 29 * HOUR);
   assert.equal(hn.latest.y, 10); // readings at hours 20–29 inclusive
   assert.equal(hn24Series(rows.map(r => ({...r, newSnow: 0})), 25 * HOUR, 29 * HOUR).latest.y, 0);
+});
+test('wind points carry a validated direction; series use plain HS / HN / HW labels', async () => {
+  const {hn24Series, hs24Series, hw24Series} = await import('../assets/pair-comparison-data.js');
+  const rows = [record(1, {windSpeedAvg: 10, windDirAvg: 270}), record(2, {windSpeedAvg: 12, windDirAvg: 400}), record(3, {windSpeedAvg: 5, windDirAvg: 360})];
+  assert.deepEqual(metricSeries(rows, 'wind', 0, 4 * HOUR).points.map(p => p.dir), [270, null, 0]);
+  assert.equal(metricSeries([record(1, {airTempAvg: 1})], 'temperature', 0, 2 * HOUR).points[0].dir, undefined);
+  assert.equal(hn24Series([], 0, HOUR).method, 'HN');
+  assert.equal(hs24Series([], 0, HOUR).method, 'HS');
+  assert.equal(hw24Series([], 0, HOUR).method, 'HW');
 });

@@ -29,7 +29,12 @@ export function metricSeries(records, metric, from, to) {
   // real gaps over 90 min are still broken by withGaps().
   const points = ordered(records).filter(r => r.x >= from && r.x <= to).map(r => {
     const value = numeric(r[key]);
-    return {x: r.x, y: value !== null && (metric !== 'wind' || value >= 0) ? value : null};
+    const point = {x: r.x, y: value !== null && (metric !== 'wind' || value >= 0) ? value : null};
+    if (metric === 'wind') {
+      const dir = numeric(r.windDirAvg);
+      point.dir = dir !== null && dir >= 0 && dir <= 360 ? dir % 360 : null;
+    }
+    return point;
   }).filter(p => p.y !== null);
   return {points: withGaps(points), partial: false};
 }
@@ -167,16 +172,16 @@ export function hn24Series(records, from, to) {
       const total = Math.round(sum * 10) / 10;
       points.push({x: r.x, y: i < k && total <= 50 ? total : null});
     }
-    return summarise(points, 'HN24');
+    return summarise(points, 'HN');
   }
-  return summarise(rolling(hsValues(records), from, to, v => (v < 0 || v > 50 ? null : v)), 'HN24');
+  return summarise(rolling(hsValues(records), from, to, v => (v < 0 || v > 50 ? null : v)), 'HN');
 }
 // Signed change in HS over the previous 24 h (settlement is negative).
 export function hs24Series(records, from, to) {
-  return summarise(rolling(hsValues(records), from, to, v => (Math.abs(v) > 50 ? null : v)), 'ΔHS 24h');
+  return summarise(rolling(hsValues(records), from, to, v => (Math.abs(v) > 50 ? null : v)), 'HS');
 }
 // HW24 from the gauge: accumulated water equivalent over the previous 24 h; >150 mm is rejected.
 export function hw24Series(records, from, to) {
   const cumulative = precipitationSeries(records, from - DAY - MAX_GAP, to).points.filter(p => p.y !== null);
-  return summarise(rolling(cumulative, from, to, v => (v < 0 || v > 150 ? null : v)), 'HW24');
+  return summarise(rolling(cumulative, from, to, v => (v < 0 || v > 150 ? null : v)), 'HW');
 }

@@ -14,13 +14,26 @@
 .pair-compare button[aria-pressed="true"] { background:var(--color-primary-highlight); border-color:var(--color-primary); color:var(--color-primary); font-weight:600; }
 .pair-compare button:hover { border-color:var(--color-primary); color:var(--color-text); }
 .pair-compare button:focus-visible { outline:2px solid var(--color-primary); outline-offset:3px; }
+.pair-compare-body { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; }
+.pair-compare-body.has-roses { grid-template-columns:minmax(0,1fr) minmax(170px,260px); }
 .pair-compare-chart { position:relative; height:300px; min-width:0; }
 .pair-compare-chart[hidden] { display:none; }
+.pair-compare-roses { display:flex; flex-direction:column; gap:10px; min-width:0; }
+.pair-compare-roses[hidden] { display:none; }
+.pair-compare-rose { margin:0; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.pair-compare-rose figcaption { font-size:11px; color:var(--color-text-muted); text-align:center; line-height:1.4; }
+.pair-compare-rose figcaption strong { color:var(--color-text); font-weight:700; }
+.pair-compare-rose-canvas { width:100%; display:flex; justify-content:center; }
+.pair-compare-rose-meta { margin:0; font-size:11px; color:var(--color-text-muted); }
+.pair-compare-rose-key { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 10px; font-size:11px; color:var(--color-text-muted); }
+.pair-compare-rose-key > span { display:flex; align-items:center; gap:4px; }
+.pair-compare-rose-key i { display:inline-block; width:10px; height:10px; border:1px solid; border-radius:2px; }
 .pair-compare-legend { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; line-height:1.5; }
 .pair-compare-legend > span { display:flex; align-items:center; gap:6px; }
 .pair-compare-swatch { display:inline-block; width:18px; flex:0 0 18px; border-top:2.5px solid; }
-.pair-compare-swatch.wind { border-top-style:dotted; }
-.pair-compare-swatch.precip { height:9px; border:1.5px solid; border-radius:2px; }
+.pair-compare-swatch.dashed { border-top-style:dashed; }
+.pair-compare-swatch.precip, .pair-compare-swatch.bar { height:9px; border:1.5px solid; border-radius:2px; }
+.pair-compare-swatch.precip.dashed { border-style:dashed; }
 .pair-compare-status { color:var(--color-text); line-height:1.6; margin:10px 0 0; font-size:12px; }
 .pair-compare-status strong { font-weight:700; }
 .pair-compare-note { color:var(--color-text-muted); line-height:1.6; margin:6px 0 0; font-size:12px; }
@@ -28,4 +41,8 @@
 @media (max-width:768px) {
   .pair-compare button { min-height:40px; }
   .pair-compare-chart { height:280px; }
+  .pair-compare-body.has-roses { grid-template-columns:minmax(0,1fr); }
+  .pair-compare-roses { flex-direction:row; flex-wrap:wrap; justify-content:center; }
+  .pair-compare-rose { flex:1 1 160px; max-width:260px; }
+  .pair-compare-rose-key { flex-basis:100%; }
 }
