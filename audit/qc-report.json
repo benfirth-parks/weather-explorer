@@ -1,0 +1,131 @@
+{
+ "at": "2026-10-01T17:21:00.605Z",
+ "report": {
+  "fts-bigbend": {
+   "patches": 519,
+   "applied": 519,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-boslo": {
+   "patches": 1972,
+   "applied": 1981,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-bosup": {
+   "patches": 1535,
+   "applied": 2830,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-boulder": {
+   "patches": 1,
+   "applied": 2,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-bowprecip": {
+   "patches": 49,
+   "applied": 50,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-bowsummit": {
+   "patches": 2309,
+   "applied": 2467,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-castle": {
+   "patches": 1712,
+   "applied": 1712,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-coleman": {
+   "patches": 21,
+   "applied": 21,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-lakelouise": {
+   "patches": 3,
+   "applied": 3,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-lookout": {
+   "patches": 537,
+   "applied": 1564,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-maligne": {
+   "patches": 134,
+   "applied": 134,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-pikarun": {
+   "patches": 623,
+   "applied": 623,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-rangercreek": {
+   "patches": 1,
+   "applied": 1,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-simplo": {
+   "patches": 384,
+   "applied": 399,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-simpup": {
+   "patches": 1654,
+   "applied": 2505,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-stanley": {
+   "patches": 2559,
+   "applied": 2683,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-sunshine": {
+   "patches": 2964,
+   "applied": 2964,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-tangleridge": {
+   "patches": 28,
+   "applied": 28,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-vermillion": {
+   "patches": 13,
+   "applied": 13,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-vulture": {
+   "patches": 4323,
+   "applied": 8829,
+   "mismatch": 0,
+   "notFound": 0
+  },
+  "fts-whymper": {
+   "patches": 225,
+   "applied": 671,
+   "mismatch": 0,
+   "notFound": 0
+  }
+ }
+}
