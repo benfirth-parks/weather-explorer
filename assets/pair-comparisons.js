@@ -352,10 +352,10 @@ async function render(view) {
     precipUnits.add(unit);
     totals[id] = {...(totals[id] || {}), [kind]: result.total};
     if (kind === 'hw') hasGauge = true; else if (result.source === 'HS') hnFromHs = true;
-    datasets.push({type: 'bar', label: `${name} ${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
+    datasets.push({type: 'bar', station: id, label: `${name} ${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
       borderColor: color, backgroundColor: slot ? color + '80' : color + 'cc', borderWidth: slot ? 1 : 0,
       barPercentage: 0.9, categoryPercentage: 1, grouped: true});
-    datasets.push({label: `${name} ${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
+    datasets.push({station: id, label: `${name} ${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
       borderColor: color, backgroundColor: color, borderWidth: 1.8, borderDash: SLOT_DASH[slot], tension: 0});
     let fact = `${name} ${label} **${result.total.toFixed(1)} ${unit}**`;
     if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
@@ -366,7 +366,7 @@ async function render(view) {
     const name = host.stations[id].name, hs = hsDepthSeries(data, from, to);
     if (!hs.latest) { notes.push(`${name}: no valid HS in this period.`); return; }
     const slot = slotFor('hs', preferredSlot), color = TYPE_COLORS.hs[slot];
-    datasets.push({label: `${name} HS depth`, unit: 'cm', kind: 'hsdepth', slot, data: hs.points, yAxisID: 'yHs', order: 3,
+    datasets.push({station: id, label: `${name} HS depth`, unit: 'cm', kind: 'hsdepth', slot, data: hs.points, yAxisID: 'yHs', order: 3,
       borderColor: color, backgroundColor: color, borderWidth: 2, borderDash: SLOT_DASH[slot], tension: 0.2});
     const sign = hs.change > 0 ? '+' : '';
     facts.push(`${name} HS **${hs.latest.y.toFixed(0)} cm**${hs.change !== null ? ` (${sign}${hs.change.toFixed(1)} cm over the period)` : ''}`);
@@ -383,14 +383,14 @@ async function render(view) {
     const temp = metricSeries(data, 'temperature', from, to);
     if (temp.points.some(p => p.y !== null)) {
       const slot = slotFor('temp', i), color = TYPE_COLORS.temp[slot];
-      datasets.push({label: `${name} temp`, unit: '°C', kind: 'temp', slot, data: temp.points, yAxisID: 'yTemp', order: 1,
+      datasets.push({station: id, label: `${name} temp`, unit: '°C', kind: 'temp', slot, data: temp.points, yAxisID: 'yTemp', order: 1,
         borderColor: color, backgroundColor: color, borderWidth: 2.4, borderDash: SLOT_DASH[slot], tension: 0.2});
     } else notes.push(`${name}: no valid temperature.`);
     if (!host.hiddenWindIds.has(id)) {
       const wind = metricSeries(data, 'wind', from, to);
       if (wind.points.some(p => p.y !== null)) {
         const slot = slotFor('wind', i), color = TYPE_COLORS.wind[slot];
-        datasets.push({label: `${name} wind`, unit: 'km/h', kind: 'wind', slot, data: markArrows(wind.points, hours, narrow), yAxisID: 'yWind', order: 2,
+        datasets.push({station: id, label: `${name} wind`, unit: 'km/h', kind: 'wind', slot, data: markArrows(wind.points, hours, narrow), yAxisID: 'yWind', order: 2,
           borderColor: color, backgroundColor: color, borderWidth: 1.8, borderDash: SLOT_DASH[slot], tension: 0.2});
         const pk = peak(wind.points);
         if (pk) facts.push(`${name} peak wind **${pk.y.toFixed(0)} km/h** at ${when(pk.x, hours)}`);
@@ -422,6 +422,7 @@ async function render(view) {
     return;
   }
   // Legend: one entry per series, drawn in the same colour and line style used on the chart.
+  // Clicking an entry shows or hides that series (assets/legend-toggle.js).
   for (const d of datasets) {
     const item = element('span');
     const swatch = element('i', `pair-compare-swatch ${d.kind}${d.slot ? ' dashed' : ''}`);
@@ -443,6 +444,7 @@ async function render(view) {
     `${ranges.find(r => r[0] === hours)[1]} ending ${clock.format(to)} MST.`,
     'Red = temperature, teal = wind, purple = HN, amber = HS, blue = HW. Solid/dark = first station, dashed/light = second.',
     `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
+    'Click a legend entry to hide or show that series.',
     precipNote,
     ...notes
   ].filter(Boolean).join(' ');
@@ -484,17 +486,18 @@ async function render(view) {
           },
           ticks: {...tick, maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
             callback: value => hours === 24 ? hourClock.format(value) : (hours === 72 ? `${dayClock.format(value)} ${hourClock.format(value)}` : dayClock.format(value))}},
-        yTemp: {position: 'left', title: {display: !narrow, text: '°C', color: TYPE_COLORS.temp[0]}, grid: {color: grid}, ticks: typeTick(TYPE_COLORS.temp[0])},
-        yWind: {display: hasWind, position: 'right', beginAtZero: true, title: {display: !narrow, text: 'Wind km/h', color: TYPE_COLORS.wind[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.wind[0])},
-        yHs: {display: hasDepth, position: 'left', title: {display: !narrow, text: 'HS cm', color: TYPE_COLORS.hs[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hs[0]),
+        yTemp: {display: 'auto', position: 'left', title: {display: !narrow, text: '°C', color: TYPE_COLORS.temp[0]}, grid: {color: grid}, ticks: typeTick(TYPE_COLORS.temp[0])},
+        yWind: {display: hasWind ? 'auto' : false, position: 'right', beginAtZero: true, title: {display: !narrow, text: 'Wind km/h', color: TYPE_COLORS.wind[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.wind[0])},
+        yHs: {display: hasDepth ? 'auto' : false, position: 'left', title: {display: !narrow, text: 'HS cm', color: TYPE_COLORS.hs[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hs[0]),
           grace: '10%'},
-        yCm: {display: precipUnits.has('cm'), position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('cm'), color: TYPE_COLORS.snow[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.snow[0]),
+        yCm: {display: precipUnits.has('cm') ? 'auto' : false, position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('cm'), color: TYPE_COLORS.snow[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.snow[0]),
           suggestedMax: 2},
-        yMm: {display: precipUnits.has('mm'), position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('mm'), color: TYPE_COLORS.hw[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hw[0]),
+        yMm: {display: precipUnits.has('mm') ? 'auto' : false, position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('mm'), color: TYPE_COLORS.hw[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hw[0]),
           suggestedMax: 2}
       }
     }
   });
+  window.bindLegendToggles?.(view.chart, [...view.legend.children], datasets.map(d => `${d.station}:${d.kind}`), `pair:${ids.join(',')}`);
   renderRoses(view, winds, hours);
 }
 function scan() {
