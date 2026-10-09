@@ -15,8 +15,10 @@
 
 import { getStore } from "@netlify/blobs";
 import { buildSnapshot, SYSTEM_PROMPT } from "./_ai-summary.mjs";
+import { readArchive, selectHours } from "./_weather-archive.mjs";
+import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v2"; /* v2: station-attributed extremes */
+const CACHE_STORE = "rockies-weather-ai-summary-v3"; /* v3: HN/HST/HS by pair appended */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
@@ -122,8 +124,21 @@ export default async (request) => {
       return json({ error: "Empty summary from model" }, { status: 502 });
     }
 
+    /* HN, HST and HS per station pair, computed rather than written by the model. */
+    let snowBlock = "";
+    try {
+      const now = Date.now();
+      const rows = await Promise.all(SNOW_PAIRS.map(async (pair) => {
+        const archive = await readArchive(pair.snow);
+        return { ...pair, ...snowFigures(selectHours(archive, SNOW_PAIR_HOURS), now, { hn: pair.hn }) };
+      }));
+      snowBlock = snowPairsMarkdown(rows);
+    } catch (error) {
+      console.error("ai-summary snow pairs failed:", error.message);
+    }
+
     const payload = {
-      summary: summaryText,
+      summary: snowBlock ? `${summaryText}\n\n${snowBlock}` : summaryText,
       generated_at: new Date().toISOString(),
       window_hours: snapshot.window_hours,
       station_count: snapshot.station_count,
