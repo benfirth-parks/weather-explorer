@@ -42,9 +42,18 @@ function age(t) {
   return `${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'} ago`;
 }
 
-export function plotForPair(ids) { return PAIR_PLOTS[ids.join(',')] || null; }
+/* Preview gate: the panel shows only with ?plotprofiles=live (data from /api/plot-profile) or
+   ?plotprofiles=mock (invented profiles, assets/plot-profile-mock.js). Without it the panes are unchanged. */
+const MODE = (() => {
+  try { return new URLSearchParams(location.search).get('plotprofiles'); } catch { return null; }
+})();
+export function plotForPair(ids) {
+  if (MODE !== 'live' && MODE !== 'mock') return null;
+  return PAIR_PLOTS[ids.join(',')] || null;
+}
 
 function load(plot, fresh) {
+  if (MODE === 'mock') return import('./plot-profile-mock.js').then(m => m.mockPlotProfile(plot) || Promise.reject(new Error('no mock')));
   let item = requests.get(plot);
   if (fresh || !item || Date.now() - item.at > MEMORY_MS) {
     item = {at: Date.now()};
@@ -135,6 +144,7 @@ function draw(box, data) {
   link.href = data.url; link.target = '_blank'; link.rel = 'noopener';
   head.append(link);
   box.append(head);
+  if (data.mock) box.append(element('p', 'plot-profile-mock', 'MOCK DATA: invented profiles for previewing this panel'));
   const sim = data.sim, pit = data.pit;
   const showPit = pit && pit.layers.length && pitIsCurrent(pit);
   const hsMax = Math.ceil(Math.max(20, sim?.hs || 0, showPit ? pit.hs || pit.layers[0]?.[0] || 0 : 0) * 1.08 / 10) * 10;
