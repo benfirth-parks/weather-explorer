@@ -364,6 +364,8 @@ Time-of-day references use Mountain Standard Time (MST). Fields ending \`_hour_m
 
 Keep the entire summary under 130 words.
 
+HN, HST and HS for each station pair are appended below your text automatically, so do not list snow amounts station by station.
+
 Do not mention operational groups or agencies as prose (no "Visitor Safety", "VS", "Fire crew", "Banff Fire"). Suffixes that appear inside a station's verbatim \`name\` (e.g. "- Fire", "- AB Env") are fine when quoting that name.
 
 Do not mention Jasper — the snapshot excludes those stations.
