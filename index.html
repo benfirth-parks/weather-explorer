@@ -406,6 +406,36 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
   margin: 0 0 var(--space-2);
 }
 .ai-summary-body ul.ai-summary-list li:last-child { margin-bottom: 0; }
+.ai-summary-body details.snow-pairs {
+  margin-top: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+.ai-summary-body details.snow-pairs > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 6px var(--space-3);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-summary-body details.snow-pairs > summary::-webkit-details-marker { display: none; }
+.ai-summary-body details.snow-pairs > summary::marker { content: ''; }
+.ai-summary-body details.snow-pairs .snow-pairs-caret {
+  display: inline-block;
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+.ai-summary-body details.snow-pairs[open] .snow-pairs-caret { transform: rotate(90deg); }
+.ai-summary-body details.snow-pairs .snow-pairs-note {
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.ai-summary-body details.snow-pairs > ul.ai-summary-list {
+  padding: 0 var(--space-3) var(--space-3) calc(var(--space-3) + var(--space-5, 1.25rem));
+}
 .ai-summary-meta {
   padding: 0 var(--space-4) var(--space-3);
   font-size: var(--text-xs);
@@ -1929,6 +1959,19 @@ setTimeout(attachResizeHandles, 500);
    model output cannot inject markup, then applies a tiny safe subset:
    "## " headings, "- " bullet lists, **bold** inline, and blank-line
    paragraph splits. */
+/* The summary ends with a code-computed "**Snow by pair**" block (HN24, HST,
+   HS per station pair). It goes in its own collapsible pane, closed by default. */
+function renderSummaryWithSnowPairs(md){
+  const text = String(md);
+  const i = text.indexOf('**Snow by pair**');
+  if (i < 0) return renderSummaryMarkdown(text);
+  const lines = text.slice(i).split(/\r?\n/);
+  const note = renderSummaryMarkdown(lines[0].replace('**Snow by pair**', '').trim()).replace(/<\/?p>/g, '');
+  return renderSummaryMarkdown(text.slice(0, i)) +
+    `<details class="snow-pairs"><summary><span class="snow-pairs-caret" aria-hidden="true">›</span>Snow by pair` +
+    (note ? ` <span class="snow-pairs-note">${note}</span>` : '') +
+    `</summary>${renderSummaryMarkdown(lines.slice(1).join('\n'))}</details>`;
+}
 function renderSummaryMarkdown(md){
   const esc = String(md)
     .replace(/&/g, '&amp;')
@@ -1994,7 +2037,7 @@ function renderSummaryMarkdown(md){
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
       body.classList.remove('ai-summary-loading');
-      body.innerHTML = renderSummaryMarkdown(data.summary || '(No summary returned.)');
+      body.innerHTML = renderSummaryWithSnowPairs(data.summary || '(No summary returned.)');
       badge.textContent = data.cached ? 'AI · cached' : 'AI';
       ts.textContent = 'Updated ' + fmtTime(data.generated_at);
       stationsEl.textContent = data.station_count ? (data.station_count + ' stations') : '';
