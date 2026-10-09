@@ -5,6 +5,7 @@
    otherwise HN derived from the HS trace. */
 
 import { HOUR, hnIntervals, smoothedHs } from "../../assets/pair-comparison-data.js";
+import { stormSnow } from "../../assets/hst.js";
 
 /* Mirrors STATION_PAIRS in index.html; `snow` is the pair's snow station
    (the upper stations' snow figures are hidden on the dashboard). Sunshine's
@@ -20,9 +21,6 @@ export const SNOW_PAIRS = [
 /* Hours of archive needed: HST looks back up to 7 days. */
 export const SNOW_PAIR_HOURS = 7 * 24 + 6;
 const MAX_STORM_DAYS = 7;
-/* A 24 h period with less new snow than this ends the storm. */
-const STORM_BREAK_CM = 1;
-
 /* Nearest 5 cm, as the meeting reports snow amounts. */
 export function round5(cm) {
   return cm === null || cm === undefined ? null : Math.round(cm / 5) * 5;
@@ -30,8 +28,8 @@ export function round5(cm) {
 
 /* HN24, HST and HS for one station's records, ending at `now`.
    HN24: new snow in the last 24 h.
-   HST: new snow summed back over consecutive 24 h periods until one had
-   under 1 cm (capped at 7 days); 0 when the last 24 h were dry.
+   HST: storm snow as in the 24 h table (assets/hst.js): new snow back to the
+   most recent 24 h with under 1 cm, over the last 7 days; 0 when the last 24 h were dry.
    HS: the latest 3 h-smoothed snow depth. */
 export function snowFigures(records, now, { hn = true } = {}) {
   let hn24 = null, hst = null;
@@ -45,14 +43,7 @@ export function snowFigures(records, now, { hn = true } = {}) {
       return inDay.reduce((s, p) => s + p.y, 0);
     };
     hn24 = day(0);
-    if (hn24 !== null) {
-      hst = 0;
-      for (let k = 0; k < MAX_STORM_DAYS; k += 1) {
-        const v = day(k);
-        if (v === null || v < STORM_BREAK_CM) break;
-        hst += v;
-      }
-    }
+    if (hn24 !== null) hst = stormSnow(records, now, { lookbackHours: MAX_STORM_DAYS * 24 })?.hst ?? null;
   }
   const hsTrace = smoothedHs(records).filter((p) => p.x <= now && p.x > now - 6 * HOUR);
   const hs = hsTrace.length ? hsTrace.at(-1).y : null;

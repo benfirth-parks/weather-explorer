@@ -1,36 +1,36 @@
 import {HOUR, hnIntervals} from './pair-comparison-data.js';
 
-/* HST (height of storm snow, OGRS): new snow accumulated since the start of the current storm,
-   i.e. what a storm board cleared at the start of the storm would read now. Built from the hourly
-   HN increments used elsewhere (new-snow sensor, else rises in smoothed HS). A storm starts with the
-   first hour of new snow after a dry break and ends after STORM_BREAK_H hours with no new snow.
-   Hours with no data are unknown, not dry, so they never end a storm on their own. */
+/* HST (height of storm snow, OGRS): new snow since the start of the current storm, i.e. what a
+   storm board cleared at the start of the storm would read now. A storm ends once a 24 h period
+   has had less than STORM_BREAK_CM of new snow, so HST is 0 when the last 24 h were dry, and
+   otherwise sums the new snow back to the most recent such dry 24 h. Built from the same hourly HN
+   as the paired panes (new-snow sensor, else rises in smoothed HS). Hours with no data are
+   unknown: a 24 h window containing one never counts as the dry break. Used by the 24 h table
+   and the AI summary's snow-by-pair block, so both report the same HST. */
 export const STORM_BREAK_H = 24;
+export const STORM_BREAK_CM = 1;
 export const HST_LOOKBACK_H = 240;
 
-export function stormSnow(records, now = Date.now(), {breakHours = STORM_BREAK_H, lookbackHours = HST_LOOKBACK_H} = {}) {
-  const from = now - lookbackHours * HOUR;
-  const hours = hnIntervals(records, from, now, 1).points;
+export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
+  const hours = hnIntervals(records, now - lookbackHours * HOUR, now, 1).points;
   if (!hours.some(h => h.y !== null)) return null;
-  // Newest hour with snow.
-  let last = -1;
-  for (let i = hours.length - 1; i >= 0; i--) if (hours[i].y > 0) { last = i; break; }
-  if (last < 0) return {hst: 0, start: null, end: null, ongoing: false, partial: false};
-  const ongoing = (now - hours[last].end) < breakHours * HOUR;
-  // Walk back from it until a dry break of breakHours.
-  let total = 0, start = last, dry = 0, partial = false, found = false;
-  for (let i = last; i >= 0; i--) {
+  const n = hours.length, W = STORM_BREAK_H;
+  // windowDry(i): the 24 hourly bins ending at i are all known and hold < 1 cm.
+  const windowDry = i => {
+    if (i - W + 1 < 0) return false;
+    let sum = 0;
+    for (let j = i - W + 1; j <= i; j++) { if (hours[j].y === null) return false; sum += hours[j].y; }
+    return sum < STORM_BREAK_CM;
+  };
+  if (windowDry(n - 1)) return {hst: 0, start: null, partial: false};
+  let brk = -1;
+  for (let i = n - 2; i >= W - 1; i--) if (windowDry(i)) { brk = i; break; }
+  let total = 0, start = null, partial = brk < 0;
+  for (let i = brk + 1; i < n; i++) {
     const v = hours[i].y;
     if (v === null) { partial = true; continue; }
-    if (v > 0) { total += v; start = i; dry = 0; }
-    else if (++dry >= breakHours) { found = true; break; }
+    if (v > 0 && start === null) start = hours[i].start;
+    total += v;
   }
-  return {
-    hst: Math.round(total * 10) / 10,
-    start: hours[start].start,
-    end: ongoing ? null : hours[last].end,
-    ongoing,
-    // No dry break inside the lookback: the storm may have started earlier than we can see.
-    partial: partial || !found
-  };
+  return {hst: Math.round(total * 10) / 10, start, partial};
 }

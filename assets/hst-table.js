@@ -1,4 +1,4 @@
-import {stormSnow, HST_LOOKBACK_H, STORM_BREAK_H} from './hst.js';
+import {stormSnow, HST_LOOKBACK_H, STORM_BREAK_H, STORM_BREAK_CM} from './hst.js';
 
 /* Fills the HST cells of the 24 h station summary. HST needs more history than the table's 24 h
    window, so each station's last HST_LOOKBACK_H hours are fetched once and reused for 30 min. */
@@ -19,15 +19,9 @@ function show(cell, r) {
   cell.replaceChildren();
   if (!r) { cell.textContent = '—'; cell.title = 'No new-snow or snow-depth data'; return; }
   cell.append(document.createTextNode(`${r.partial && r.hst > 0 ? '≥' : ''}${r.hst.toFixed(1)} cm`));
-  if (r.hst > 0 && !r.ongoing) {
-    const note = document.createElement('span');
-    note.className = 'hst-ended';
-    note.textContent = ' ended';
-    cell.append(note);
-  }
-  cell.title = r.hst === 0 ? `No new snow in the last ${HST_LOOKBACK_H / 24} days`
-    : `Storm snow since ${day.format(r.start)} MST${r.ongoing ? ', storm ongoing' : `, storm ended ${day.format(r.end)} MST (${STORM_BREAK_H} h without new snow)`}`
-      + (r.partial ? '. Some hours are missing or the storm began before the data shown, so this is a minimum.' : '');
+  cell.title = r.hst === 0 ? `No storm: under ${STORM_BREAK_CM} cm of new snow in the last ${STORM_BREAK_H} h`
+    : `Storm snow since ${r.start ? day.format(r.start) + ' MST' : 'the start of the data'}`
+      + (r.partial ? '. Some hours are missing or the storm began before the 10 days fetched, so this is a minimum.' : '');
 }
 function fill() {
   if (!host) return;
