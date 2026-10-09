@@ -42,10 +42,14 @@ function age(t) {
   return `${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'} ago`;
 }
 
-/* Data source: /api/plot-profile by default. ?plotprofiles=mock shows invented profiles
-   (assets/plot-profile-mock.js) for previewing the panel; ?plotprofiles=off hides it. */
+/* Data source: invented profiles (assets/plot-profile-mock.js) until MOCK_UNTIL, while the plots
+   have no snow, then /api/plot-profile. ?plotprofiles=mock or =live forces one; =off hides the panel. */
+const MOCK_UNTIL = Date.UTC(2026, 10, 1, 7); // 1 Nov 2026, 00:00 MST
 const MODE = (() => {
-  try { return new URLSearchParams(location.search).get('plotprofiles'); } catch { return null; }
+  let asked = null;
+  try { asked = new URLSearchParams(location.search).get('plotprofiles'); } catch {}
+  if (asked === 'mock' || asked === 'live' || asked === 'off') return asked;
+  return Date.now() < MOCK_UNTIL ? 'mock' : 'live';
 })();
 export function plotForPair(ids) {
   if (MODE === 'off') return null;
