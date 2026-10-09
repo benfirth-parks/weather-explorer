@@ -23,6 +23,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/plot-profile"
+  to = "/.netlify/functions/plot-profile"
+  status = 200
+
+[[redirects]]
   from = "/api/ai-summary"
   to = "/.netlify/functions/ai-summary"
   status = 200

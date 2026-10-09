@@ -46,3 +46,19 @@
   .pair-compare-rose { flex:1 1 160px; max-width:260px; }
   .pair-compare-rose-key { flex-basis:100%; }
 }
+/* Study-plot snow profile (assets/plot-profile.js) */
+.plot-profile { margin-top:14px; padding-top:12px; border-top:1px dashed var(--color-border); }
+.plot-profile[hidden] { display:none; }
+.plot-profile-head { font-size:12px; color:var(--color-text-muted); line-height:1.5; margin-bottom:8px; }
+.plot-profile-head strong { color:var(--color-text); font-weight:700; }
+.plot-profile-head a { color:var(--color-primary); }
+.plot-profile-figs { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px 20px; }
+.plot-profile-fig { margin:0; min-width:0; }
+.plot-profile-fig figcaption { font-size:11px; color:var(--color-text-muted); margin-bottom:4px; line-height:1.4; }
+.plot-profile-fig figcaption strong { color:var(--color-text); }
+.plot-profile-svg { display:block; width:100%; max-width:440px; height:auto; font-family:inherit; }
+.plot-profile-svg path:hover { filter:brightness(1.1); }
+.plot-profile-key { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:8px; font-size:11px; color:var(--color-text-muted); }
+.plot-profile-key > span { display:flex; align-items:center; gap:4px; }
+.plot-profile-key i { display:inline-block; width:10px; height:10px; border-radius:2px; border:1px solid var(--color-border); }
+.plot-profile-note, .plot-profile-empty { color:var(--color-text-muted); line-height:1.6; margin:6px 0 0; font-size:12px; }

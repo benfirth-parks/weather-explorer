@@ -1,4 +1,5 @@
 import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_FROM_HS_THRESHOLD_CM} from './pair-comparison-data.js';
+import {plotForPair, renderPlotProfile} from './plot-profile.js';
 
 /* Paired-station timing chart: temperature, wind and precipitation for both stations on one
    time axis, plus a wind rose for each station that reports usable wind. The pair card itself
@@ -73,12 +74,19 @@ function destroy(view) {
   view.roseCleanup?.();
   view.roseCleanup = null;
 }
+/* Study-plot snow profile under the chart, for pairs at a plot. Loaded on open and on refresh,
+   not on time-range changes. */
+function renderProfile(view, fresh = false) {
+  if (!view.plot) return;
+  const opened = view.openCount;
+  renderPlotProfile(view.profile, view.plot, {fresh, isCurrent: () => view.state.open && view.openCount === opened && view.card.isConnected});
+}
 function setOpen(view, open) {
   view.state.open = open;
   view.card.classList.toggle('pair-open', open);
   view.toggle.setAttribute('aria-expanded', String(open));
   view.panel.hidden = !open;
-  if (open) render(view); else destroy(view);
+  if (open) { view.openCount++; render(view); renderProfile(view); } else destroy(view);
 }
 function mount(card) {
   const ids = card.dataset.pairIds.split(',');
@@ -112,9 +120,13 @@ function mount(card) {
   const retry = element('button', 'pair-compare-retry', 'Retry data');
   retry.type = 'button';
   retry.hidden = true;
-  panel.append(controls, body, legend, status, note, retry);
+  const plot = plotForPair(ids);
+  const profile = element('section', 'plot-profile');
+  profile.hidden = true;
+  if (plot) profile.setAttribute('aria-label', 'Study plot snow profile');
+  panel.append(controls, body, legend, status, note, retry, profile);
   card.append(panel);
-  const view = {card, panel, toggle, state, ids, legend, body, chartBox, canvas, roses, status, note, retry, version: 0, chart: null, roseCleanup: null, buttons: []};
+  const view = {card, panel, toggle, state, ids, legend, body, chartBox, canvas, roses, status, note, retry, plot, profile, openCount: 0, version: 0, chart: null, roseCleanup: null, buttons: []};
   for (const [value, label] of ranges) {
     const button = element('button', '', label);
     button.type = 'button';
@@ -508,7 +520,7 @@ if (host && row) {
   new MutationObserver(scan).observe(row, {childList: true});
   document.getElementById('refreshBtn')?.addEventListener('click', () => {
     requests.clear();
-    for (const view of mounted.values()) if (view.state.open) render(view);
+    for (const view of mounted.values()) if (view.state.open) { render(view); renderProfile(view, true); }
   });
   scan();
 }
