@@ -154,6 +154,7 @@ function draw(box, data) {
     })));
   }
   box.append(figs);
+  const drawn = figs.querySelector('svg') !== null;
   const key = element('div', 'plot-profile-key');
   for (const g of KEY_GRAINS) {
     const item = element('span'), sw = element('i');
@@ -162,8 +163,8 @@ function draw(box, data) {
     item.append(sw, document.createTextNode(`${g} ${GRAIN[g][1].toLowerCase()}`));
     key.append(item);
   }
-  box.append(key);
-  const notes = ['Bars = hand hardness by layer, coloured by grain form; outlined bars are candidate weak layers (grain-form flag, not stability). Hover a layer for details.'];
+  if (drawn) box.append(key);
+  const notes = drawn ? ['Bars = hand hardness by layer, coloured by grain form; outlined bars are candidate weak layers (grain-form flag, not stability). Hover a layer for details.'] : [];
   if (showPit) {
     if (pit.source === 'transcribed') notes.push('The pit was transcribed from a scanned profile.');
     const s = pit.score;
