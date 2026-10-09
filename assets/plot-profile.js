@@ -42,13 +42,13 @@ function age(t) {
   return `${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'} ago`;
 }
 
-/* Preview gate: the panel shows only with ?plotprofiles=live (data from /api/plot-profile) or
-   ?plotprofiles=mock (invented profiles, assets/plot-profile-mock.js). Without it the panes are unchanged. */
+/* Data source: /api/plot-profile by default. ?plotprofiles=mock shows invented profiles
+   (assets/plot-profile-mock.js) for previewing the panel; ?plotprofiles=off hides it. */
 const MODE = (() => {
   try { return new URLSearchParams(location.search).get('plotprofiles'); } catch { return null; }
 })();
 export function plotForPair(ids) {
-  if (MODE !== 'live' && MODE !== 'mock') return null;
+  if (MODE === 'off') return null;
   return PAIR_PLOTS[ids.join(',')] || null;
 }
 
