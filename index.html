@@ -406,6 +406,24 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
   margin: 0 0 var(--space-2);
 }
 .ai-summary-body ul.ai-summary-list li:last-child { margin-bottom: 0; }
+.ai-summary-body .ai-summary-table-wrap { overflow-x: auto; margin: 0 0 var(--space-3); }
+.ai-summary-body table.ai-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm, 0.875rem);
+}
+.ai-summary-body table.ai-summary-table th,
+.ai-summary-body table.ai-summary-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.ai-summary-body table.ai-summary-table th {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
 .ai-summary-body details.snow-pairs {
   margin-top: var(--space-3);
   border: 1px solid var(--color-border);
@@ -444,6 +462,17 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
   gap: var(--space-3);
   align-items: center;
   flex-wrap: wrap;
+}
+.obs-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-sm);
+  color: var(--color-success);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  vertical-align: middle;
 }
 .ai-summary-meta .ai-badge {
   display: inline-flex;
@@ -555,8 +584,8 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
       <summary>
         <svg class="ai-summary-caret" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3.5 2 L6.5 5 L3.5 8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <div class="ai-summary-heading">
-          <div class="panel-title">24 hour AI Weather Summary</div>
-          <div class="panel-title-sub">Automated briefing differentiated by elevation band and cardinal region. Regenerates every 30 minutes; click refresh to force a new one.</div>
+          <div class="panel-title">24 hour Weather Summary <span class="obs-tag">Observed</span></div>
+          <div class="panel-title-sub">Observed station data from the last 24 hours, by elevation band; the one-line headline is AI-written. Regenerates every 30 minutes; click refresh to force a new one.</div>
         </div>
         <div class="ai-summary-peek" id="aiSummaryPeek">Click to expand</div>
       </summary>
@@ -1959,16 +1988,18 @@ setTimeout(attachResizeHandles, 500);
    model output cannot inject markup, then applies a tiny safe subset:
    "## " headings, "- " bullet lists, **bold** inline, and blank-line
    paragraph splits. */
-/* The summary ends with a code-computed "**Snow by pair**" block (HN24, HST,
-   HS per station pair). It goes in its own collapsible pane, closed by default. */
+/* The summary ends with a code-computed "**Snow Amounts**" block (HN24, HST,
+   HS per station pair; "**Snow by pair**" in older summaries). It goes in its
+   own collapsible pane, closed by default. */
 function renderSummaryWithSnowPairs(md){
   const text = String(md);
-  const i = text.indexOf('**Snow by pair**');
-  if (i < 0) return renderSummaryMarkdown(text);
+  const marker = ['**Snow Amounts**', '**Snow by pair**'].find(m => text.includes(m));
+  if (!marker) return renderSummaryMarkdown(text);
+  const i = text.indexOf(marker);
   const lines = text.slice(i).split(/\r?\n/);
-  const note = renderSummaryMarkdown(lines[0].replace('**Snow by pair**', '').trim()).replace(/<\/?p>/g, '');
+  const note = renderSummaryMarkdown(lines[0].replace(marker, '').trim()).replace(/<\/?p>/g, '');
   return renderSummaryMarkdown(text.slice(0, i)) +
-    `<details class="snow-pairs"><summary><span class="snow-pairs-caret" aria-hidden="true">›</span>Snow by pair` +
+    `<details class="snow-pairs"><summary><span class="snow-pairs-caret" aria-hidden="true">›</span>Snow Amounts` +
     (note ? ` <span class="snow-pairs-note">${note}</span>` : '') +
     `</summary>${renderSummaryMarkdown(lines.slice(1).join('\n'))}</details>`;
 }
@@ -1985,8 +2016,15 @@ function renderSummaryMarkdown(md){
       const heading = trimmed.replace(/^##\s+/, '');
       return `<h4 class="ai-summary-h">${applyInline(heading)}</h4>`;
     }
-    /* Block whose every line starts with "- " or "* " → unordered list. */
     const lines = trimmed.split(/\n/);
+    /* Pipe table: header row, |---| divider, then body rows. */
+    if (lines.length >= 2 && lines.every(line => /^\|.*\|$/.test(line.trim())) && /^\|[\s:|-]+\|$/.test(lines[1].trim())) {
+      const cells = line => line.trim().slice(1, -1).split('|').map(c => applyInline(c.trim()));
+      const head = cells(lines[0]).map(c => `<th>${c}</th>`).join('');
+      const rows = lines.slice(2).map(l => `<tr>${cells(l).map(c => `<td>${c}</td>`).join('')}</tr>`).join('');
+      return `<div class="ai-summary-table-wrap"><table class="ai-summary-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+    /* Block whose every line starts with "- " or "* " → unordered list. */
     if (lines.every(line => /^\s*[-*]\s+/.test(line))) {
       const items = lines
         .map(line => line.replace(/^\s*[-*]\s+/, '').trim())

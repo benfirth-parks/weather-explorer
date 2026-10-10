@@ -334,40 +334,62 @@ export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS } = {}
 
 /* Prompt sent to Claude Haiku. Kept in one place so it can be tuned
    without touching the caller. */
-export const SYSTEM_PROMPT = `Write a concise, data-grounded weather summary for the last 24 hours across the supplied network of remote weather stations in Banff National Park, using only the supplied station observations and calculated values.
+export const SYSTEM_PROMPT = `Write ONE short headline sentence (at most 25 words) about the last 24 hours of observed weather across the supplied remote weather stations in Banff National Park, using only the supplied station observations and calculated values.
 
-Required output format:
+A table of high/low temperature, precipitation, wind and gusts by elevation band, and the snow amounts, are appended below your sentence automatically, so do not list those numbers one by one. Pick out the single most notable feature instead (for example a sharp warm-up, strong wind, precipitation or a clear elevation or north/south contrast) and say it plainly.
 
-Do NOT include a heading or title (no "## Last 24 Hours", no bold heading, nothing above the first sentence). Start directly with the intro paragraph.
+No heading, no bullets, no lists, nothing before or after the sentence. Bold any number with Markdown double asterisks, e.g. **72 km/h**. Metric units (°C, km/h, mm, cm). Never sum precipitation across stations. Use Mountain Standard Time phrasing like "overnight" or "mid-afternoon"; never mention UTC.
 
-Write one or two short sentences that summarize observed conditions across the network. Include the 24-hour temperature range (min to max across all stations), the network average wind speed, and the highest single-station precipitation total when those values are available. Never sum precipitation across stations.
+Do not mention operational groups or agencies (no "Visitor Safety", "VS", "Fire crew"). Do not mention Jasper.
 
-Then a blank line, then write exactly three detail bullets as a Markdown unordered list, in this order (one sentence per bullet, each line starts with "- "):
+Describe observations only: no forecasts, recommendations, safety claims, or anything the data does not support.`;
 
-- State the 24-hour high and low temperature and the network-average temperature, naming the station that recorded the high and the station that recorded the low, and note the elevation contrast (alpine vs treeline vs below treeline) when the data shows a meaningful difference.
-- State the average wind speed, the peak gust with the station that recorded it, and prevailing wind direction across the network when available.
-- State the highest single-station 24-hour precipitation total (in mm) with the station that recorded it, and how many stations recorded any measurable precipitation, and precipitation type when it can be inferred from the data (rain when freezing level is above the highest reporting station; snow when new-snow or snow-depth change is present at alpine), or explicitly state that no measurable precipitation was recorded. Never sum precipitation across stations — each station's \`precip_24h_mm\` is that station's own total, not additive across the network.
+/* Brief 24 h table by elevation band, worked out in code so every number is
+   exact. Same values and rules as the dashboard's 24h station summary table,
+   rolled up per band: highest high, lowest low, the wettest single gauge
+   (never a sum), the band's mean wind with its prevailing direction, and the
+   peak gust. All of it is observed station data, not a forecast. */
+const BANDS = ["Alpine", "Treeline", "Below treeline"];
+const BAND_RANGE = { Alpine: "≥2200 m", Treeline: "1800–2200 m", "Below treeline": "<1800 m" };
 
-Station attribution: the snapshot's \`network_extremes\` object already identifies the station(s) for the network high temperature (\`temp_high_c\`), low temperature (\`temp_low_c\`), peak gust (\`peak_gust_kmh\`) and highest 24-hour precipitation (\`highest_precip_24h_mm\`). Use those values and station names exactly — do not re-rank stations yourself. If an extreme lists more than one station, name them all. If \`highest_precip_24h_mm\` has no stations or is null, say no measurable precipitation was recorded and name no station. Write station names verbatim from the \`stations\` list — the same label the dashboard's 24h station summary table shows, including any trailing operator suffix like " - AB Env", "- Fire", or "- AB ENV/ LLSA". Do not shorten or re-punctuate names. Example: "The high was **9 °C** at Castle - Fire and the low **-6 °C** at Vulture Peak."
+export function bandRows(stations) {
+  return BANDS.map((band) => {
+    const rows = stations.filter((s) => s.elevation_band === band && !s.status);
+    const vals = (key) => rows.map((s) => s[key]).filter((v) => typeof v === "number" && Number.isFinite(v));
+    const max = (key) => (vals(key).length ? Math.max(...vals(key)) : null);
+    const min = (key) => (vals(key).length ? Math.min(...vals(key)) : null);
+    const winds = vals("wind_avg_kmh");
+    let vx = 0, vy = 0;
+    for (const s of rows) {
+      if (typeof s.wind_dir_deg !== "number" || !(s.wind_avg_kmh > 0)) continue;
+      const rad = (s.wind_dir_deg * Math.PI) / 180;
+      vx += s.wind_avg_kmh * Math.sin(rad);
+      vy += s.wind_avg_kmh * Math.cos(rad);
+    }
+    let dir = null;
+    if (vx || vy) {
+      let deg = (Math.atan2(vx, vy) * 180) / Math.PI;
+      if (deg < 0) deg += 360;
+      dir = ["N","NE","E","SE","S","SW","W","NW"][Math.round(deg / 45) % 8];
+    }
+    return {
+      band,
+      range: BAND_RANGE[band],
+      stations: rows.length,
+      high_c: max("temp_high_c"),
+      low_c: min("temp_low_c"),
+      hw24_max_mm: max("precip_24h_mm"),
+      wind_avg_kmh: winds.length ? winds.reduce((a, b) => a + b, 0) / winds.length : null,
+      wind_dir: dir,
+      gust_kmh: max("wind_peak_gust_kmh")
+    };
+  }).filter((r) => r.stations > 0);
+}
 
-Add a fourth bullet (same list, same "- " prefix) ONLY when the supplied data verifies a meaningful anomaly, outlier, sharp change, unusual timing, or regional contrast (north/south or east/west of Lake Louise). When naming a station in this bullet, use the \`name\` field verbatim — the same label the dashboard's 24h station summary table shows, including any trailing operator suffix like " - AB Env", "- Fire", or "- AB ENV/ LLSA". Do not shorten or re-punctuate the name.
-
-Do not use numbering, labels, or introductory words on the bullets. Do not begin bullets with "Temperature," "Wind," "Precipitation," "Notable conditions," or similar category labels.
-
-Bold every quantitative value with Markdown double asterisks. This includes temperatures, wind speeds, gusts, precipitation amounts, percentages, time spans, and comparison values. Examples: **12 °C**, **-3 °C**, **28 km/h**, **72 km/h**, **4.2 mm**.
-
-Use metric units throughout: temperatures in °C, wind speeds and gusts in km/h, precipitation in mm, snow amounts in cm.
-
-Round: temperatures to whole °C, wind to whole km/h, precipitation to 0.1 mm.
-
-Time-of-day references use Mountain Standard Time (MST). Fields ending \`_hour_mst\` are already MST hours (0–23). Never mention UTC. Prefer plain phrasing ("peaked mid-afternoon", "coldest just before dawn", "overnight") over exact clock times.
-
-Keep the entire summary under 130 words.
-
-HN, HST and HS for each station pair are appended below your text automatically, so do not list snow amounts station by station.
-
-Do not mention operational groups or agencies as prose (no "Visitor Safety", "VS", "Fire crew", "Banff Fire"). Suffixes that appear inside a station's verbatim \`name\` (e.g. "- Fire", "- AB Env") are fine when quoting that name.
-
-Do not mention Jasper — the snapshot excludes those stations.
-
-Do not make forecasts, recommendations, safety claims, or interpretations not supported by the supplied data. Do not invent precipitation type, wind direction, anomaly, historical comparison, or missing observations. Use clear, direct language and avoid generic filler.`;
+export function bandTableMarkdown(rows) {
+  const b = (v, unit, digits = 0) => (v === null ? "–" : `**${digits ? v.toFixed(digits) : Math.round(v)} ${unit}**`);
+  const lines = rows.map((r) =>
+    `| ${r.band} (${r.range}) | ${b(r.high_c, "°C")} / ${b(r.low_c, "°C")} | ${b(r.hw24_max_mm, "mm", 1)} | ${b(r.wind_avg_kmh, "km/h")}${r.wind_dir ? ` ${r.wind_dir}` : ""} | ${b(r.gust_kmh, "km/h")} |`
+  );
+  return ["| Band | High / Low | Max HW 24h | Avg wind | Peak gust |", "|---|---|---|---|---|", ...lines].join("\n");
+}
