@@ -35,5 +35,5 @@ test('markdown block lists every pair', () => {
     {label: 'Simpson Upper / Lower', hn: true, hn24_cm: 5, hst_cm: 20, hs_cm: null},
     {label: 'Lookout / Sunshine Village', hn: false, hn24_cm: null, hst_cm: null, hs_cm: 85}
   ]);
-  assert.equal(md, '**Snow by pair** (nearest 5 cm)\n- Simpson Upper / Lower: HN24 **5 cm** · HST **20 cm** · HS no data\n- Lookout / Sunshine Village: HS **85 cm** (no HN sensor)');
+  assert.equal(md, '**Snow Amounts** (observed, nearest 5 cm)\n- Simpson Upper / Lower: HN24 **5 cm** · HST **20 cm** · HS no data\n- Lookout / Sunshine Village: HS **85 cm** (no HN sensor)');
 });

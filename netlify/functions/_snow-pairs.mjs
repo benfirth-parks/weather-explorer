@@ -58,5 +58,5 @@ export function snowPairsMarkdown(rows) {
       ? `- ${r.label}: HN24 ${v(r.hn24_cm)} · HST ${v(r.hst_cm)} · HS ${v(r.hs_cm)}`
       : `- ${r.label}: HS ${v(r.hs_cm)} (no HN sensor)`
   );
-  return `**Snow by pair** (nearest 5 cm)\n${lines.join("\n")}`;
+  return `**Snow Amounts** (observed, nearest 5 cm)\n${lines.join("\n")}`;
 }
