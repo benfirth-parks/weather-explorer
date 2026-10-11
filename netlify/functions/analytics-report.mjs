@@ -76,6 +76,7 @@ export default async (request) => {
 
     const visitors = new Set();
     const daily = {};
+    const dailyViews = {};
     const eventCounts = {};
     const stations = {};
     const ranges = {};
@@ -87,7 +88,13 @@ export default async (request) => {
 
     for (const event of events) {
       if (event.visitorId) visitors.add(event.visitorId);
-      increment(daily, String(event.occurredAt || "").slice(0, 10));
+      const day = String(event.occurredAt || "").slice(0, 10);
+      increment(daily, day);
+      if (event.event === "page_view") {
+        const entry = (dailyViews[day] ||= { views: 0, visitors: new Set() });
+        entry.views += 1;
+        if (event.visitorId) entry.visitors.add(event.visitorId);
+      }
       increment(eventCounts, event.event);
       increment(stations, event.stationId);
       increment(ranges, event.range);
@@ -117,6 +124,9 @@ export default async (request) => {
       },
       daily: Object.entries(daily)
         .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+      dailyViews: Object.entries(dailyViews)
+        .map(([date, { views, visitors }]) => ({ date, views, visitors: visitors.size }))
         .sort((a, b) => a.date.localeCompare(b.date)),
       events: topEntries(eventCounts),
       stations: topEntries(stations),
