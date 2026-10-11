@@ -18,7 +18,7 @@ import { bandRows, bandTableMarkdown, buildSnapshot, SYSTEM_PROMPT } from "./_ai
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v4"; /* v4: one-line headline + band table + Snow Amounts */
+const CACHE_STORE = "rockies-weather-ai-summary-v5"; /* v5: Snow Amounts in whole cm, matching the 24h table */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
@@ -124,7 +124,7 @@ export default async (request) => {
       return json({ error: "Empty summary from model" }, { status: 502 });
     }
 
-    /* HN, HST and HS per station pair, computed rather than written by the model. */
+    /* HN24, HST and HS per station pair, computed as in the 24h table rather than written by the model. */
     let snowBlock = "";
     try {
       const now = Date.now();
