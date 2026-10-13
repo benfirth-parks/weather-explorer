@@ -50,10 +50,14 @@ test('a falling depth gives HN24 0, not no data', () => {
   for (let h = 24; h >= 0; h--) rows.push(rec(h, {snowHeight: 1.3 - (24 - h) * 0.06}));
   assert.equal(snowFigures(rows, now, {id: 'fts-stanley'}).hn24_cm, 0);
 });
-test("Sunshine's newSnow field is ignored: HN24 comes from the depth change", () => {
+test("Sunshine's HN24 and HST come from its precip gauge total, 1 mm as 1 cm", () => {
   const rows = [];
-  for (let h = 24; h >= 0; h--) rows.push(rec(h, {snowHeight: 5 + (24 - h) / 8, newSnow: 4}));
-  assert.equal(snowFigures(rows, now, {id: 'fts-sunshine'}).hn24_cm, 3);
+  // Dry until 30 h ago, then 0.5 mm an hour: HN24 12 mm, HST 15 mm.
+  for (let h = 72; h >= 0; h--) rows.push(rec(h, {precipTotal: 200 + (h < 30 ? (30 - h) * 0.5 : 0), newSnow: 4, snowHeight: 8}));
+  const f = snowFigures(rows, now, {id: 'fts-sunshine'});
+  assert.deepEqual(f, {hn24_cm: 12, hst_cm: 15, hs_cm: 8, fromGauge: true});
+  const md = snowPairsMarkdown([{label: 'Lookout / Sunshine Village', hn: true, ...f}]);
+  assert.match(md, /HN24 \*\*12 cm\*\* · HST \*\*15 cm\*\* · HS \*\*8 cm\*\* \(HN24 and HST from the precip gauge, 1 mm = 1 cm\)/);
 });
 test('ridge-top stations report no HN24, HST or HS', () => {
   assert.deepEqual(snowFigures(hourly([12]), now, {id: 'fts-vulture'}), {hn24_cm: null, hst_cm: null, hs_cm: null});

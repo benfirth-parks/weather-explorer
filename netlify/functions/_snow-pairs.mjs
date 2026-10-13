@@ -5,12 +5,13 @@
    0.1 cm there). */
 
 import { HOUR } from "../../assets/pair-comparison-data.js";
-import { stormSnow, HST_LOOKBACK_H } from "../../assets/hst.js";
-import { SNOW_EXCLUDED_IDS, hnRecords } from "../../assets/snow-stations.js";
+import { stormSnow, stormPrecip, HST_LOOKBACK_H } from "../../assets/hst.js";
+import { SNOW_EXCLUDED_IDS, HN_FROM_PRECIP_IDS } from "../../assets/snow-stations.js";
+import { hw24FromObservations } from "./_hw24.mjs";
 
 /* Mirrors STATION_PAIRS in index.html; `snow` is the pair's snow station
    (the upper stations' snow figures are hidden on the dashboard). Sunshine's
-   HN comes from its depth trace (assets/snow-stations.js). */
+   HN24 and HST come from its precipitation gauge, 1 mm as 1 cm (assets/snow-stations.js). */
 export const SNOW_PAIRS = [
   { label: "Vulture Peak / Bow Summit",  snow: "fts-bowsummit", hn: true },
   { label: "Simpson Upper / Lower",      snow: "fts-simplo",    hn: true },
@@ -84,9 +85,15 @@ function snowHeight24h(recs) {
    HST: as the 24 h table (assets/hst.js), over the same 10-day lookback. */
 export function snowFigures(records, now, { hn = true, id = null } = {}) {
   if (SNOW_EXCLUDED_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
-  const clean = hnRecords(id, sanitizeRecords(records)).filter((r) => time(r) <= now);
+  const clean = sanitizeRecords(records).filter((r) => time(r) <= now);
   const last24 = clean.filter((r) => time(r) >= now - 24 * HOUR);
   let hn24 = null, hst = null;
+  if (hn && HN_FROM_PRECIP_IDS.has(id)) {
+    /* HN24 and HST from the precipitation gauge total, 1 mm as 1 cm, as the 24 h table shows them. */
+    hn24 = hw24FromObservations(last24);
+    hst = stormPrecip(clean, now)?.hst ?? null;
+    return { hn24_cm: round1cm(hn24), hst_cm: round1cm(hst), hs_cm: round1cm(snowHeight24h(last24)), fromGauge: true };
+  }
   if (hn) {
     hn24 = newSnow24h(last24);
     hst = stormSnow(clean, now)?.hst ?? null;
@@ -100,7 +107,7 @@ export function snowPairsMarkdown(rows) {
   const v = (x) => (x === null || x === undefined ? "no data" : `**${x} cm**`);
   const lines = rows.map((r) =>
     r.hn
-      ? `- ${r.label}: HN24 ${v(r.hn24_cm)} · HST ${v(r.hst_cm)} · HS ${v(r.hs_cm)}`
+      ? `- ${r.label}: HN24 ${v(r.hn24_cm)} · HST ${v(r.hst_cm)} · HS ${v(r.hs_cm)}${r.fromGauge ? " (HN24 and HST from the precip gauge, 1 mm = 1 cm)" : ""}`
       : `- ${r.label}: HS ${v(r.hs_cm)} (no HN sensor)`
   );
   return `**Snow Amounts** (observed, nearest 1 cm)\n${lines.join("\n")}`;

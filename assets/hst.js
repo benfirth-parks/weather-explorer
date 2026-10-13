@@ -1,4 +1,4 @@
-import {HOUR, hnIntervals, numeric, smoothedHs, HN_FROM_HS_THRESHOLD_CM} from './pair-comparison-data.js';
+import {HOUR, hnIntervals, hwIntervals, numeric, smoothedHs, HN_FROM_HS_THRESHOLD_CM} from './pair-comparison-data.js';
 
 /* HST (height of storm snow, OGRS): new snow since the start of the current storm, i.e. what a
    storm board cleared at the start of the storm would read now. A storm ends once a 24 h period
@@ -15,7 +15,17 @@ export const HST_LOOKBACK_H = 240;
 export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
   if (!records.some(r => { const v = numeric(r.newSnow); return v !== null && v >= 0 && v <= 50; }))
     return stormSnowFromDepth(records, now, lookbackHours);
-  const hours = hnIntervals(records, now - lookbackHours * HOUR, now, 1).points;
+  return stormFromHours(hnIntervals(records, now - lookbackHours * HOUR, now, 1).points);
+}
+
+/* Storm total from the precipitation gauge, 1 mm counted as 1 cm, for stations whose HN24 and HST
+   come from the FTS precip total (HN_FROM_PRECIP_IDS). Same storm rule, with the break at
+   under STORM_BREAK_CM (read as 1 mm) of precipitation in 24 h. */
+export function stormPrecip(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
+  return stormFromHours(hwIntervals(records, now - lookbackHours * HOUR, now, 1).points);
+}
+
+function stormFromHours(hours) {
   if (!hours.some(h => h.y !== null)) return null;
   const n = hours.length, W = STORM_BREAK_H;
   // windowDry(i): the 24 hourly bins ending at i are all known and hold < 1 cm.
