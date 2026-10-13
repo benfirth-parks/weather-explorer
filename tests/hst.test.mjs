@@ -49,3 +49,18 @@ test('HS-derived HN counts rises of 2 cm or more', () => {
   const r = stormSnow(recs, NOW);
   assert.ok(r.hst >= 10 && r.hst <= 12, `got ${r.hst}`);
 });
+test('a daily wobble in a depth-only trace is not a storm', () => {
+  const recs = [];
+  for (let q = 240 * 4; q >= 0; q--) {
+    const t = NOW - q * HOUR / 4;
+    recs.push({measurementDateTime: new Date(t).toISOString(), snowHeight: Math.round(5 + 2 * Math.sin(2 * Math.PI * t / (24 * HOUR)) + ((q * 7) % 3) - 1)});
+  }
+  assert.equal(stormSnow(recs, NOW).hst, 0);
+});
+test('depth-only: consecutive days of rising depth make one storm', () => {
+  const recs = [];
+  for (let h = 96; h >= 0; h--) recs.push({measurementDateTime: new Date(NOW - h * HOUR).toISOString(), snowHeight: 50 + (h < 48 ? (48 - h) * 0.25 : 0)});
+  const r = stormSnow(recs, NOW);
+  assert.ok(r.hst >= 11 && r.hst <= 12, `got ${r.hst}`); // 6 cm a day for two days
+  assert.equal(r.partial, false);
+});

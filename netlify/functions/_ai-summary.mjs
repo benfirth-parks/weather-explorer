@@ -5,6 +5,8 @@
    without swallowing thousands of raw hourly rows. */
 
 import { readArchive, syncStation, selectHours, STATIONS as STATION_IDS } from "./_weather-archive.mjs";
+import { snowFigures } from "./_snow-pairs.mjs";
+import { SNOW_EXCLUDED_IDS } from "../../assets/snow-stations.js";
 
 /* Station metadata mirrors the STATIONS_GROUP* arrays in index.html.
    Keep this file in sync when new stations are added.
@@ -220,8 +222,11 @@ function summarizeStation(meta, observations, lastSyncedAt) {
 
   const precip24h = hw24(meta, observations);
 
-  const snowStart = observations.find((o) => num(o.snowHeight) !== null);
-  const snowEndVal = latest(observations, "snowHeight");
+  /* HN24 and HS as the 24h table reports them; none for stations with no usable snow trace. */
+  const snowExcluded = SNOW_EXCLUDED_IDS.has(meta.stationId);
+  const snow = snowFigures(observations, Date.now(), { id: meta.stationId });
+  const snowStart = snowExcluded ? null : observations.find((o) => num(o.snowHeight) !== null);
+  const snowEndVal = snowExcluded ? null : latest(observations, "snowHeight");
   const snowDelta = (snowStart && snowEndVal !== null)
     ? snowEndVal - num(snowStart.snowHeight)
     : null;
@@ -232,8 +237,8 @@ function summarizeStation(meta, observations, lastSyncedAt) {
     temp_low_c: tempRange.min,
     temp_latest_c: latest(observations, "airTempAvg"),
     precip_24h_mm: precip24h !== null ? Math.round(precip24h * 10) / 10 : null,
-    new_snow_hn24_cm: latest(observations, "newSnow"),
-    snow_depth_hs_cm: snowEndVal,
+    new_snow_hn24_cm: snow.hn24_cm,
+    snow_depth_hs_cm: snow.hs_cm,
     snow_depth_change_24h_cm: snowDelta !== null ? Math.round(snowDelta * 10) / 10 : null,
     wind_avg_kmh: windRange.max !== null ? Math.round((windRange.min + windRange.max) / 2 * 10) / 10 : null,
     wind_peak_gust_kmh: gustPeak,

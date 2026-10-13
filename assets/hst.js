@@ -1,10 +1,11 @@
-import {HOUR, hnIntervals} from './pair-comparison-data.js';
+import {HOUR, hnIntervals, numeric, smoothedHs, HN_FROM_HS_THRESHOLD_CM} from './pair-comparison-data.js';
 
 /* HST (height of storm snow, OGRS): new snow since the start of the current storm, i.e. what a
    storm board cleared at the start of the storm would read now. A storm ends once a 24 h period
    has had less than STORM_BREAK_CM of new snow, so HST is 0 when the last 24 h were dry, and
    otherwise sums the new snow back to the most recent such dry 24 h. Built from the same hourly HN
-   as the paired panes (new-snow sensor, else rises in smoothed HS). Hours with no data are
+   as the paired panes where there is a new-snow sensor; depth-only stations use whole 24 h
+   blocks of smoothed HS (stormSnowFromDepth below). Hours with no data are
    unknown: a 24 h window containing one never counts as the dry break. Used by the 24 h table
    and the AI summary's snow-by-pair block, so both report the same HST. */
 export const STORM_BREAK_H = 24;
@@ -12,6 +13,8 @@ export const STORM_BREAK_CM = 1;
 export const HST_LOOKBACK_H = 240;
 
 export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
+  if (!records.some(r => { const v = numeric(r.newSnow); return v !== null && v >= 0 && v <= 50; }))
+    return stormSnowFromDepth(records, now, lookbackHours);
   const hours = hnIntervals(records, now - lookbackHours * HOUR, now, 1).points;
   if (!hours.some(h => h.y !== null)) return null;
   const n = hours.length, W = STORM_BREAK_H;
@@ -33,4 +36,29 @@ export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBA
     total += v;
   }
   return {hst: Math.round(total * 10) / 10, start, partial};
+}
+
+/* Depth-only stations (no new-snow sensor). Their HS wobbles a few cm through the day, and
+   summing hour-to-hour rises turns that wobble into phantom storms. So each 24 h block's new
+   snow is the change in 3 h-smoothed HS between the same time on consecutive days, which
+   cancels the daily cycle, counted only when it reaches HN_FROM_HS_THRESHOLD_CM. A block below
+   STORM_BREAK_CM ends the storm, as above. */
+function stormSnowFromDepth(records, now, lookbackHours) {
+  const smooth = smoothedHs(records.filter(r => Date.parse(r.measurementDateTime) <= now));
+  if (!smooth.length) return null;
+  const hsAt = t => {
+    let best = null;
+    for (const p of smooth) if (Math.abs(p.x - t) <= HOUR && (!best || Math.abs(p.x - t) < Math.abs(best.x - t))) best = p;
+    return best ? best.y : null;
+  };
+  let total = 0, start = null;
+  for (let k = 0; (k + 1) * 24 <= lookbackHours; k++) {
+    const end = now - k * 24 * HOUR, from = end - 24 * HOUR;
+    const a = hsAt(from), b = hsAt(end);
+    if (a === null || b === null) return k === 0 ? null : {hst: Math.round(total * 10) / 10, start, partial: true};
+    const gain = b - a >= HN_FROM_HS_THRESHOLD_CM ? b - a : 0;
+    if (gain < STORM_BREAK_CM) return {hst: Math.round(total * 10) / 10, start, partial: false};
+    total += gain; start = from;
+  }
+  return {hst: Math.round(total * 10) / 10, start, partial: true};
 }
