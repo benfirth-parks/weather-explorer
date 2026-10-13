@@ -45,3 +45,17 @@ test('HN24 from the HS change when there is no new-snow sensor, ignoring spikes'
   assert.equal(f.hn24_cm, 7); // 107.2 - 100
   assert.equal(f.hs_cm, 107);
 });
+test('a falling depth gives HN24 0, not no data', () => {
+  const rows = [];
+  for (let h = 24; h >= 0; h--) rows.push(rec(h, {snowHeight: 1.3 - (24 - h) * 0.06}));
+  assert.equal(snowFigures(rows, now, {id: 'fts-stanley'}).hn24_cm, 0);
+});
+test("Sunshine's newSnow field is ignored: HN24 comes from the depth change", () => {
+  const rows = [];
+  for (let h = 24; h >= 0; h--) rows.push(rec(h, {snowHeight: 5 + (24 - h) / 8, newSnow: 4}));
+  assert.equal(snowFigures(rows, now, {id: 'fts-sunshine'}).hn24_cm, 3);
+});
+test('ridge-top stations report no HN24, HST or HS', () => {
+  assert.deepEqual(snowFigures(hourly([12]), now, {id: 'fts-vulture'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
+  assert.deepEqual(snowFigures(hourly([12]), now, {id: 'fts-simpup'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
+});

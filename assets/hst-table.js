@@ -1,4 +1,5 @@
 import {stormSnow, HST_LOOKBACK_H, STORM_BREAK_H, STORM_BREAK_CM} from './hst.js';
+import {hnRecords} from './snow-stations.js';
 
 /* Fills the HST cells of the 24 h station summary. HST needs more history than the table's 24 h
    window, so each station's last HST_LOOKBACK_H hours are fetched once and reused for 30 min. */
@@ -30,7 +31,7 @@ function fill() {
     if (cell.dataset.hstDone === '1') continue;
     cell.dataset.hstDone = '1';
     cell.textContent = '…';
-    records(id).then(data => { if (cell.isConnected) show(cell, stormSnow(data, Date.now())); })
+    records(id).then(data => { if (cell.isConnected) show(cell, stormSnow(hnRecords(id, data), Date.now())); })
       .catch(() => { if (cell.isConnected) { cell.textContent = '—'; cell.title = 'Archive unavailable'; } });
   }
 }

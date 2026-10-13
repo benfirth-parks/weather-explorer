@@ -738,9 +738,15 @@ function freshnessText(rec){
   if(age===null) return 'No observation';
   return new Date(rec.measurementDateTime).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 }
+/* Sunshine's AB Env newSnow field is not interval new snow, so its HN24 comes from the
+   depth change instead. Mirrors HN_FROM_HS_IDS in assets/snow-stations.js. */
+const HN_FROM_HS_IDS = new Set(['fts-sunshine']);
+/* HN24: summed new-snow sensor readings, else the 24 h depth change (0 when the depth fell).
+   Stations whose HS trace is excluded report no HN24, so no HST either. */
 function newSnow24h(id){
+  if(SNOW_GRAPH_EXCLUDED_IDS.has(id)) return null;
   const recs=windowedData(id,24);
-  const direct=recs.map(d=>numOf(d.newSnow)).filter(v=>Number.isFinite(v));
+  const direct=HN_FROM_HS_IDS.has(id)?[]:recs.map(d=>numOf(d.newSnow)).filter(v=>Number.isFinite(v));
   if(direct.length){
     const total=direct.reduce((a,b)=>a+b,0);
     return (total<0 || total>50) ? null : total;
@@ -748,7 +754,7 @@ function newSnow24h(id){
   const depth=filterSnowSpikes(recs.filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight');
   if(depth.length<2) return null;
   const total=Number(depth[depth.length-1].snowHeight)-Number(depth[0].snowHeight);
-  return (!Number.isFinite(total) || total<0 || total>50) ? null : total;
+  return (!Number.isFinite(total) || total>50) ? null : Math.max(0,total);
 }
 /* HS = the most recent usable snow depth / height-of-snow observation.
    Stations excluded from the snow graphs are also excluded here because their

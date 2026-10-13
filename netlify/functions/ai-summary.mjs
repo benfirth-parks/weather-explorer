@@ -18,7 +18,7 @@ import { bandRows, bandTableMarkdown, buildSnapshot, SYSTEM_PROMPT } from "./_ai
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v5"; /* v5: Snow Amounts in whole cm, matching the 24h table */
+const CACHE_STORE = "rockies-weather-ai-summary-v6"; /* v6: per-station snow rules (no HN for ridge-top stations, Sunshine HN from HS) */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
@@ -130,7 +130,7 @@ export default async (request) => {
       const now = Date.now();
       const rows = await Promise.all(SNOW_PAIRS.map(async (pair) => {
         const archive = await readArchive(pair.snow);
-        return { ...pair, ...snowFigures(selectHours(archive, SNOW_PAIR_HOURS), now, { hn: pair.hn }) };
+        return { ...pair, ...snowFigures(selectHours(archive, SNOW_PAIR_HOURS), now, { hn: pair.hn, id: pair.snow }) };
       }));
       snowBlock = snowPairsMarkdown(rows);
     } catch (error) {

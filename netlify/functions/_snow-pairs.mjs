@@ -6,15 +6,16 @@
 
 import { HOUR } from "../../assets/pair-comparison-data.js";
 import { stormSnow, HST_LOOKBACK_H } from "../../assets/hst.js";
+import { SNOW_EXCLUDED_IDS, hnRecords } from "../../assets/snow-stations.js";
 
 /* Mirrors STATION_PAIRS in index.html; `snow` is the pair's snow station
    (the upper stations' snow figures are hidden on the dashboard). Sunshine's
-   new-snow field is not usable as HN, so that pair reports HS only. */
+   HN comes from its depth trace (assets/snow-stations.js). */
 export const SNOW_PAIRS = [
   { label: "Vulture Peak / Bow Summit",  snow: "fts-bowsummit", hn: true },
   { label: "Simpson Upper / Lower",      snow: "fts-simplo",    hn: true },
   { label: "Bosworth Upper / Lower",     snow: "fts-boslo",     hn: true },
-  { label: "Lookout / Sunshine Village", snow: "fts-sunshine",  hn: false },
+  { label: "Lookout / Sunshine Village", snow: "fts-sunshine",  hn: true },
   { label: "Whymper / Stanley Lower",    snow: "fts-stanley",   hn: true }
 ];
 
@@ -67,7 +68,7 @@ function newSnow24h(recs) {
   const depth = filterSnowSpikes(recs.filter((d) => Number.isFinite(num(d.snowHeight))));
   if (depth.length < 2) return null;
   const total = Number(depth.at(-1).snowHeight) - Number(depth[0].snowHeight);
-  return !Number.isFinite(total) || total < 0 || total > 50 ? null : total;
+  return !Number.isFinite(total) || total > 50 ? null : Math.max(0, total);
 }
 function snowHeight24h(recs) {
   const depth = filterSnowSpikes(recs.filter((d) => Number.isFinite(num(d.snowHeight))));
@@ -78,10 +79,12 @@ function snowHeight24h(recs) {
 
 /* HN24, HST and HS for one station's records, ending at `now`, in whole cm.
    HN24 and HS: as the 24 h table (new-snow sensor sum over the last 24 h, else the
-   24 h depth change; latest spike-filtered depth).
+   24 h depth change, 0 when the depth fell; latest spike-filtered depth). `id` applies
+   the per-station rules in assets/snow-stations.js.
    HST: as the 24 h table (assets/hst.js), over the same 10-day lookback. */
-export function snowFigures(records, now, { hn = true } = {}) {
-  const clean = sanitizeRecords(records).filter((r) => time(r) <= now);
+export function snowFigures(records, now, { hn = true, id = null } = {}) {
+  if (SNOW_EXCLUDED_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
+  const clean = hnRecords(id, sanitizeRecords(records)).filter((r) => time(r) <= now);
   const last24 = clean.filter((r) => time(r) >= now - 24 * HOUR);
   let hn24 = null, hst = null;
   if (hn) {
