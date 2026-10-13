@@ -393,6 +393,7 @@ let lassoActive = false;
 let cache = {};
 let trendChart, windRoseChart, gustChart;
 const snowState = {};
+const SNOW_CARD_RANGES = [[24,'Last 24 hours'],[72,'Last 72 hours'],[168,'Last 7 days']];
 const SNOW_GRAPH_EXCLUDED_IDS = new Set(['fts-bosup','fts-lookout','fts-simpup','fts-vulture','fts-whymper']);
 const WIND_DEFAULT_IDS = new Set(STATIONS.filter(s=>s.elevation>=2200).map(s=>s.stationId));
 
@@ -1299,11 +1300,10 @@ function renderSnowCards(ids){
       wrap.appendChild(card);
       return;
     }
-    /* Per-station snow/HW/new-snow cards are fixed to a 24h window by design.
-       Long-window comparisons live in the main charts above; these cards are the
-       operational at-a-glance 24h view. */
+    /* Per-station snow/HW/new-snow cards default to the operational 24h view; each card's
+       range menu also offers 72 h and 7 days. */
     const state=snowState[id]||{metric:isHW?'precipTotal':(hasSnowHeight?'snowHeight':'newSnow'),hours:24};
-    state.hours=24;
+    if(!SNOW_CARD_RANGES.some(([h])=>h===state.hours)) state.hours=24;
     if(isHW){ if(!(dual&&state.touched&&state.metric==='snowHeight'&&hasSnowHeight)) state.metric='precipTotal'; }
     else {
       if(state.metric==='precipTotal') state.metric=hasSnowHeight?'snowHeight':'newSnow';
@@ -1311,10 +1311,17 @@ function renderSnowCards(ids){
       if(state.metric==='newSnow'&&!hasNewSnow) state.metric='snowHeight';
     }
     snowState[id]=state;
-    card.innerHTML=`<div class="station-card-head"><div><div class="station-card-title">${s.name}</div><div class="station-card-meta">${s.park} · ${s.elevation} m</div></div><select class="small-select" data-role="snow-metric" aria-label="Accumulation metric for ${s.name}">${isHW?`<option value="precipTotal" ${state.metric==='precipTotal'?'selected':''}>HW (mm)</option>`+(dual&&hasSnowHeight?`<option value="snowHeight" ${state.metric==='snowHeight'?'selected':''}>Snow height</option>`:``):`<option value="snowHeight" ${state.metric==='snowHeight'?'selected':''} ${hasSnowHeight?'':'disabled'}>Snow height</option><option value="newSnow" ${state.metric==='newSnow'?'selected':''} ${hasNewSnow?'':'disabled'}>${hasDirectNewSnow?'New snow':'New snow (24h depth change)'}</option>`}</select></div><div class="range-label"><span class="mono">Last 24 hours</span></div><div class="chart-box" data-role="snow-chartbox" title="Tap to enlarge" style="height:220px;margin-top:var(--space-3);"><canvas id="snowChart-${id}"></canvas><button type="button" class="enlarge-chip" data-role="snow-enlarge" aria-label="Enlarge chart">Enlarge</button></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>`;
+    card.innerHTML=`<div class="station-card-head"><div><div class="station-card-title">${s.name}</div><div class="station-card-meta">${s.park} · ${s.elevation} m</div></div><select class="small-select" data-role="snow-metric" aria-label="Accumulation metric for ${s.name}">${isHW?`<option value="precipTotal" ${state.metric==='precipTotal'?'selected':''}>HW (mm)</option>`+(dual&&hasSnowHeight?`<option value="snowHeight" ${state.metric==='snowHeight'?'selected':''}>Snow height</option>`:``):`<option value="snowHeight" ${state.metric==='snowHeight'?'selected':''} ${hasSnowHeight?'':'disabled'}>Snow height</option><option value="newSnow" ${state.metric==='newSnow'?'selected':''} ${hasNewSnow?'':'disabled'}>${hasDirectNewSnow?'New snow':'New snow (24h depth change)'}</option>`}</select></div><div class="range-label"><select class="small-select" data-role="snow-hours" aria-label="Time range for ${s.name}">${SNOW_CARD_RANGES.map(([h,l])=>`<option value="${h}" ${state.hours===h?'selected':''}>${l}</option>`).join('')}</select></div><div class="chart-box" data-role="snow-chartbox" title="Tap to enlarge" style="height:220px;margin-top:var(--space-3);"><canvas id="snowChart-${id}"></canvas><button type="button" class="enlarge-chip" data-role="snow-enlarge" aria-label="Enlarge chart">Enlarge</button></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>`;
     wrap.appendChild(card);
     const sel=card.querySelector('[data-role="snow-metric"]');
     sel.addEventListener('change',e=>{snowState[id].metric=e.target.value; snowState[id].touched=true; renderSnowCards(ids);});
+    card.querySelector('[data-role="snow-hours"]').addEventListener('change',async e=>{
+      const h=Number(e.target.value);
+      snowState[id].hours=h;
+      /* The archive loaded for the main view may be shorter than the card's range. */
+      if((cacheHours[id]||0)<h){ cache[id]=await fetchStation(id,h); cacheHours[id]=h; }
+      renderSnowCards(ids);
+    });
     const box=card.querySelector('[data-role="snow-chartbox"]');
     box.addEventListener('click',e=>{ if(e.target.closest('.resize-handle')) return; openSnowChartModal(id); });
     drawSnowChart(id);
@@ -1416,7 +1423,7 @@ function openSnowChartModal(id){
                     : metricKey==='snowHeight'  ? 'Snow depth (cm)'
                     : 'New snow (cm)';
   modal.querySelector('.snow-modal-title').textContent=`${s.name} \u2014 ${metricLabel}`;
-  modal.querySelector('.snow-modal-sub').textContent=`${s.park} \u00b7 ${s.elevation} m \u00b7 Last 24 hours`;
+  modal.querySelector('.snow-modal-sub').textContent=`${s.park} \u00b7 ${s.elevation} m \u00b7 ${(SNOW_CARD_RANGES.find(([h])=>h===state.hours)||SNOW_CARD_RANGES[0])[1]}`;
   const canvas=modal.querySelector('canvas');
   const c=chartTextColors();
   if(snowModalChart){ try{ snowModalChart.destroy(); }catch(e){} snowModalChart=null; }
