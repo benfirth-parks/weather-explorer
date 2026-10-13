@@ -6,6 +6,7 @@
 
 import { readArchive, syncStation, selectHours, STATIONS as STATION_IDS } from "./_weather-archive.mjs";
 import { snowFigures } from "./_snow-pairs.mjs";
+import { NO_PRECIP_GAUGE_IDS, hw24FromObservations } from "./_hw24.mjs";
 import { SNOW_EXCLUDED_IDS } from "../../assets/snow-stations.js";
 
 /* Station metadata mirrors the STATIONS_GROUP* arrays in index.html.
@@ -108,33 +109,9 @@ function bearingDelta(a, b) {
 /* Round to 1 decimal, or return null. */
 function round1(v) { return v === null ? null : Math.round(v * 10) / 10; }
 
-/* Stations with no precipitation gauge — mirrors NO_PRECIP_GAUGE_IDS in index.html. */
-const NO_PRECIP_GAUGE_IDS = new Set(["fts-vulture", "fts-simpup", "fts-simplo", "fts-bowsummit"]);
-const PC_MAX_STEP = 50;
-/* 24h gauge precipitation (HW24), computed the same way as the dashboard's 24h station
-   summary table: sum the positive steps of the running total (ignoring gauge-service resets
-   and >50 mm jumps), fall back to per-interval increments when the total is dead, and
-   reject implausible 24h totals (>150 mm). */
+/* 24h gauge precipitation (HW24): shared with the snow block in _hw24.mjs. */
 function hw24(meta, observations) {
-  if (NO_PRECIP_GAUGE_IDS.has(meta.stationId)) return null;
-  let fromTotal = null, prev = null, totalPts = 0;
-  for (const o of observations) {
-    const v = num(o.precipTotal);
-    if (v === null || v < 0 || v > 5000) continue;
-    totalPts += 1;
-    if (prev !== null) { const step = v - prev; if (step >= 0 && step <= PC_MAX_STEP) fromTotal = (fromTotal || 0) + step; }
-    prev = v;
-  }
-  if (totalPts >= 2 && fromTotal === null) fromTotal = 0;
-  let fromIncr = null;
-  for (const o of observations) {
-    const v = num(o.precipIncr);
-    if (v === null || v < 0 || v > PC_MAX_STEP) continue;
-    fromIncr = (fromIncr || 0) + v;
-  }
-  let total = fromTotal === null ? fromIncr : (fromIncr !== null && fromTotal === 0 && fromIncr > 0 ? fromIncr : fromTotal);
-  if (total === null || total < 0 || total > 150) return null;
-  return Math.round(total * 10) / 10;
+  return NO_PRECIP_GAUGE_IDS.has(meta.stationId) ? null : hw24FromObservations(observations);
 }
 
 /* Roll a single station's 24h archive slice into a compact snapshot.
@@ -237,7 +214,7 @@ function summarizeStation(meta, observations, lastSyncedAt) {
     temp_low_c: tempRange.min,
     temp_latest_c: latest(observations, "airTempAvg"),
     precip_24h_mm: precip24h !== null ? Math.round(precip24h * 10) / 10 : null,
-    new_snow_hn24_cm: snow.hn24_cm,
+    new_snow_hn24_cm: snow.hn24_cm, /* gauge stations: precip total, 1 mm as 1 cm */
     snow_depth_hs_cm: snow.hs_cm,
     snow_depth_change_24h_cm: snowDelta !== null ? Math.round(snowDelta * 10) / 10 : null,
     wind_avg_kmh: windRange.max !== null ? Math.round((windRange.min + windRange.max) / 2 * 10) / 10 : null,

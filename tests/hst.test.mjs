@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stormSnow} from '../assets/hst.js';
+import {stormSnow, stormPrecip} from '../assets/hst.js';
 import {HOUR} from '../assets/pair-comparison-data.js';
 
 const NOW = Date.UTC(2026, 0, 20, 7); // MST midnight, on an hour boundary
@@ -63,4 +63,13 @@ test('depth-only: consecutive days of rising depth make one storm', () => {
   const r = stormSnow(recs, NOW);
   assert.ok(r.hst >= 11 && r.hst <= 12, `got ${r.hst}`); // 6 cm a day for two days
   assert.equal(r.partial, false);
+});
+test('gauge storm: precip total since the last 24 h with under 1 mm', () => {
+  const recs = [];
+  for (let h = 96; h >= 0; h--) recs.push({measurementDateTime: new Date(NOW - h * HOUR).toISOString(), precipTotal: 100 + (h < 20 ? (20 - h) * 0.4 : 0)});
+  const r = stormPrecip(recs, NOW);
+  assert.equal(r.hst, 7.2); // 8 mm fell; the first 0.8 mm still sits inside the last 24 h under 1 mm, as with snow
+  assert.equal(r.partial, false);
+  const dry = recs.map(x => ({...x, precipTotal: 100}));
+  assert.equal(stormPrecip(dry, NOW).hst, 0);
 });
