@@ -9,7 +9,7 @@ const row = document.getElementById('kpiRow');
 const states = new Map();
 const mounted = new Map();
 const requests = new Map();
-const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days']];
+const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days'], [336, '14 days'], [480, '20 days'], [720, '30 days'], [1440, '60 days']];
 /* Precipitation is drawn as interval bars (when it fell) plus a running total from the window
    start (how much), with HS drawn as snow depth on its own axis.
    HN stations: new snow in cm, from a new-snow sensor where there is one, otherwise derived from HS. */
@@ -187,7 +187,7 @@ function when(x, hours) { return hours === 24 ? hourClock.format(x) : clock.form
    One arrow at the first reading of each MST step (2 h on 24 h, 4 h on 72 h, 12 h on 7 days),
    pointing the way the wind blows toward (reported direction + 180°), as on the dashboard. */
 /* Narrow (phone-width) charts double the step so arrows don't overlap. */
-function arrowStepHours(hours, narrow = false) { return (hours <= 24 ? 2 : hours <= 72 ? 4 : 12) * (narrow ? 2 : 1); }
+function arrowStepHours(hours, narrow = false) { return (hours <= 24 ? 2 : hours <= 72 ? 4 : hours <= 168 ? 12 : hours <= 480 ? 24 : 48) * (narrow ? 2 : 1); }
 function markArrows(points, hours, narrow) {
   const step = arrowStepHours(hours, narrow) * HOUR, offset = 7 * HOUR;
   let lastBucket = null;
@@ -523,7 +523,7 @@ async function render(view) {
         x: {type: 'time', min: from, max: to, offset: false, grid: {color: grid},
           // Ticks on fixed-MST boundaries (MST midnight = 07:00 UTC), independent of the viewer's time zone.
           afterBuildTicks: axis => {
-            const step = (hours === 24 ? 6 : hours === 72 ? 12 : 24) * HOUR, offset = 7 * HOUR;
+            const step = (hours === 24 ? 6 : hours === 72 ? 12 : hours <= 168 ? 24 : hours <= 480 ? 48 : hours <= 720 ? 96 : 168) * HOUR, offset = 7 * HOUR;
             const ticks = [];
             for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) ticks.push({value: t});
             axis.ticks = ticks;

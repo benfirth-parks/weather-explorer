@@ -189,7 +189,7 @@ export function hw24Series(records, from, to) {
 // ---- Interval precipitation (when it fell) and storm totals (how much) ----
 // Bins are aligned to fixed-MST boundaries (MST = UTC-7) so they line up with the chart's ticks.
 const MST_OFFSET = 7 * HOUR;
-export function binStepHours(spanHours) { return spanHours <= 24 ? 1 : spanHours <= 72 ? 3 : 6; }
+export function binStepHours(spanHours) { return spanHours <= 24 ? 1 : spanHours <= 72 ? 3 : spanHours <= 168 ? 6 : spanHours <= 480 ? 12 : 24; }
 export function bins(from, to, stepHours) {
   const step = stepHours * HOUR, out = [];
   for (let start = Math.floor((from - MST_OFFSET) / step) * step + MST_OFFSET; start < to; start += step) {
