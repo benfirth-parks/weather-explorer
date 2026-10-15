@@ -1,4 +1,4 @@
-import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_FROM_HS_THRESHOLD_CM} from './pair-comparison-data.js';
+import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity} from './pair-comparison-data.js';
 import {plotForPair, renderPlotProfile} from './plot-profile.js';
 
 /* Paired-station timing chart: temperature, wind and precipitation for both stations on one
@@ -23,16 +23,14 @@ const EXTRA_PRECIP = {
 };
 /* Co-located HN (cm) and HW (mm) sources, used for storm density. */
 const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip']];
-/* Colour encodes the data type; shade + line style encode the station.
-   Slot 0 = first (upper) station: dark shade, solid. Slot 1 = second station: light shade, dashed. */
-const TYPE_COLORS = {
-  temp: ['#d9472b', '#f2a083'],
-  wind: ['#0e9488', '#6fd3c4'],
-  snow: ['#7c4dcc', '#bba3ec'],
-  hs:   ['#b7791f', '#e6b85c'],
-  hw:   ['#2f6fe0', '#93b6f6']
-};
-const SLOT_DASH = [[], [6, 4]];
+/* Colour encodes the station; line style encodes the data type.
+   Slot 0 = first (upper) station, slot 1 = second station, slot 2 = an extra gauge drawn with the pair.
+   Categorical blue / orange / aqua, stepped for each theme (checked for colour-blind separation). */
+const STATION_COLORS = {light: ['#2a78d6', '#eb6834', '#1baf7a'], dark: ['#3987e5', '#d95926', '#199e70']};
+const stationColor = slot => STATION_COLORS[document.documentElement.dataset.theme === 'light' ? 'light'
+  : document.documentElement.dataset.theme === 'dark' || matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'][slot];
+const TYPE_DASH = {temp: [], wind: [7, 4], cum: [2, 3], hsdepth: [14, 4, 3, 4]};
+const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 1.8, hsdepth: 2};
 /* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
 const CLEANOUT_COLOR = '#e00000';
 const cleanoutRequests = new Map();
@@ -145,7 +143,7 @@ function mount(card) {
   chartBox.append(canvas);
   const roses = element('div', 'pair-compare-roses');
   roses.hidden = true;
-  body.append(chartBox, roses);
+  body.append(chartBox, legend, roses);
   const status = element('p', 'pair-compare-status');
   status.setAttribute('role', 'status');
   const note = element('p', 'pair-compare-note');
@@ -156,7 +154,7 @@ function mount(card) {
   const profile = element('section', 'plot-profile');
   profile.hidden = true;
   if (plot) profile.setAttribute('aria-label', 'Study plot snow profile');
-  panel.append(controls, body, legend, status, note, retry, profile);
+  panel.append(controls, body, status, note, retry, profile);
   card.append(panel);
   const view = {card, panel, toggle, state, ids, legend, body, chartBox, canvas, roses, status, note, retry, plot, profile, openCount: 0, version: 0, chart: null, roseCleanup: null, buttons: []};
   for (const [value, label] of ranges) {
@@ -379,30 +377,23 @@ async function render(view) {
   const precipUnits = new Set();
   const step = binStepHours(hours);
   const narrow = view.body.clientWidth < 560;
-  const used = {temp: new Set(), wind: new Set(), snow: new Set(), hs: new Set(), hw: new Set()};
   const totals = {};
-  let hnFromHs = false, hasGauge = false;
-  // Station 1 takes slot 0, station 2 slot 1; an extra gauge takes whichever slot is free for its type.
-  function slotFor(type, preferred) {
-    const slot = used[type].has(preferred) ? 1 - preferred : preferred;
-    used[type].add(slot);
-    return slot;
-  }
+  // Each series takes its station's colour; the type sets the line style.
+  const line = (kind, slot) => ({borderColor: stationColor(slot), backgroundColor: stationColor(slot), borderWidth: TYPE_WIDTH[kind], borderDash: TYPE_DASH[kind]});
   // HN (cm) or HW (mm): interval bars + running-total line on the same axis.
   function addPrecip(id, data, kind, preferredSlot) {
     const name = host.stations[id].name;
     const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step);
     const label = result.method, unit = kind === 'hw' ? 'mm' : 'cm', axis = unit === 'mm' ? 'yMm' : 'yCm';
     if (result.total === null) { notes.push(`${name}: no valid ${label} in this period.`); return; }
-    const type = kind === 'hw' ? 'hw' : 'snow', slot = slotFor(type, preferredSlot), color = TYPE_COLORS[type][slot];
+    const slot = preferredSlot, color = stationColor(slot);
     precipUnits.add(unit);
     totals[id] = {...(totals[id] || {}), [kind]: result.total};
-    if (kind === 'hw') hasGauge = true; else if (result.source === 'HS') hnFromHs = true;
-    datasets.push({type: 'bar', station: id, label: `${name} ${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
-      borderColor: color, backgroundColor: slot ? color + '80' : color + 'cc', borderWidth: slot ? 1 : 0,
+    datasets.push({type: 'bar', station: id, label: `${name} ${label} per ${step} h`, short: `${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
+      borderColor: color, backgroundColor: color + 'b3', borderWidth: 0,
       barPercentage: 0.9, categoryPercentage: 1, grouped: true});
-    datasets.push({station: id, label: `${name} ${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
-      borderColor: color, backgroundColor: color, borderWidth: 1.8, borderDash: SLOT_DASH[slot], tension: 0});
+    datasets.push({station: id, label: `${name} ${label} total`, short: `${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
+      ...line('cum', slot), tension: 0});
     let fact = `${name} ${label} **${result.total.toFixed(1)} ${unit}**`;
     if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
     facts.push(fact);
@@ -411,9 +402,9 @@ async function render(view) {
   function addDepth(id, data, preferredSlot) {
     const name = host.stations[id].name, hs = hsDepthSeries(data, from, to);
     if (!hs.latest) { notes.push(`${name}: no valid HS in this period.`); return; }
-    const slot = slotFor('hs', preferredSlot), color = TYPE_COLORS.hs[slot];
-    datasets.push({station: id, label: `${name} HS depth`, unit: 'cm', kind: 'hsdepth', slot, data: hs.points, yAxisID: 'yHs', order: 3,
-      borderColor: color, backgroundColor: color, borderWidth: 2, borderDash: SLOT_DASH[slot], tension: 0.2});
+    const slot = preferredSlot;
+    datasets.push({station: id, label: `${name} HS depth`, short: 'HS depth', unit: 'cm', kind: 'hsdepth', slot, data: hs.points, yAxisID: 'yHs', order: 3,
+      ...line('hsdepth', slot), tension: 0.2});
     const sign = hs.change > 0 ? '+' : '';
     facts.push(`${name} HS **${hs.latest.y.toFixed(0)} cm**${hs.change !== null ? ` (${sign}${hs.change.toFixed(1)} cm over the period)` : ''}`);
   }
@@ -428,16 +419,14 @@ async function render(view) {
     const data = result.value;
     const temp = metricSeries(data, 'temperature', from, to);
     if (temp.points.some(p => p.y !== null)) {
-      const slot = slotFor('temp', i), color = TYPE_COLORS.temp[slot];
-      datasets.push({station: id, label: `${name} temp`, unit: '°C', kind: 'temp', slot, data: temp.points, yAxisID: 'yTemp', order: 1,
-        borderColor: color, backgroundColor: color, borderWidth: 2.4, borderDash: SLOT_DASH[slot], tension: 0.2});
+      datasets.push({station: id, label: `${name} temp`, short: 'Temperature', unit: '°C', kind: 'temp', slot: i, data: temp.points, yAxisID: 'yTemp', order: 1,
+        ...line('temp', i), tension: 0.2});
     } else notes.push(`${name}: no valid temperature.`);
     if (!host.hiddenWindIds.has(id)) {
       const wind = metricSeries(data, 'wind', from, to);
       if (wind.points.some(p => p.y !== null)) {
-        const slot = slotFor('wind', i), color = TYPE_COLORS.wind[slot];
-        datasets.push({station: id, label: `${name} wind`, unit: 'km/h', kind: 'wind', slot, data: markArrows(wind.points, hours, narrow), yAxisID: 'yWind', order: 2,
-          borderColor: color, backgroundColor: color, borderWidth: 1.8, borderDash: SLOT_DASH[slot], tension: 0.2});
+        datasets.push({station: id, label: `${name} wind`, short: 'Wind', unit: 'km/h', kind: 'wind', slot: i, data: markArrows(wind.points, hours, narrow), yAxisID: 'yWind', order: 2,
+          ...line('wind', i), tension: 0.2});
         const pk = peak(wind.points);
         if (pk) facts.push(`${name} peak wind **${pk.y.toFixed(0)} km/h** at ${when(pk.x, hours)}`);
         winds.push({name, points: wind.points});
@@ -450,7 +439,7 @@ async function render(view) {
 
   extraResults.forEach((result, i) => {
     const id = extras[i].id;
-    if (result.status === 'fulfilled') addPrecip(id, result.value, extras[i].kind, 0);
+    if (result.status === 'fulfilled') addPrecip(id, result.value, extras[i].kind, 2);
     else notes.push(`${host.stations[id].name}: archive unavailable.`);
   });
   // Storm density where HN and HW come from the same site.
@@ -467,34 +456,34 @@ async function render(view) {
     view.status.textContent = 'Chart library unavailable. Reload the page to try again.';
     return;
   }
-  // Legend: one entry per series, drawn in the same colour and line style used on the chart.
-  // Clicking an entry shows or hides that series (assets/legend-toggle.js).
-  for (const d of datasets) {
-    const item = element('span');
-    const swatch = element('i', `pair-compare-swatch ${d.kind}${d.slot ? ' dashed' : ''}`);
-    swatch.style.borderColor = d.borderColor;
-    if (d.kind === 'bar') swatch.style.background = d.backgroundColor;
-    swatch.setAttribute('aria-hidden', 'true');
-    item.append(swatch, document.createTextNode(`${d.label} (${d.unit})${d.kind === 'wind' ? ' · arrows = blowing toward' : ''}`));
-    view.legend.append(item);
+  // Legend beside the chart: grouped by station (its colour), one entry per series drawn in the
+  // chart's line style. Clicking an entry shows or hides that series (assets/legend-toggle.js).
+  const entries = [];
+  for (const station of [...new Set(datasets.map(d => d.station))]) {
+    const group = element('div', 'pair-compare-legend-group');
+    const first = datasets.find(d => d.station === station);
+    const head = element('div', 'pair-compare-legend-head');
+    const dot = element('i');
+    dot.style.background = first.borderColor;
+    dot.setAttribute('aria-hidden', 'true');
+    head.append(dot, document.createTextNode(host.stations[station].name));
+    group.append(head);
+    for (const d of datasets.filter(d => d.station === station)) {
+      const item = element('span');
+      const swatch = element('i', `pair-compare-swatch ${d.kind}`);
+      swatch.style.borderColor = d.borderColor;
+      if (d.kind === 'bar') swatch.style.background = d.backgroundColor;
+      else swatch.style.borderImage = d.borderDash.length ? `repeating-linear-gradient(90deg, ${d.borderColor} 0 ${d.borderDash[0]}px, transparent ${d.borderDash[0]}px ${d.borderDash[0] + d.borderDash[1]}px) 1` : '';
+      swatch.setAttribute('aria-hidden', 'true');
+      item.append(swatch, document.createTextNode(`${d.short} (${d.unit})`));
+      group.append(item);
+      entries[datasets.indexOf(d)] = item;
+    }
+    view.legend.append(group);
   }
   view.status.innerHTML = facts.map(f => f.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')).join(' · ');
-  const hasPrecip = datasets.some(d => d.kind === 'bar'), hasDepth = datasets.some(d => d.kind === 'hsdepth');
-  const precipNote = [
-    hasPrecip ? `Bars = HN (cm) or HW (mm) that fell in each ${step} h interval; the matching line is the running total since the start of the period.` : '',
-    hasDepth ? 'Amber line = HS (snow depth, left axis).' : '',
-    hnFromHs ? `HN from an HS sensor counts rises of ${HN_FROM_HS_THRESHOLD_CM} cm or more in a 3 h-smoothed HS trace, so small storms may read low and some in-storm settlement is netted out.` : '',
-    hasGauge ? 'Gauge HW is a minimum: wind-exposed gauges under-catch snow.' : ''
-  ].filter(Boolean).join(' ');
-  view.note.textContent = [
-    `${ranges.find(r => r[0] === hours)[1]} ending ${clock.format(to)} MST.`,
-    'Red = temperature, teal = wind, purple = HN, amber = HS, blue = HW. Solid/dark = first station, dashed/light = second.',
-    `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
-    'Click a legend entry to hide or show that series.',
-    precipNote,
-    cleanoutMarks.length ? `Red vertical line = Avy Control from the field sheet, with that day's cleanout (${cleanoutMarks.map(m => `${clock.format(m.t)} MST${m.cleanout ? `: ${m.cleanout}` : ''}`).join('; ')}).` : '',
-    ...notes
-  ].filter(Boolean).join(' ');
+  const hasDepth = datasets.some(d => d.kind === 'hsdepth');
+  view.note.textContent = notes.join(' ');
   view.chartBox.hidden = false;
   view.canvas.setAttribute('aria-label', `Temperature, wind and precipitation timing for ${ids.map(id => host.stations[id].name).join(' and ')}.`);
   const css = getComputedStyle(document.documentElement);
@@ -502,7 +491,8 @@ async function render(view) {
   const grid = css.getPropertyValue('--color-divider').trim();
   const tick = {color: text, font: {size: narrow ? 9 : 11}};
   // Phone width: tick colours identify each y-axis, so titles are dropped to give the plot room.
-  const typeTick = color => ({...tick, color, ...(narrow ? {maxTicksLimit: 6, padding: 1} : {})});
+  const axisTick = {...tick, ...(narrow ? {maxTicksLimit: 6, padding: 1} : {})};
+  const axisName = label => ({display: true, text: label, color: text, font: {size: narrow ? 9 : 11}, padding: narrow ? 0 : 4});
   const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && d.kind === 'bar').map(d => d.method))].join(' / ') + ' ' + unit;
   const hasWind = datasets.some(d => d.kind === 'wind');
   view.chart = new window.Chart(view.canvas, {
@@ -533,18 +523,18 @@ async function render(view) {
           },
           ticks: {...tick, maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
             callback: value => hours === 24 ? hourClock.format(value) : (hours === 72 ? `${dayClock.format(value)} ${hourClock.format(value)}` : dayClock.format(value))}},
-        yTemp: {display: 'auto', position: 'left', title: {display: !narrow, text: '°C', color: TYPE_COLORS.temp[0]}, grid: {color: grid}, ticks: typeTick(TYPE_COLORS.temp[0])},
-        yWind: {display: hasWind ? 'auto' : false, position: 'right', beginAtZero: true, title: {display: !narrow, text: 'Wind km/h', color: TYPE_COLORS.wind[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.wind[0])},
-        yHs: {display: hasDepth ? 'auto' : false, position: 'left', title: {display: !narrow, text: 'HS cm', color: TYPE_COLORS.hs[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hs[0]),
+        yTemp: {display: 'auto', position: 'left', title: axisName('°C'), grid: {color: grid}, ticks: axisTick},
+        yWind: {display: hasWind ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(narrow ? 'km/h' : 'Wind km/h'), grid: {drawOnChartArea: false}, ticks: axisTick},
+        yHs: {display: hasDepth ? 'auto' : false, position: 'left', title: axisName(narrow ? 'HS' : 'HS cm'), grid: {drawOnChartArea: false}, ticks: axisTick,
           grace: '10%'},
-        yCm: {display: precipUnits.has('cm') ? 'auto' : false, position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('cm'), color: TYPE_COLORS.snow[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.snow[0]),
+        yCm: {display: precipUnits.has('cm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(axisTitle('cm')), grid: {drawOnChartArea: false}, ticks: axisTick,
           suggestedMax: 2},
-        yMm: {display: precipUnits.has('mm') ? 'auto' : false, position: 'right', beginAtZero: true, title: {display: !narrow, text: axisTitle('mm'), color: TYPE_COLORS.hw[0]}, grid: {drawOnChartArea: false}, ticks: typeTick(TYPE_COLORS.hw[0]),
+        yMm: {display: precipUnits.has('mm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(axisTitle('mm')), grid: {drawOnChartArea: false}, ticks: axisTick,
           suggestedMax: 2}
       }
     }
   });
-  window.bindLegendToggles?.(view.chart, [...view.legend.children], datasets.map(d => `${d.station}:${d.kind}`), `pair:${ids.join(',')}`);
+  window.bindLegendToggles?.(view.chart, entries, datasets.map(d => `${d.station}:${d.kind}`), `pair:${ids.join(',')}`);
   renderRoses(view, winds, hours);
 }
 function scan() {
