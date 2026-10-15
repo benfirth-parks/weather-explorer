@@ -1,7 +1,7 @@
 // Cleanout markers for one station pair, from the field Google Sheet (assets/cleanouts-data.js).
 // GET /api/cleanouts?pair=fts-bosup,fts-boslo
 // The sheet must be shared as "anyone with the link can view"; it is read server side as CSV.
-import { SHEET_ID, PAIR_TABS, parseTabs, tabForPair, cleanoutsFromCsv } from "../../assets/cleanouts-data.js";
+import { SHEET_ID, PAIR_TABS, CHECK_COL, parseCsv, parseTabs, tabForPair, cleanoutsFromCsv } from "../../assets/cleanouts-data.js";
 
 const MEMORY_MS = 5 * 60000;
 const cache = new Map();
@@ -30,6 +30,13 @@ async function tabs() {
   return list;
 }
 
+// Debug view of the tab: the first rows and the rows with anything in column AC, trimmed.
+function debugRows(csv) {
+  const rows = parseCsv(csv);
+  const trim = r => r.map((c, i) => c ? `${i}:${c.slice(0, 40)}` : "").filter(Boolean).join(" | ");
+  return { first: rows.slice(0, 6).map(trim), ac: rows.filter(r => (r[CHECK_COL] || "").trim()).slice(0, 8).map(trim), count: rows.length };
+}
+
 export default async (req) => {
   if (req.method !== "GET") return json(405, { error: "Method not allowed" });
   const params = new URL(req.url).searchParams;
@@ -45,7 +52,7 @@ export default async (req) => {
     const csv = await getText(`${SHEET}/export?format=csv&gid=${tab.gid}`);
     if (/^\s*<!doctype html|^\s*<html/i.test(csv)) throw new Error("sheet is not shared publicly");
     const { markers, columns } = cleanoutsFromCsv(csv);
-    const body = { pair, tab: tab.name, markers, ...(debug ? { columns, tabs: list.map(t => t.name) } : {}) };
+    const body = { pair, tab: tab.name, markers, ...(debug ? { columns, tabs: list.map(t => t.name), sample: debugRows(csv) } : {}) };
     cache.set(pair, { at: Date.now(), body });
     return json(200, body, 120);
   } catch (error) {
