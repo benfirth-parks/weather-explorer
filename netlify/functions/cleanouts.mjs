@@ -49,6 +49,8 @@ export default async (req) => {
     cache.set(pair, { at: Date.now(), body });
     return json(200, body, 120);
   } catch (error) {
+    console.warn(JSON.stringify({ event: "cleanout-sheet-failed", pair, error: String(error?.message || error) }));
+    if (debug) return json(200, { pair, error: String(error?.message || error) });
     if (hit) return json(200, { ...hit.body, stale: true }, 60);
     return json(502, { error: "Cleanout sheet unavailable", detail: String(error?.message || error) });
   }
