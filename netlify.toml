@@ -28,6 +28,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/cleanouts"
+  to = "/.netlify/functions/cleanouts"
+  status = 200
+
+[[redirects]]
   from = "/api/ai-summary"
   to = "/.netlify/functions/ai-summary"
   status = 200

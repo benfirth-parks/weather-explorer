@@ -9,7 +9,7 @@ const row = document.getElementById('kpiRow');
 const states = new Map();
 const mounted = new Map();
 const requests = new Map();
-const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days']];
+const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days'], [336, '14 days'], [480, '20 days'], [720, '30 days'], [1440, '60 days']];
 /* Precipitation is drawn as interval bars (when it fell) plus a running total from the window
    start (how much), with HS drawn as snow depth on its own axis.
    HN stations: new snow in cm, from a new-snow sensor where there is one, otherwise derived from HS. */
@@ -33,6 +33,38 @@ const TYPE_COLORS = {
   hw:   ['#2f6fe0', '#93b6f6']
 };
 const SLOT_DASH = [[], [6, 4]];
+/* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
+const CLEANOUT_COLOR = '#e00000';
+const cleanoutRequests = new Map();
+function cleanouts(ids) {
+  const pair = ids.join(','), hit = cleanoutRequests.get(pair);
+  if (hit && Date.now() - hit.at < 5 * 60000) return hit.promise;
+  const promise = fetch(`/api/cleanouts?pair=${encodeURIComponent(pair)}`)
+    .then(r => r.ok ? r.json() : {markers: []}).then(b => b.markers || []).catch(() => []);
+  cleanoutRequests.set(pair, {at: Date.now(), promise});
+  return promise;
+}
+const cleanoutPlugin = {id: 'pairCleanouts', afterDatasetsDraw(chart, _args, opts) {
+  const marks = opts?.markers || [];
+  if (!marks.length) return;
+  const g = chart.ctx, area = chart.chartArea, x = chart.scales.x;
+  g.save();
+  g.strokeStyle = CLEANOUT_COLOR; g.fillStyle = CLEANOUT_COLOR; g.lineWidth = 2;
+  g.font = `600 ${chart.width < 560 ? 10 : 12}px system-ui, sans-serif`;
+  g.textBaseline = 'top';
+  const size = chart.width < 560 ? 10 : 12;
+  marks.forEach((m, i) => {
+    const px = x.getPixelForValue(m.t);
+    if (px < area.left || px > area.right) return;
+    g.beginPath(); g.moveTo(px, area.top); g.lineTo(px, area.bottom); g.stroke();
+    // "Avy Control" with the day's cleanout under it; staggered so neighbouring labels don't collide.
+    const lines = ['Avy Control', m.cleanout].filter(Boolean);
+    // Always to the right of the line (Ben's call), even near the right edge.
+    g.textAlign = 'left';
+    lines.forEach((l, k) => g.fillText(l, px + 4, area.top + 4 + (i % 3) * (2 * size + 8) + k * (size + 3)));
+  });
+  g.restore();
+}};
 /* Same CAA OGRS wind-speed classes as the dashboard wind rose (km/h). */
 const WIND_CLASSES = [
   {label: 'Light (1–25)',     max: 25,       color: 'rgb(56,142,86)',  border: 'rgb(31,110,60)'},
@@ -158,7 +190,7 @@ function when(x, hours) { return hours === 24 ? hourClock.format(x) : clock.form
    One arrow at the first reading of each MST step (2 h on 24 h, 4 h on 72 h, 12 h on 7 days),
    pointing the way the wind blows toward (reported direction + 180°), as on the dashboard. */
 /* Narrow (phone-width) charts double the step so arrows don't overlap. */
-function arrowStepHours(hours, narrow = false) { return (hours <= 24 ? 2 : hours <= 72 ? 4 : 12) * (narrow ? 2 : 1); }
+function arrowStepHours(hours, narrow = false) { return (hours <= 24 ? 2 : hours <= 72 ? 4 : hours <= 168 ? 12 : hours <= 480 ? 24 : 48) * (narrow ? 2 : 1); }
 function markArrows(points, hours, narrow) {
   const step = arrowStepHours(hours, narrow) * HOUR, offset = 7 * HOUR;
   let lastBucket = null;
@@ -334,10 +366,12 @@ async function render(view) {
   view.chartBox.hidden = true;
   view.retry.hidden = true;
   const extras = (EXTRA_PRECIP[ids.join(',')] || []).filter(e => host.stations[e.id]);
-  const [results, extraResults] = await Promise.all([
+  const [results, extraResults, cleanoutList] = await Promise.all([
     Promise.allSettled(ids.map(id => records(id, hours))),
-    Promise.allSettled(extras.map(e => records(e.id, hours)))
+    Promise.allSettled(extras.map(e => records(e.id, hours))),
+    cleanouts(ids)
   ]);
+  const cleanoutMarks = cleanoutList.filter(m => m.t >= from && m.t <= to);
   if (version !== view.version || !view.card.isConnected || !view.state.open) return;
   view.panel.setAttribute('aria-busy', 'false');
 
@@ -458,6 +492,7 @@ async function render(view) {
     `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
     'Click a legend entry to hide or show that series.',
     precipNote,
+    cleanoutMarks.length ? `Red vertical line = Avy Control from the field sheet, with that day's cleanout (${cleanoutMarks.map(m => `${clock.format(m.t)} MST${m.cleanout ? `: ${m.cleanout}` : ''}`).join('; ')}).` : '',
     ...notes
   ].filter(Boolean).join(' ');
   view.chartBox.hidden = false;
@@ -473,12 +508,12 @@ async function render(view) {
   view.chart = new window.Chart(view.canvas, {
     type: 'line',
     data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
-    plugins: [arrowPlugin],
+    plugins: [arrowPlugin, cleanoutPlugin],
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       layout: {padding: {top: hasWind ? 14 : 0}},
       interaction: {mode: 'x', intersect: false},
-      plugins: {legend: {display: false}, tooltip: {callbacks: {
+      plugins: {legend: {display: false}, pairCleanouts: {markers: cleanoutMarks}, tooltip: {callbacks: {
         title: items => items.length ? `${clock.format(items[0].parsed.x)} MST` : '',
         label: c => {
           const p = c.raw || {};
@@ -491,7 +526,7 @@ async function render(view) {
         x: {type: 'time', min: from, max: to, offset: false, grid: {color: grid},
           // Ticks on fixed-MST boundaries (MST midnight = 07:00 UTC), independent of the viewer's time zone.
           afterBuildTicks: axis => {
-            const step = (hours === 24 ? 6 : hours === 72 ? 12 : 24) * HOUR, offset = 7 * HOUR;
+            const step = (hours === 24 ? 6 : hours === 72 ? 12 : hours <= 168 ? 24 : hours <= 480 ? 48 : hours <= 720 ? 96 : 168) * HOUR, offset = 7 * HOUR;
             const ticks = [];
             for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) ticks.push({value: t});
             axis.ticks = ticks;
@@ -519,7 +554,7 @@ function scan() {
 if (host && row) {
   new MutationObserver(scan).observe(row, {childList: true});
   document.getElementById('refreshBtn')?.addEventListener('click', () => {
-    requests.clear();
+    requests.clear(); cleanoutRequests.clear();
     for (const view of mounted.values()) if (view.state.open) { render(view); renderProfile(view, true); }
   });
   scan();
