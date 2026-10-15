@@ -33,6 +33,35 @@ const TYPE_COLORS = {
   hw:   ['#2f6fe0', '#93b6f6']
 };
 const SLOT_DASH = [[], [6, 4]];
+/* Cleanouts ticked (column AC) on the pair's tab of the field sheet: red line + the cleanout selection. */
+const CLEANOUT_COLOR = '#e00000';
+const cleanoutRequests = new Map();
+function cleanouts(ids) {
+  const pair = ids.join(','), hit = cleanoutRequests.get(pair);
+  if (hit && Date.now() - hit.at < 5 * 60000) return hit.promise;
+  const promise = fetch(`/api/cleanouts?pair=${encodeURIComponent(pair)}`)
+    .then(r => r.ok ? r.json() : {markers: []}).then(b => b.markers || []).catch(() => []);
+  cleanoutRequests.set(pair, {at: Date.now(), promise});
+  return promise;
+}
+const cleanoutPlugin = {id: 'pairCleanouts', afterDatasetsDraw(chart, _args, opts) {
+  const marks = opts?.markers || [];
+  if (!marks.length) return;
+  const g = chart.ctx, area = chart.chartArea, x = chart.scales.x;
+  g.save();
+  g.strokeStyle = CLEANOUT_COLOR; g.fillStyle = CLEANOUT_COLOR; g.lineWidth = 2;
+  g.font = `600 ${chart.width < 560 ? 10 : 12}px system-ui, sans-serif`;
+  g.textBaseline = 'top';
+  marks.forEach((m, i) => {
+    const px = x.getPixelForValue(m.t);
+    if (px < area.left || px > area.right) return;
+    g.beginPath(); g.moveTo(px, area.top); g.lineTo(px, area.bottom); g.stroke();
+    const w = g.measureText(m.label).width, left = px + 4 + w > area.right;
+    g.textAlign = left ? 'right' : 'left';
+    g.fillText(m.label, left ? px - 4 : px + 4, area.top + 4 + (i % 3) * 15);
+  });
+  g.restore();
+}};
 /* Same CAA OGRS wind-speed classes as the dashboard wind rose (km/h). */
 const WIND_CLASSES = [
   {label: 'Light (1–25)',     max: 25,       color: 'rgb(56,142,86)',  border: 'rgb(31,110,60)'},
@@ -334,10 +363,12 @@ async function render(view) {
   view.chartBox.hidden = true;
   view.retry.hidden = true;
   const extras = (EXTRA_PRECIP[ids.join(',')] || []).filter(e => host.stations[e.id]);
-  const [results, extraResults] = await Promise.all([
+  const [results, extraResults, cleanoutList] = await Promise.all([
     Promise.allSettled(ids.map(id => records(id, hours))),
-    Promise.allSettled(extras.map(e => records(e.id, hours)))
+    Promise.allSettled(extras.map(e => records(e.id, hours))),
+    cleanouts(ids)
   ]);
+  const cleanoutMarks = cleanoutList.filter(m => m.t >= from && m.t <= to);
   if (version !== view.version || !view.card.isConnected || !view.state.open) return;
   view.panel.setAttribute('aria-busy', 'false');
 
@@ -458,6 +489,7 @@ async function render(view) {
     `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
     'Click a legend entry to hide or show that series.',
     precipNote,
+    cleanoutMarks.length ? `Red vertical line = cleanout ticked in the field sheet, labelled with its cleanout selection (${cleanoutMarks.map(m => `${m.label}, ${clock.format(m.t)} MST`).join('; ')}).` : '',
     ...notes
   ].filter(Boolean).join(' ');
   view.chartBox.hidden = false;
@@ -473,12 +505,12 @@ async function render(view) {
   view.chart = new window.Chart(view.canvas, {
     type: 'line',
     data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
-    plugins: [arrowPlugin],
+    plugins: [arrowPlugin, cleanoutPlugin],
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       layout: {padding: {top: hasWind ? 14 : 0}},
       interaction: {mode: 'x', intersect: false},
-      plugins: {legend: {display: false}, tooltip: {callbacks: {
+      plugins: {legend: {display: false}, pairCleanouts: {markers: cleanoutMarks}, tooltip: {callbacks: {
         title: items => items.length ? `${clock.format(items[0].parsed.x)} MST` : '',
         label: c => {
           const p = c.raw || {};
@@ -519,7 +551,7 @@ function scan() {
 if (host && row) {
   new MutationObserver(scan).observe(row, {childList: true});
   document.getElementById('refreshBtn')?.addEventListener('click', () => {
-    requests.clear();
+    requests.clear(); cleanoutRequests.clear();
     for (const view of mounted.values()) if (view.state.open) { render(view); renderProfile(view, true); }
   });
   scan();
