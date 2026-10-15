@@ -1,7 +1,7 @@
 // Cleanout markers for one station pair, from the field Google Sheet (assets/cleanouts-data.js).
 // GET /api/cleanouts?pair=fts-bosup,fts-boslo
 // The sheet must be shared as "anyone with the link can view"; it is read server side as CSV.
-import { SHEET_ID, PAIR_TABS, CHECK_COL, parseCsv, parseTabs, tabForPair, cleanoutsFromCsv } from "../../assets/cleanouts-data.js";
+import { SHEET_ID, PAIR_TABS, parseCsv, parseTabs, tabForPair, cleanoutsFromCsv } from "../../assets/cleanouts-data.js";
 
 const MEMORY_MS = 5 * 60000;
 const cache = new Map();
@@ -30,11 +30,11 @@ async function tabs() {
   return list;
 }
 
-// Debug view of the tab: the first rows and the rows with anything in column AC, trimmed.
+// Debug view of the tab: the first rows and any row with a ticked box, trimmed.
 function debugRows(csv) {
   const rows = parseCsv(csv);
   const trim = r => r.map((c, i) => c ? `${i}:${c.slice(0, 40)}` : "").filter(Boolean).join(" | ");
-  return { first: rows.slice(0, 6).map(trim), ac: rows.filter(r => (r[CHECK_COL] || "").trim()).slice(0, 8).map(trim), count: rows.length };
+  return { first: rows.slice(0, 4).map(trim), ticked: rows.filter(r => r.some(c => /^true$/i.test(c.trim()))).slice(0, 8).map(trim), count: rows.length };
 }
 
 export default async (req) => {

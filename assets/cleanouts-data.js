@@ -1,13 +1,11 @@
 /* Cleanout markers for the paired panes, read from the field Google Sheet.
-   Each pair has its own tab (Bosworth pair -> Bosworth tab). A row whose column AC checkbox is
-   ticked is a cleanout: the pane draws a red vertical line at that row's date/time with the row's
-   cleanout selection beside it. Shared by netlify/functions/cleanouts.mjs and the tests. */
+   Each pair has its own tab (Bosworth pair -> Bosworth Lower tab). A day whose A/C box is ticked
+   gets a red vertical line on the pane, labelled with that day's Cleanout selection. Shared by netlify/functions/cleanouts.mjs and the tests. */
 export const SHEET_ID = '1TkF0B3e_q7xWB2x91FG7x4LY_GTqBEI2HYvacLu3aDM';
-export const CHECK_COL = 28; // column AC, zero-based
 /* Pair (station ids joined by ",") -> words that pick its tab, plus a known gid to fall back on. */
 export const PAIR_TABS = {
   'fts-bosup,fts-boslo': {match: ['bosworth'], gid: '394237732'},
-  'fts-vulture,fts-bowsummit': {match: ['bow summit', 'vulture', 'bow']},
+  'fts-vulture,fts-bowsummit': {match: ['bow summit', 'vulture']},
   'fts-simpup,fts-simplo': {match: ['simpson']},
   'fts-lookout,fts-sunshine': {match: ['sunshine', 'lookout']},
   'fts-whymper,fts-stanley': {match: ['stanley', 'whymper']}
@@ -55,7 +53,7 @@ export function tabForPair(pair, tabs) {
 const checked = v => /^(true|yes|y|x|✓|✔|1)$/i.test(String(v).trim());
 const MONTHS = {jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12};
 
-/* A sheet date (and optional time) in MST -> epoch ms, or null. A date with no time is placed at noon. */
+/* A sheet date (and optional time) in MST -> epoch ms, or null. A date with no time is placed at 08:00, the morning study plot observation. */
 export function parseWhen(dateText, timeText = '') {
   const s = String(dateText).trim();
   let y, mo, d, rest = '';
@@ -68,7 +66,7 @@ export function parseWhen(dateText, timeText = '') {
   y = +y; if (y < 100) y += 2000;
   if (!mo || !+d) return null;
   const t = (String(timeText).trim() || rest.trim()).match(/^(\d{1,2})(?::?(\d{2}))?(?::\d{2})?\s*([ap]\.?m\.?)?/i);
-  let h = 12, min = 0;
+  let h = 8, min = 0;
   if (t && (t[2] !== undefined || t[3])) {
     h = +t[1]; min = +(t[2] || 0);
     if (t[3]) { const pm = /p/i.test(t[3]); if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12; }
@@ -79,30 +77,34 @@ export function parseWhen(dateText, timeText = '') {
   return Date.UTC(y, +mo - 1, +d, h, min) + MST_OFFSET_MS;
 }
 
-/* Cleanout rows from one tab's CSV: [{t, label}] sorted by time. */
+/* Cleanout rows from one tab's CSV: [{t, label}] sorted by time.
+   Each tab holds side-by-side month blocks: Date | HN 24 | Accum. HN 24 (cm) | A/C | Cleanout.
+   A ticked A/C box marks the row; the label is that block's Cleanout cell. */
 export function cleanoutsFromCsv(text) {
-  const rows = parseCsv(text).filter(r => r.some(c => c.trim() !== ''));
-  if (!rows.length) return {markers: [], columns: null};
-  // The header row is the first row that names a date column.
-  const hi = Math.max(0, rows.findIndex(r => r.some(c => /date/i.test(c))));
+  const rows = parseCsv(text);
+  const hi = rows.findIndex(r => r.some(c => /^a\/?c$/i.test(c.trim())));
+  if (hi < 0) return {markers: [], columns: null};
   const head = rows[hi].map(c => c.trim());
-  const dateCol = head.findIndex(c => /date/i.test(c));
-  const timeCol = head.findIndex((c, i) => i !== dateCol && /\btime\b/i.test(c));
-  let labelCol = head.findIndex((c, i) => i !== CHECK_COL && /clean/i.test(c));
-  const body = rows.slice(hi + 1);
-  if (labelCol < 0) {
-    // Otherwise the nearest column to AC that holds text rather than checkboxes.
-    const texty = i => body.some(r => r[i] && r[i].trim() && !/^(true|false)$/i.test(r[i].trim()));
-    labelCol = [CHECK_COL + 1, CHECK_COL - 1].find(texty) ?? -1;
-  }
+  const blocks = [];
+  head.forEach((c, i) => {
+    if (!/^a\/?c$/i.test(c)) return;
+    const prev = blocks.length ? blocks[blocks.length - 1].clean : -1;
+    const clean = head.findIndex((h, j) => j > i && /clean/i.test(h));
+    blocks.push({ac: i, from: prev + 1, clean: clean > i && clean <= i + 2 ? clean : -1});
+  });
   const markers = [];
-  for (const r of body) {
-    if (!checked(r[CHECK_COL] ?? '')) continue;
-    const t = parseWhen(r[dateCol] ?? '', timeCol >= 0 ? r[timeCol] ?? '' : '');
-    if (t === null) continue;
-    const label = (labelCol >= 0 ? (r[labelCol] || '').trim() : '') || head[CHECK_COL] || 'Cleanout';
-    markers.push({t, label});
+  for (const r of rows.slice(hi + 1)) {
+    for (const b of blocks) {
+      if (!checked(r[b.ac] ?? '')) continue;
+      // The date is the block's first cell that reads as a date.
+      let t = null;
+      for (let j = b.from; j < b.ac && t === null; j++) t = parseWhen(r[j] ?? '');
+      if (t === null) continue;
+      const cell = b.clean >= 0 ? (r[b.clean] || '').trim() : '';
+      const label = !cell || /^false$/i.test(cell) ? 'A/C' : /^true$/i.test(cell) ? 'Cleanout' : cell;
+      markers.push({t, label});
+    }
   }
   markers.sort((a, b) => a.t - b.t);
-  return {markers, columns: {header: hi + 1, date: head[dateCol] ?? null, time: head[timeCol] ?? null, check: head[CHECK_COL] ?? null, label: head[labelCol] ?? null}};
+  return {markers, columns: {header: hi + 1, blocks: blocks.map(b => ({ac: b.ac, cleanout: b.clean}))}};
 }

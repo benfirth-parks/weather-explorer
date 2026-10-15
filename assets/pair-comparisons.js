@@ -33,7 +33,7 @@ const TYPE_COLORS = {
   hw:   ['#2f6fe0', '#93b6f6']
 };
 const SLOT_DASH = [[], [6, 4]];
-/* Cleanouts ticked (column AC) on the pair's tab of the field sheet: red line + the cleanout selection. */
+/* Days with A/C ticked on the pair's tab of the field sheet: red line + that day's Cleanout entry. */
 const CLEANOUT_COLOR = '#e00000';
 const cleanoutRequests = new Map();
 function cleanouts(ids) {
@@ -489,7 +489,7 @@ async function render(view) {
     `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
     'Click a legend entry to hide or show that series.',
     precipNote,
-    cleanoutMarks.length ? `Red vertical line = cleanout ticked in the field sheet, labelled with its cleanout selection (${cleanoutMarks.map(m => `${m.label}, ${clock.format(m.t)} MST`).join('; ')}).` : '',
+    cleanoutMarks.length ? `Red vertical line = A/C ticked in the field sheet, labelled with that day's Cleanout entry (${cleanoutMarks.map(m => `${m.label}, ${clock.format(m.t)} MST`).join('; ')}).` : '',
     ...notes
   ].filter(Boolean).join(' ');
   view.chartBox.hidden = false;
