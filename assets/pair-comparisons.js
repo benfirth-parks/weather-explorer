@@ -59,9 +59,9 @@ const cleanoutPlugin = {id: 'pairCleanouts', afterDatasetsDraw(chart, _args, opt
     g.beginPath(); g.moveTo(px, area.top); g.lineTo(px, area.bottom); g.stroke();
     // "Avy Control" with the day's cleanout under it; staggered so neighbouring labels don't collide.
     const lines = ['Avy Control', m.cleanout].filter(Boolean);
-    const w = Math.max(...lines.map(l => g.measureText(l).width)), left = px + 4 + w > area.right;
-    g.textAlign = left ? 'right' : 'left';
-    lines.forEach((l, k) => g.fillText(l, left ? px - 4 : px + 4, area.top + 4 + (i % 3) * (2 * size + 8) + k * (size + 3)));
+    // Always to the right of the line (Ben's call), even near the right edge.
+    g.textAlign = 'left';
+    lines.forEach((l, k) => g.fillText(l, px + 4, area.top + 4 + (i % 3) * (2 * size + 8) + k * (size + 3)));
   });
   g.restore();
 }};
