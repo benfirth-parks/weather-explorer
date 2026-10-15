@@ -23,12 +23,29 @@ const EXTRA_PRECIP = {
 };
 /* Co-located HN (cm) and HW (mm) sources, used for storm density. */
 const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip']];
-/* Colour encodes the station; line style encodes the data type.
-   Slot 0 = first (upper) station, slot 1 = second station, slot 2 = an extra gauge drawn with the pair.
-   Categorical blue / orange / aqua, stepped for each theme (checked for colour-blind separation). */
-const STATION_COLORS = {light: ['#2a78d6', '#eb6834', '#1baf7a'], dark: ['#3987e5', '#d95926', '#199e70']};
-const stationColor = slot => STATION_COLORS[document.documentElement.dataset.theme === 'light' ? 'light'
-  : document.documentElement.dataset.theme === 'dark' || matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'][slot];
+/* Colour encodes the station by elevation band; line style encodes the data type.
+   Alpine (>= 2200 m) blue, treeline (1800-2200 m) yellow, below treeline green — the site's own bands.
+   When two stations of a pair share a band, the lower one steps down to the next colour so each
+   station keeps its own colour. No red: that is reserved for the Avy Control lines. */
+const BAND_COLORS = {light: ['#2a78d6', '#d39000', '#008300'], dark: ['#3987e5', '#c98500', '#008300']};
+const bandOf = elevation => elevation >= 2200 ? 0 : elevation >= 1800 ? 1 : 2;
+function themeKey() {
+  const t = document.documentElement.dataset.theme;
+  return t === 'light' ? 'light' : t === 'dark' || matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+/* Station id -> colour for the stations drawn together, highest first. */
+function elevationColors(ids) {
+  const palette = BAND_COLORS[themeKey()], out = {}, taken = new Set();
+  const sorted = [...ids].sort((a, b) => (host.stations[b].elevation ?? 0) - (host.stations[a].elevation ?? 0));
+  for (const id of sorted) {
+    let slot = bandOf(host.stations[id].elevation ?? 0);
+    while (taken.has(slot) && slot < 2) slot++;
+    if (taken.has(slot)) slot = [0, 1, 2].find(n => !taken.has(n)) ?? slot;
+    taken.add(slot);
+    out[id] = palette[slot];
+  }
+  return out;
+}
 const TYPE_DASH = {temp: [], wind: [7, 4], cum: [2, 3], hsdepth: [14, 4, 3, 4]};
 const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 1.8, hsdepth: 2};
 /* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
@@ -379,21 +396,22 @@ async function render(view) {
   const narrow = view.body.clientWidth < 560;
   const totals = {};
   // Each series takes its station's colour; the type sets the line style.
-  const line = (kind, slot) => ({borderColor: stationColor(slot), backgroundColor: stationColor(slot), borderWidth: TYPE_WIDTH[kind], borderDash: TYPE_DASH[kind]});
+  const colorOf = elevationColors([...ids, ...extras.map(e => e.id)]);
+  const line = (kind, id) => ({borderColor: colorOf[id], backgroundColor: colorOf[id], borderWidth: TYPE_WIDTH[kind], borderDash: TYPE_DASH[kind]});
   // HN (cm) or HW (mm): interval bars + running-total line on the same axis.
   function addPrecip(id, data, kind, preferredSlot) {
     const name = host.stations[id].name;
     const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step);
     const label = result.method, unit = kind === 'hw' ? 'mm' : 'cm', axis = unit === 'mm' ? 'yMm' : 'yCm';
     if (result.total === null) { notes.push(`${name}: no valid ${label} in this period.`); return; }
-    const slot = preferredSlot, color = stationColor(slot);
+    const slot = preferredSlot, color = colorOf[id];
     precipUnits.add(unit);
     totals[id] = {...(totals[id] || {}), [kind]: result.total};
     datasets.push({type: 'bar', station: id, label: `${name} ${label} per ${step} h`, short: `${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
       borderColor: color, backgroundColor: color + 'b3', borderWidth: 0,
       barPercentage: 0.9, categoryPercentage: 1, grouped: true});
     datasets.push({station: id, label: `${name} ${label} total`, short: `${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
-      ...line('cum', slot), tension: 0});
+      ...line('cum', id), tension: 0});
     let fact = `${name} ${label} **${result.total.toFixed(1)} ${unit}**`;
     if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
     facts.push(fact);
@@ -404,7 +422,7 @@ async function render(view) {
     if (!hs.latest) { notes.push(`${name}: no valid HS in this period.`); return; }
     const slot = preferredSlot;
     datasets.push({station: id, label: `${name} HS depth`, short: 'HS depth', unit: 'cm', kind: 'hsdepth', slot, data: hs.points, yAxisID: 'yHs', order: 3,
-      ...line('hsdepth', slot), tension: 0.2});
+      ...line('hsdepth', id), tension: 0.2});
     const sign = hs.change > 0 ? '+' : '';
     facts.push(`${name} HS **${hs.latest.y.toFixed(0)} cm**${hs.change !== null ? ` (${sign}${hs.change.toFixed(1)} cm over the period)` : ''}`);
   }
@@ -420,13 +438,13 @@ async function render(view) {
     const temp = metricSeries(data, 'temperature', from, to);
     if (temp.points.some(p => p.y !== null)) {
       datasets.push({station: id, label: `${name} temp`, short: 'Temperature', unit: '°C', kind: 'temp', slot: i, data: temp.points, yAxisID: 'yTemp', order: 1,
-        ...line('temp', i), tension: 0.2});
+        ...line('temp', id), tension: 0.2});
     } else notes.push(`${name}: no valid temperature.`);
     if (!host.hiddenWindIds.has(id)) {
       const wind = metricSeries(data, 'wind', from, to);
       if (wind.points.some(p => p.y !== null)) {
         datasets.push({station: id, label: `${name} wind`, short: 'Wind', unit: 'km/h', kind: 'wind', slot: i, data: markArrows(wind.points, hours, narrow), yAxisID: 'yWind', order: 2,
-          ...line('wind', i), tension: 0.2});
+          ...line('wind', id), tension: 0.2});
         const pk = peak(wind.points);
         if (pk) facts.push(`${name} peak wind **${pk.y.toFixed(0)} km/h** at ${when(pk.x, hours)}`);
         winds.push({name, points: wind.points});
