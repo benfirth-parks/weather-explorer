@@ -29,9 +29,9 @@ test('ticked A/C days become markers, labelled from the Cleanout cell in the sam
   ].join('\n');
   const {markers, columns} = cleanoutsFromCsv(csv);
   assert.deepEqual(markers, [
-    {t: MST(2026, 11, 2, 8, 0), label: 'Board + gauge'},
-    {t: MST(2026, 12, 2, 8, 0), label: 'A/C'},
-    {t: MST(2026, 12, 3, 8, 0), label: 'Cleanout'}
+    {t: MST(2026, 11, 2, 8, 0), cleanout: 'Board + gauge'},
+    {t: MST(2026, 12, 2, 8, 0), cleanout: ''},
+    {t: MST(2026, 12, 3, 8, 0), cleanout: 'Cleanout'}
   ]);
   assert.deepEqual(columns.blocks, [{ac: 3, cleanout: 4}, {ac: 9, cleanout: 10}]);
 });

@@ -1,6 +1,6 @@
 /* Cleanout markers for the paired panes, read from the field Google Sheet.
    Each pair has its own tab (Bosworth pair -> Bosworth Lower tab). A day whose A/C box is ticked
-   gets a red vertical line on the pane, labelled with that day's Cleanout selection. Shared by netlify/functions/cleanouts.mjs and the tests. */
+   (Avy Control) gets a red vertical line on the pane, labelled "Avy Control" and that day's Cleanout. Shared by netlify/functions/cleanouts.mjs and the tests. */
 export const SHEET_ID = '1TkF0B3e_q7xWB2x91FG7x4LY_GTqBEI2HYvacLu3aDM';
 /* Pair (station ids joined by ",") -> words that pick its tab, plus a known gid to fall back on. */
 export const PAIR_TABS = {
@@ -77,9 +77,9 @@ export function parseWhen(dateText, timeText = '') {
   return Date.UTC(y, +mo - 1, +d, h, min) + MST_OFFSET_MS;
 }
 
-/* Cleanout rows from one tab's CSV: [{t, label}] sorted by time.
+/* Avy Control rows from one tab's CSV: [{t, cleanout}] sorted by time.
    Each tab holds side-by-side month blocks: Date | HN 24 | Accum. HN 24 (cm) | A/C | Cleanout.
-   A ticked A/C box marks the row; the label is that block's Cleanout cell. */
+   A ticked A/C (Avy Control) box marks the row; its cleanout is that block's Cleanout cell. */
 export function cleanoutsFromCsv(text) {
   const rows = parseCsv(text);
   const hi = rows.findIndex(r => r.some(c => /^a\/?c$/i.test(c.trim())));
@@ -101,8 +101,8 @@ export function cleanoutsFromCsv(text) {
       for (let j = b.from; j < b.ac && t === null; j++) t = parseWhen(r[j] ?? '');
       if (t === null) continue;
       const cell = b.clean >= 0 ? (r[b.clean] || '').trim() : '';
-      const label = !cell || /^false$/i.test(cell) ? 'A/C' : /^true$/i.test(cell) ? 'Cleanout' : cell;
-      markers.push({t, label});
+      const cleanout = !cell || /^false$/i.test(cell) ? '' : /^true$/i.test(cell) ? 'Cleanout' : cell;
+      markers.push({t, cleanout});
     }
   }
   markers.sort((a, b) => a.t - b.t);

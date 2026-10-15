@@ -33,7 +33,7 @@ const TYPE_COLORS = {
   hw:   ['#2f6fe0', '#93b6f6']
 };
 const SLOT_DASH = [[], [6, 4]];
-/* Days with A/C ticked on the pair's tab of the field sheet: red line + that day's Cleanout entry. */
+/* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
 const CLEANOUT_COLOR = '#e00000';
 const cleanoutRequests = new Map();
 function cleanouts(ids) {
@@ -52,13 +52,16 @@ const cleanoutPlugin = {id: 'pairCleanouts', afterDatasetsDraw(chart, _args, opt
   g.strokeStyle = CLEANOUT_COLOR; g.fillStyle = CLEANOUT_COLOR; g.lineWidth = 2;
   g.font = `600 ${chart.width < 560 ? 10 : 12}px system-ui, sans-serif`;
   g.textBaseline = 'top';
+  const size = chart.width < 560 ? 10 : 12;
   marks.forEach((m, i) => {
     const px = x.getPixelForValue(m.t);
     if (px < area.left || px > area.right) return;
     g.beginPath(); g.moveTo(px, area.top); g.lineTo(px, area.bottom); g.stroke();
-    const w = g.measureText(m.label).width, left = px + 4 + w > area.right;
+    // "Avy Control" with the day's cleanout under it; staggered so neighbouring labels don't collide.
+    const lines = ['Avy Control', m.cleanout].filter(Boolean);
+    const w = Math.max(...lines.map(l => g.measureText(l).width)), left = px + 4 + w > area.right;
     g.textAlign = left ? 'right' : 'left';
-    g.fillText(m.label, left ? px - 4 : px + 4, area.top + 4 + (i % 3) * 15);
+    lines.forEach((l, k) => g.fillText(l, left ? px - 4 : px + 4, area.top + 4 + (i % 3) * (2 * size + 8) + k * (size + 3)));
   });
   g.restore();
 }};
@@ -489,7 +492,7 @@ async function render(view) {
     `Wind arrows every ${arrowStepHours(hours, narrow)} h point the way the wind is blowing.`,
     'Click a legend entry to hide or show that series.',
     precipNote,
-    cleanoutMarks.length ? `Red vertical line = A/C ticked in the field sheet, labelled with that day's Cleanout entry (${cleanoutMarks.map(m => `${m.label}, ${clock.format(m.t)} MST`).join('; ')}).` : '',
+    cleanoutMarks.length ? `Red vertical line = Avy Control from the field sheet, with that day's cleanout (${cleanoutMarks.map(m => `${clock.format(m.t)} MST${m.cleanout ? `: ${m.cleanout}` : ''}`).join('; ')}).` : '',
     ...notes
   ].filter(Boolean).join(' ');
   view.chartBox.hidden = false;
