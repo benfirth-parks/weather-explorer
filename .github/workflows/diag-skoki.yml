@@ -1,0 +1,17 @@
+name: diag skoki (temporary)
+on:
+  push:
+    branches: [diag/skoki-data]
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          mkdir out
+          for st in fts-skoki fts-sunshine fts-pikarun; do
+            curl -sS -m 90 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$st&hours=360" -o out/$st.json || true
+          done
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with: {name: skoki, path: out}
