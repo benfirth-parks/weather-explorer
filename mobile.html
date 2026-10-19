@@ -739,9 +739,9 @@ function freshnessText(rec){
   if(age===null) return 'No observation';
   return new Date(rec.measurementDateTime).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 }
-/* The AB Env gauges (Sunshine, Bow Summit) have no usable new-snow field, so their HN24 and HST come from
+/* The AB Env gauges (Sunshine, Bow Summit, Skoki) have no usable new-snow field, so their HN24 and HST come from
    the FTS precipitation total, 1 mm of precipitation counted as 1 cm of new snow. Mirrors HN_FROM_PRECIP_IDS in assets/snow-stations.js. */
-const HN_FROM_PRECIP_IDS = new Set(['fts-sunshine','fts-bowprecip']);
+const HN_FROM_PRECIP_IDS = new Set(['fts-sunshine','fts-bowprecip','fts-skoki']);
 /* HN24: summed new-snow sensor readings, else the 24 h depth change (0 when the depth fell).
    Stations whose HS trace is excluded report no HN24, so no HST either. */
 function newSnow24h(id){
