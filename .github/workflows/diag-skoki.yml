@@ -2,16 +2,19 @@ name: diag skoki (temporary)
 on:
   push:
     branches: [diag/skoki-data]
+permissions:
+  contents: write
 jobs:
   fetch:
+    if: "!contains(github.event.head_commit.message, 'diag data')"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
       - run: |
-          mkdir out
+          mkdir -p diag-out
           for st in fts-skoki fts-sunshine fts-pikarun; do
-            curl -sS -m 90 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$st&hours=360" -o out/$st.json || true
+            curl -sS -m 90 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$st&hours=360" -o diag-out/$st.json || true
           done
-          ls -la out
-      - uses: actions/upload-artifact@v4
-        with: {name: skoki, path: out}
+          git config user.name diag-bot; git config user.email diag@example.invalid
+          git add diag-out; git commit -m "diag data"; git push
