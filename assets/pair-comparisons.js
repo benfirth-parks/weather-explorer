@@ -515,21 +515,13 @@ async function render(view) {
   const hasWind = datasets.some(d => d.kind === 'wind');
   view.chart = new window.Chart(view.canvas, {
     type: 'line',
-    data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
+    data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
     plugins: [arrowPlugin, cleanoutPlugin],
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       layout: {padding: {top: hasWind ? 14 : 0}},
       interaction: {mode: 'x', intersect: false},
-      plugins: {legend: {display: false}, pairCleanouts: {markers: cleanoutMarks}, tooltip: {callbacks: {
-        title: items => items.length ? `${clock.format(items[0].parsed.x)} MST` : '',
-        label: c => {
-          const p = c.raw || {};
-          if (c.dataset.kind === 'bar' && p.start !== undefined) return `${c.dataset.label}: ${c.parsed.y?.toFixed(1)} ${c.dataset.unit} (${hourClock.format(p.start)}–${hourClock.format(p.end)})`;
-          const dir = c.dataset.kind === 'wind' && p.dir !== null && p.dir !== undefined ? ` from ${ROSE_DIRS[Math.floor(((p.dir % 360) + 11.25) % 360 / 22.5)]} (${Math.round(p.dir)}°)` : '';
-          return `${c.dataset.label}: ${c.parsed.y?.toFixed(1)} ${c.dataset.unit}${dir}`;
-        }
-      }}},
+      plugins: {legend: {display: false}, pairCleanouts: {markers: cleanoutMarks}, tooltip: {enabled: false}}, // no hover box (Ben, 2026-10-21)
       scales: {
         x: {type: 'time', min: from, max: to, offset: false, grid: {color: grid},
           // Ticks on fixed-MST boundaries (MST midnight = 07:00 UTC), independent of the viewer's time zone.
