@@ -13,8 +13,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           mkdir -p diag-out
-          for st in fts-boslo fts-stanley fts-simplo; do
-            curl -sS -m 90 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$st&hours=360" -o diag-out/$st.json || true
+          for st in fts-bigbend fts-boslo fts-bosup fts-boulder fts-bowprecip fts-bowsummit fts-castle fts-coleman fts-devona fts-dorothy fts-jasperqd1 fts-lakelouise fts-lookout fts-maligne fts-pikarun fts-rangercreek fts-saskcrossing fts-simplo fts-simpup fts-skoki fts-stanley fts-sunshine fts-tangleridge fts-vermillion fts-vulture fts-whymper; do
+            curl -sS -m 90 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$st&hours=246" -o diag-out/$st.json || true
           done
           git config user.name diag-bot; git config user.email diag@example.invalid
           git add diag-out; git commit -m "diag data"; git push
