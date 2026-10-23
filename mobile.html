@@ -748,10 +748,13 @@ const HN_FROM_PRECIP_IDS = new Set(['fts-sunshine','fts-bowprecip','fts-skoki'])
 /* No precip gauge, so their "new snow" field (the gauge increment) reads a flat 0: HN24 and HST come from
    the snow depth sensor. Mirrors HN_FROM_DEPTH_IDS in assets/snow-stations.js. */
 const HN_FROM_DEPTH_IDS = new Set(['fts-bowsummit','fts-simplo']);
+/* Gauge stations with no working snow depth sensor: no HN24, HST or HS (HW unchanged).
+   Mirrors NO_SNOW_SENSOR_IDS in assets/snow-stations.js. */
+const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki','fts-lakelouise','fts-boulder','fts-castle','fts-vermillion']);
 /* HN24: summed new-snow sensor readings, else the 24 h depth change (0 when the depth fell).
    Stations whose HS trace is excluded report no HN24, so no HST either. */
 function newSnow24h(id){
-  if(SNOW_GRAPH_EXCLUDED_IDS.has(id)) return null;
+  if(SNOW_GRAPH_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return null;
   if(HN_FROM_PRECIP_IDS.has(id)) return hw24(id);
   const recs=windowedData(id,24);
   const direct=recs.map(d=>numOf(d.newSnow)).filter(v=>Number.isFinite(v));
@@ -768,7 +771,7 @@ function newSnow24h(id){
    Stations excluded from the snow graphs are also excluded here because their
    snow-height traces are not considered meaningful for operational display. */
 function snowHeight24h(id){
-  if(SNOW_GRAPH_EXCLUDED_IDS.has(id)) return null;
+  if(SNOW_GRAPH_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return null;
   const depth=filterSnowSpikes(
     windowedData(id,24).filter(d=>Number.isFinite(numOf(d.snowHeight))),
     'snowHeight'

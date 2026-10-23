@@ -6,7 +6,7 @@
 
 import { HOUR } from "../../assets/pair-comparison-data.js";
 import { stormSnow, stormPrecip, HST_LOOKBACK_H } from "../../assets/hst.js";
-import { SNOW_EXCLUDED_IDS, HN_FROM_PRECIP_IDS, withoutFalseNewSnow } from "../../assets/snow-stations.js";
+import { SNOW_EXCLUDED_IDS, NO_SNOW_SENSOR_IDS, HN_FROM_PRECIP_IDS, withoutFalseNewSnow } from "../../assets/snow-stations.js";
 import { hw24FromObservations } from "./_hw24.mjs";
 
 /* Mirrors STATION_PAIRS in index.html; `snow` is the pair's snow station
@@ -84,7 +84,7 @@ function snowHeight24h(recs) {
    the per-station rules in assets/snow-stations.js.
    HST: as the 24 h table (assets/hst.js), over the same 10-day lookback, and never below HN24. */
 export function snowFigures(records, now, { hn = true, id = null } = {}) {
-  if (SNOW_EXCLUDED_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
+  if (SNOW_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
   const clean = withoutFalseNewSnow(id, sanitizeRecords(records)).filter((r) => time(r) <= now);
   const last24 = clean.filter((r) => time(r) >= now - 24 * HOUR);
   let hn24 = null, hst = null;

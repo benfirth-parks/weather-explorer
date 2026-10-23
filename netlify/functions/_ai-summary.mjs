@@ -7,7 +7,7 @@
 import { readArchive, syncStation, selectHours, STATIONS as STATION_IDS } from "./_weather-archive.mjs";
 import { snowFigures } from "./_snow-pairs.mjs";
 import { NO_PRECIP_GAUGE_IDS, hw24FromObservations } from "./_hw24.mjs";
-import { SNOW_EXCLUDED_IDS } from "../../assets/snow-stations.js";
+import { SNOW_EXCLUDED_IDS, NO_SNOW_SENSOR_IDS } from "../../assets/snow-stations.js";
 
 /* Station metadata mirrors the STATIONS_GROUP* arrays in index.html.
    Keep this file in sync when new stations are added.
@@ -200,7 +200,7 @@ function summarizeStation(meta, observations, lastSyncedAt) {
   const precip24h = hw24(meta, observations);
 
   /* HN24 and HS as the 24h table reports them; none for stations with no usable snow trace. */
-  const snowExcluded = SNOW_EXCLUDED_IDS.has(meta.stationId);
+  const snowExcluded = SNOW_EXCLUDED_IDS.has(meta.stationId) || NO_SNOW_SENSOR_IDS.has(meta.stationId);
   const snow = snowFigures(observations, Date.now(), { id: meta.stationId });
   const snowStart = snowExcluded ? null : observations.find((o) => num(o.snowHeight) !== null);
   const snowEndVal = snowExcluded ? null : latest(observations, "snowHeight");

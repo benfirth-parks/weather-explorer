@@ -12,3 +12,8 @@ export const HN_FROM_DEPTH_IDS = new Set(['fts-bowsummit', 'fts-simplo']);
 export function withoutFalseNewSnow(id, records) {
   return HN_FROM_DEPTH_IDS.has(id) ? records.map(r => ({...r, newSnow: null})) : records;
 }
+/* NO_SNOW_SENSOR_IDS: precipitation-gauge stations with no working snow depth sensor (Skoki and
+   Boulder Creek, Lake Louise and Vermillion Crossing Fire report no depth; Castle Fire's depth reads
+   about -180 to -220 cm). Ben, 23 Oct 2026: they show no HN24, HST or HS; HW is unchanged.
+   index.html and mobile.html keep inline copies. */
+export const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki', 'fts-lakelouise', 'fts-boulder', 'fts-castle', 'fts-vermillion']);
