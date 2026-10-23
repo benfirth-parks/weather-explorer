@@ -1,0 +1,20 @@
+name: diag boslo (temporary)
+on:
+  push:
+    branches: [diag/boslo-data]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    if: "!contains(github.event.head_commit.message, 'diag data')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p diag-out
+          for st in fts-boslo fts-stanley fts-simplo; do
+            curl -sS -m 90 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$st&hours=360" -o diag-out/$st.json || true
+          done
+          git config user.name diag-bot; git config user.email diag@example.invalid
+          git add diag-out; git commit -m "diag data"; git push
