@@ -4,28 +4,40 @@ import {HOUR} from '../assets/pair-comparison-data.js';
 import {snowFigures, snowPairsMarkdown, round1cm} from '../netlify/functions/_snow-pairs.mjs';
 const now = 200 * HOUR;
 const rec = (h, values) => ({measurementDateTime: new Date(now - h * HOUR).toISOString(), ...values});
-/* Hourly new snow: `perDay[k]` cm spread over day k back from now (k = 0 is the last 24 h). */
-function hourly(perDay, hs = 100) {
+/* Hourly records: `rain` maps hours-ago -> mm in that hour, `hs(h)` gives HS h hours ago. */
+function hourly(rain, hs, hours = 240) {
   const rows = [];
-  for (let h = 0; h < 10 * 24; h++) {
-    const k = Math.floor(h / 24);
-    rows.push(rec(h, {newSnow: k < perDay.length ? perDay[k] / 24 : 0, snowHeight: hs}));
+  let total = 200;
+  for (let h = hours - 1; h >= 0; h--) {
+    total += rain[h] ?? 0;
+    rows.push(rec(h, {precipTotal: Math.round(total * 10) / 10, newSnow: rain[h] ?? 0, snowHeight: hs(h)}));
   }
   return rows;
 }
-test('HN24 is the last 24 h; HST runs back to the first dry day', () => {
-  const f = snowFigures(hourly([12, 18, 0.5, 30]), now);
-  assert.equal(f.hn24_cm, 13); // 12 cm/24 h plus the hour at exactly 24 h ago, as the table counts it
-  assert.equal(f.hst_cm, 31); // 12 + 18 plus the 0.5 cm that opened the storm on the dry day
+test('HN24 is the 24 h HS change; HST the HS change since precipitation began', () => {
+  // Precipitation from 40 h ago to 2 h ago, no gap over 24 h; HS 80 -> 92 -> 100.
+  const f = snowFigures(hourly({40: 3, 30: 2, 10: 4, 2: 1}, h => (h > 40 ? 80 : h > 20 ? 92 : 100)), now);
+  assert.equal(f.hn24_cm, 8);
+  assert.equal(f.hst_cm, 20);
   assert.equal(f.hs_cm, 100);
 });
-test('a dry last 24 h gives HST 0', () => {
-  const f = snowFigures(hourly([0, 0, 20]), now);
+test('no precipitation in the last 24 h gives HST 0', () => {
+  const f = snowFigures(hourly({50: 10}, h => (h > 50 ? 80 : 95)), now);
   assert.equal(f.hn24_cm, 0);
   assert.equal(f.hst_cm, 0);
 });
+test("Sunshine: HN24 and HST from HS, not the gauge's 1 mm = 1 cm", () => {
+  // 0.5 mm an hour for the last 30 h, while HS rose 8 cm.
+  const rain = {};
+  for (let h = 0; h < 30; h++) rain[h] = 0.5;
+  const f = snowFigures(hourly(rain, h => (h >= 30 ? 50 : 58 - Math.round(h / 30 * 8))), now, {id: 'fts-sunshine'});
+  assert.equal(f.hst_cm, 8);
+  assert.equal(f.hn24_cm, 6);
+  assert.equal(f.hs_cm, 58);
+  assert.doesNotMatch(snowPairsMarkdown([{label: 'Lookout / Sunshine Village', hn: true, ...f}]), /precip gauge/);
+});
 test('HS-only station and missing data', () => {
-  assert.deepEqual(snowFigures(hourly([10], 87), now, {hn: false}), {hn24_cm: null, hst_cm: null, hs_cm: 87});
+  assert.deepEqual(snowFigures(hourly({2: 1}, () => 87), now, {hn: false}), {hn24_cm: null, hst_cm: null, hs_cm: 87});
   assert.deepEqual(snowFigures([], now), {hn24_cm: null, hst_cm: null, hs_cm: null});
   assert.equal(round1cm(12.4), 12);
   assert.equal(round1cm(12.5), 13);
@@ -50,15 +62,6 @@ test('a falling depth gives HN24 0, not no data', () => {
   for (let h = 24; h >= 0; h--) rows.push(rec(h, {snowHeight: 1.3 - (24 - h) * 0.06}));
   assert.equal(snowFigures(rows, now, {id: 'fts-stanley'}).hn24_cm, 0);
 });
-test("Sunshine's HN24 and HST come from its precip gauge total, 1 mm as 1 cm", () => {
-  const rows = [];
-  // Dry until 30 h ago, then 0.5 mm an hour: HN24 12 mm, HST 15 mm.
-  for (let h = 72; h >= 0; h--) rows.push(rec(h, {precipTotal: 200 + (h < 30 ? (30 - h) * 0.5 : 0), newSnow: 4, snowHeight: 8}));
-  const f = snowFigures(rows, now, {id: 'fts-sunshine'});
-  assert.deepEqual(f, {hn24_cm: 12, hst_cm: 15, hs_cm: 8, fromGauge: true});
-  const md = snowPairsMarkdown([{label: 'Lookout / Sunshine Village', hn: true, ...f}]);
-  assert.match(md, /HN24 \*\*12 cm\*\* · HST \*\*15 cm\*\* · HS \*\*8 cm\*\* \(HN24 and HST from the precip gauge, 1 mm = 1 cm\)/);
-});
 test('gauge stations with no snow depth sensor report no HN24, HST or HS', () => {
   const rows = [];
   for (let q = 240 * 4; q >= 0; q--) rows.push({measurementDateTime: new Date(now - q * HOUR / 4).toISOString(), precipTotal: 420 + q / 100, newSnow: 0.1});
@@ -66,8 +69,8 @@ test('gauge stations with no snow depth sensor report no HN24, HST or HS', () =>
     assert.deepEqual(snowFigures(rows, now, {id}), {hn24_cm: null, hst_cm: null, hs_cm: null});
 });
 test('ridge-top stations report no HN24, HST or HS', () => {
-  assert.deepEqual(snowFigures(hourly([12]), now, {id: 'fts-vulture'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
-  assert.deepEqual(snowFigures(hourly([12]), now, {id: 'fts-simpup'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
+  assert.deepEqual(snowFigures(hourly({2: 5}, () => 50), now, {id: 'fts-vulture'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
+  assert.deepEqual(snowFigures(hourly({2: 5}, () => 50), now, {id: 'fts-simpup'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
 });
 
 test('no-gauge stations take HN from depth, not their flat-zero new-snow field', () => {
@@ -76,7 +79,6 @@ test('no-gauge stations take HN from depth, not their flat-zero new-snow field',
   const f = snowFigures(rows, now, {id: 'fts-bowsummit'});
   assert.equal(f.hn24_cm, 4);
   assert.equal(f.hst_cm, 4);
-  assert.equal(snowFigures(rows, now, {id: 'fts-boslo'}).hn24_cm, 0); // a station whose new-snow field is used as-is
 });
 test('HST is never below HN24 on a depth-only station', () => {
   const rows = [];

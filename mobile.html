@@ -680,8 +680,8 @@ async function fetchFTS360Station(id, hours){
   const res = await fetch(`/api/fts?station=${encodeURIComponent(id)}&hours=${hours}`);
   if (!res.ok) throw new Error('Proxy error: ' + res.status);
   const recs=sanitizeRecords(await res.json());
-  /* No precip gauge: the feed's "new snow" field is the gauge increment and reads a flat 0, so HN comes from depth. */
-  if(HN_FROM_DEPTH_IDS.has(id)) recs.forEach(r=>{r.newSnow=null;});
+  /* No precip gauge: the feed's "new snow" and precip fields are the gauge increment and read a flat 0, so HN comes from depth. */
+  if(HN_FROM_DEPTH_IDS.has(id)) recs.forEach(r=>{r.newSnow=null; r.precipIncr=null; r.precipTotal=null;});
   return recs;
 }
 const cacheHours = {};
@@ -742,30 +742,25 @@ function freshnessText(rec){
   if(age===null) return 'No observation';
   return new Date(rec.measurementDateTime).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 }
-/* The AB Env gauges (Sunshine, Bow Summit, Skoki) have no usable new-snow field, so their HN24 and HST come from
-   the FTS precipitation total, 1 mm of precipitation counted as 1 cm of new snow. Mirrors HN_FROM_PRECIP_IDS in assets/snow-stations.js. */
-const HN_FROM_PRECIP_IDS = new Set(['fts-sunshine','fts-bowprecip','fts-skoki']);
-/* No precip gauge, so their "new snow" field (the gauge increment) reads a flat 0: HN24 and HST come from
-   the snow depth sensor. Mirrors HN_FROM_DEPTH_IDS in assets/snow-stations.js. */
+/* No precip gauge, so their "new snow" and precip fields (the gauge increment) read a flat 0: their HN
+   graphs and storm timing come from the snow depth sensor. Mirrors HN_FROM_DEPTH_IDS in assets/snow-stations.js. */
 const HN_FROM_DEPTH_IDS = new Set(['fts-bowsummit','fts-simplo']);
 /* Gauge stations with no working snow depth sensor: no HN24, HST or HS (HW unchanged).
    Mirrors NO_SNOW_SENSOR_IDS in assets/snow-stations.js. */
 const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki','fts-lakelouise','fts-boulder','fts-castle','fts-vermillion']);
-/* HN24: summed new-snow sensor readings, else the 24 h depth change (0 when the depth fell).
-   Stations whose HS trace is excluded report no HN24, so no HST either. */
+/* HN24: HS now minus HS 24 h ago (0 when the depth fell), for every station (Ben, 23 Oct 2026; the feeds'
+   "new snow" fields are gauge increments, not snow). No HS, or an excluded HS trace, means no HN24 and no HST. */
 function newSnow24h(id){
   if(SNOW_GRAPH_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return null;
-  if(HN_FROM_PRECIP_IDS.has(id)) return hw24(id);
-  const recs=windowedData(id,24);
-  const direct=recs.map(d=>numOf(d.newSnow)).filter(v=>Number.isFinite(v));
-  if(direct.length){
-    const total=direct.reduce((a,b)=>a+b,0);
-    return (total<0 || total>50) ? null : total;
-  }
-  const depth=filterSnowSpikes(recs.filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight');
-  if(depth.length<2) return null;
-  const total=Number(depth[depth.length-1].snowHeight)-Number(depth[0].snowHeight);
-  return (!Number.isFinite(total) || total>50) ? null : Math.max(0,total);
+  const now=Date.now();
+  const depth=filterSnowSpikes(windowedData(id,25.5).filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight')
+    .map(d=>({x:new Date(d.measurementDateTime).getTime(),y:Number(d.snowHeight)}));
+  /* HS at a time: median of the readings within 90 min of it, to damp the sensor's daily wander. Mirrors hsMedianAt in assets/hst.js. */
+  const hsAt=t=>{const ys=depth.filter(p=>Math.abs(p.x-t)<=5400000&&p.x<=now).map(p=>p.y).sort((a,b)=>a-b); if(!ys.length) return null; const m=ys.length>>1; return ys.length%2?ys[m]:(ys[m-1]+ys[m])/2;};
+  const a=hsAt(now-24*3600000), b=hsAt(now);
+  if(a===null||b===null) return null;
+  const total=Math.round((b-a)*10)/10;
+  return total>50 ? null : Math.max(0,total);
 }
 /* HS = the most recent usable snow depth / height-of-snow observation.
    Stations excluded from the snow graphs are also excluded here because their

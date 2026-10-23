@@ -1,5 +1,4 @@
-import {stormSnow, stormPrecip, HST_LOOKBACK_H, STORM_BREAK_H, STORM_BREAK_CM} from './hst.js';
-import {HN_FROM_PRECIP_IDS} from './snow-stations.js';
+import {stormSnow, HST_LOOKBACK_H, STORM_GAP_H} from './hst.js';
 
 /* Fills the HST cells of the 24 h station summary. HST needs more history than the table's 24 h
    window, so each station's last HST_LOOKBACK_H hours are fetched once and reused for 30 min. */
@@ -16,13 +15,12 @@ function records(id) {
   cache.set(id, item);
   return item.promise;
 }
-function show(cell, r, source = 'snow') {
-  const gauge = source === 'gauge';
+function show(cell, r) {
   cell.replaceChildren();
-  if (!r) { cell.textContent = '—'; cell.title = gauge ? 'No precipitation gauge data' : 'No new-snow or snow-depth data'; return; }
+  if (!r) { cell.textContent = '—'; cell.title = 'No snow-depth data'; return; }
   cell.append(document.createTextNode(`${r.partial && r.hst > 0 ? '≥' : ''}${r.hst.toFixed(1)} cm`));
-  cell.title = r.hst === 0 ? `No storm: under ${STORM_BREAK_CM} ${gauge ? 'mm of precipitation' : 'cm of new snow'} in the last ${STORM_BREAK_H} h`
-    : `Storm ${gauge ? 'precipitation (1 mm counted as 1 cm)' : 'snow'} since ${r.start ? day.format(r.start) + ' MST' : 'the start of the data'}`
+  cell.title = r.hst === 0 ? (r.start ? `HS has not risen since the storm began, ${day.format(r.start)} MST` : `No storm: no precipitation in the last ${STORM_GAP_H} h`)
+    : `HS change since the storm began, ${r.start ? day.format(r.start) + ' MST' : 'at the start of the data'} (precipitation with no gap over ${STORM_GAP_H} h)`
       + (r.partial ? '. Some hours are missing or the storm began before the 10 days fetched, so this is a minimum.' : '');
 }
 function fill() {
@@ -34,7 +32,7 @@ function fill() {
     cell.textContent = '…';
     // HST is never below the HN24 shown in the same row.
     const hn24 = Number(cell.dataset.hn24);
-    records(id).then(data => { if (cell.isConnected) HN_FROM_PRECIP_IDS.has(id) ? show(cell, stormPrecip(data, Date.now(), {hn24}), 'gauge') : show(cell, stormSnow(data, Date.now(), {hn24})); })
+    records(id).then(data => { if (cell.isConnected) show(cell, stormSnow(data, Date.now(), {hn24})); })
       .catch(() => { if (cell.isConnected) { cell.textContent = '—'; cell.title = 'Archive unavailable'; } });
   }
 }
