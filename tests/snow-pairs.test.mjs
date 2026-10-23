@@ -16,7 +16,7 @@ function hourly(perDay, hs = 100) {
 test('HN24 is the last 24 h; HST runs back to the first dry day', () => {
   const f = snowFigures(hourly([12, 18, 0.5, 30]), now);
   assert.equal(f.hn24_cm, 13); // 12 cm/24 h plus the hour at exactly 24 h ago, as the table counts it
-  assert.equal(f.hst_cm, 30);
+  assert.equal(f.hst_cm, 31); // 12 + 18 plus the 0.5 cm that opened the storm on the dry day
   assert.equal(f.hs_cm, 100);
 });
 test('a dry last 24 h gives HST 0', () => {
@@ -59,13 +59,29 @@ test("Sunshine's HN24 and HST come from its precip gauge total, 1 mm as 1 cm", (
   const md = snowPairsMarkdown([{label: 'Lookout / Sunshine Village', hn: true, ...f}]);
   assert.match(md, /HN24 \*\*12 cm\*\* · HST \*\*15 cm\*\* · HS \*\*8 cm\*\* \(HN24 and HST from the precip gauge, 1 mm = 1 cm\)/);
 });
-test("Skoki's flat 0.1 new-snow field is ignored: a dry gauge gives HN24 and HST 0", () => {
+test('gauge stations with no snow depth sensor report no HN24, HST or HS', () => {
   const rows = [];
-  // Its new-snow field reads 0.1 every 15 min (9.6 a day) whatever the weather; the gauge has been flat.
-  for (let q = 240 * 4; q >= 0; q--) rows.push({measurementDateTime: new Date(now - q * HOUR / 4).toISOString(), precipTotal: 420, newSnow: 0.1});
-  assert.deepEqual(snowFigures(rows, now, {id: 'fts-skoki'}), {hn24_cm: 0, hst_cm: 0, hs_cm: null, fromGauge: true});
+  for (let q = 240 * 4; q >= 0; q--) rows.push({measurementDateTime: new Date(now - q * HOUR / 4).toISOString(), precipTotal: 420 + q / 100, newSnow: 0.1});
+  for (const id of ['fts-skoki', 'fts-lakelouise', 'fts-boulder', 'fts-castle', 'fts-vermillion'])
+    assert.deepEqual(snowFigures(rows, now, {id}), {hn24_cm: null, hst_cm: null, hs_cm: null});
 });
 test('ridge-top stations report no HN24, HST or HS', () => {
   assert.deepEqual(snowFigures(hourly([12]), now, {id: 'fts-vulture'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
   assert.deepEqual(snowFigures(hourly([12]), now, {id: 'fts-simpup'}), {hn24_cm: null, hst_cm: null, hs_cm: null});
+});
+
+test('no-gauge stations take HN from depth, not their flat-zero new-snow field', () => {
+  const rows = [];
+  for (let h = 48; h >= 0; h--) rows.push(rec(h, {newSnow: 0, precipIncr: 0, snowHeight: h < 8 ? 6 : 2}));
+  const f = snowFigures(rows, now, {id: 'fts-bowsummit'});
+  assert.equal(f.hn24_cm, 4);
+  assert.equal(f.hst_cm, 4);
+  assert.equal(snowFigures(rows, now, {id: 'fts-boslo'}).hn24_cm, 0); // a station whose new-snow field is used as-is
+});
+test('HST is never below HN24 on a depth-only station', () => {
+  const rows = [];
+  for (let h = 48; h >= 0; h--) rows.push(rec(h, {snowHeight: h < 8 ? 3.7 : 2}));
+  const f = snowFigures(rows, now, {id: 'fts-boslo'});
+  assert.equal(f.hn24_cm, 2);
+  assert.equal(f.hst_cm, 2); // the depth rule's 2 cm threshold alone would give 0
 });

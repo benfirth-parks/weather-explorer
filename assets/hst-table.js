@@ -32,7 +32,9 @@ function fill() {
     if (cell.dataset.hstDone === '1') continue;
     cell.dataset.hstDone = '1';
     cell.textContent = '…';
-    records(id).then(data => { if (cell.isConnected) HN_FROM_PRECIP_IDS.has(id) ? show(cell, stormPrecip(data, Date.now()), 'gauge') : show(cell, stormSnow(data, Date.now())); })
+    // HST is never below the HN24 shown in the same row.
+    const hn24 = Number(cell.dataset.hn24);
+    records(id).then(data => { if (cell.isConnected) HN_FROM_PRECIP_IDS.has(id) ? show(cell, stormPrecip(data, Date.now(), {hn24}), 'gauge') : show(cell, stormSnow(data, Date.now(), {hn24})); })
       .catch(() => { if (cell.isConnected) { cell.textContent = '—'; cell.title = 'Archive unavailable'; } });
   }
 }

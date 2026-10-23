@@ -6,7 +6,7 @@
 
 import { HOUR } from "../../assets/pair-comparison-data.js";
 import { stormSnow, stormPrecip, HST_LOOKBACK_H } from "../../assets/hst.js";
-import { SNOW_EXCLUDED_IDS, HN_FROM_PRECIP_IDS } from "../../assets/snow-stations.js";
+import { SNOW_EXCLUDED_IDS, NO_SNOW_SENSOR_IDS, HN_FROM_PRECIP_IDS, withoutFalseNewSnow } from "../../assets/snow-stations.js";
 import { hw24FromObservations } from "./_hw24.mjs";
 
 /* Mirrors STATION_PAIRS in index.html; `snow` is the pair's snow station
@@ -82,21 +82,21 @@ function snowHeight24h(recs) {
    HN24 and HS: as the 24 h table (new-snow sensor sum over the last 24 h, else the
    24 h depth change, 0 when the depth fell; latest spike-filtered depth). `id` applies
    the per-station rules in assets/snow-stations.js.
-   HST: as the 24 h table (assets/hst.js), over the same 10-day lookback. */
+   HST: as the 24 h table (assets/hst.js), over the same 10-day lookback, and never below HN24. */
 export function snowFigures(records, now, { hn = true, id = null } = {}) {
-  if (SNOW_EXCLUDED_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
-  const clean = sanitizeRecords(records).filter((r) => time(r) <= now);
+  if (SNOW_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
+  const clean = withoutFalseNewSnow(id, sanitizeRecords(records)).filter((r) => time(r) <= now);
   const last24 = clean.filter((r) => time(r) >= now - 24 * HOUR);
   let hn24 = null, hst = null;
   if (hn && HN_FROM_PRECIP_IDS.has(id)) {
     /* HN24 and HST from the precipitation gauge total, 1 mm as 1 cm, as the 24 h table shows them. */
     hn24 = hw24FromObservations(last24);
-    hst = stormPrecip(clean, now)?.hst ?? null;
+    hst = stormPrecip(clean, now, { hn24 })?.hst ?? null;
     return { hn24_cm: round1cm(hn24), hst_cm: round1cm(hst), hs_cm: round1cm(snowHeight24h(last24)), fromGauge: true };
   }
   if (hn) {
     hn24 = newSnow24h(last24);
-    hst = stormSnow(clean, now)?.hst ?? null;
+    hst = stormSnow(clean, now, { hn24 })?.hst ?? null;
   }
   const hs = snowHeight24h(last24);
   return { hn24_cm: round1cm(hn24), hst_cm: round1cm(hst), hs_cm: round1cm(hs) };

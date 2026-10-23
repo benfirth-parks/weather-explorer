@@ -20,7 +20,7 @@ test('a dry spell shorter than 24 h does not end the storm', () => {
   assert.equal(stormSnow(sensor({1: 2, 20: 3}), NOW).hst, 5);
 });
 test('a 24 h period with under 1 cm ends the storm', () => {
-  assert.equal(stormSnow(sensor({1: 2, 10: 0.5, 40: 6}), NOW).hst, 2); // hours 2-25 ago held only 0.5 cm
+  assert.equal(stormSnow(sensor({1: 2, 10: 0.5, 40: 6}), NOW).hst, 2.5); // hours 2-25 ago held only 0.5 cm; that 0.5 opened this storm
 });
 test('a dry last 24 h means no storm: HST 0', () => {
   assert.equal(stormSnow(sensor({30: 6, 35: 4}), NOW).hst, 0);
@@ -68,8 +68,21 @@ test('gauge storm: precip total since the last 24 h with under 1 mm', () => {
   const recs = [];
   for (let h = 96; h >= 0; h--) recs.push({measurementDateTime: new Date(NOW - h * HOUR).toISOString(), precipTotal: 100 + (h < 20 ? (20 - h) * 0.4 : 0)});
   const r = stormPrecip(recs, NOW);
-  assert.equal(r.hst, 7.2); // 8 mm fell; the first 0.8 mm still sits inside the last 24 h under 1 mm, as with snow
+  assert.equal(r.hst, 8); // all 8 mm: the first 0.8 mm opens the storm rather than standing apart from it
   assert.equal(r.partial, false);
   const dry = recs.map(x => ({...x, precipTotal: 100}));
   assert.equal(stormPrecip(dry, NOW).hst, 0);
+});
+
+test('light snow opening a storm counts, so HST is never below the last 24 h', () => {
+  // Lake Louise, 23 Oct: 0.3 cm in each of three hours, a pause, then more. 2.8 cm in the last 24 h.
+  const r = stormSnow(sensor({12: 0.3, 11: 0.3, 10: 0.3, 8: 0.3, 2: 1.3, 1: 0.3}), NOW);
+  assert.equal(r.hst, 2.8);
+});
+test('HST is raised to the HN24 passed in', () => {
+  const r = stormSnow(sensor({}), NOW, {hn24: 1.7});
+  assert.equal(r.hst, 1.7);
+  assert.equal(r.start, NOW - 24 * HOUR);
+  assert.equal(stormSnow(sensor({2: 3, 10: 5}), NOW, {hn24: 4}).hst, 8); // already higher: unchanged
+  assert.equal(stormPrecip([], NOW, {hn24: 2}).hst, 2);
 });
