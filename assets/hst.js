@@ -2,8 +2,10 @@ import {HOUR, hnIntervals, hwIntervals, numeric, smoothedHs, HN_FROM_HS_THRESHOL
 
 /* HST (height of storm snow, OGRS): new snow since the start of the current storm, i.e. what a
    storm board cleared at the start of the storm would read now. A storm ends once a 24 h period
-   has had less than STORM_BREAK_CM of new snow, so HST is 0 when the last 24 h were dry, and
-   otherwise sums the new snow back to the most recent such dry 24 h. Built from the same hourly HN
+   has had less than STORM_BREAK_CM of new snow: HST sums the new snow back to the start of the most
+   recent such dry 24 h, so the light snow that opens a storm counts and HST is never below the
+   last 24 h's HN. Callers pass the table's own HN24 as `hn24`, and HST is raised to it when the
+   rules here come out lower (e.g. the depth rule's 2 cm threshold). Built from the same hourly HN
    as the paired panes where there is a new-snow sensor; depth-only stations use whole 24 h
    blocks of smoothed HS (stormSnowFromDepth below). Hours with no data are
    unknown: a 24 h window containing one never counts as the dry break. Used by the 24 h table
@@ -12,17 +14,26 @@ export const STORM_BREAK_H = 24;
 export const STORM_BREAK_CM = 1;
 export const HST_LOOKBACK_H = 240;
 
-export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
+export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H, hn24 = null} = {}) {
   if (!records.some(r => { const v = numeric(r.newSnow); return v !== null && v >= 0 && v <= 50; }))
-    return stormSnowFromDepth(records, now, lookbackHours);
-  return stormFromHours(hnIntervals(records, now - lookbackHours * HOUR, now, 1).points);
+    return atLeastHn24(stormSnowFromDepth(records, now, lookbackHours), hn24, now);
+  return atLeastHn24(stormFromHours(hnIntervals(records, now - lookbackHours * HOUR, now, 1).points), hn24, now);
 }
 
 /* Storm total from the precipitation gauge, 1 mm counted as 1 cm, for stations whose HN24 and HST
    come from the FTS precip total (HN_FROM_PRECIP_IDS). Same storm rule, with the break at
    under STORM_BREAK_CM (read as 1 mm) of precipitation in 24 h. */
-export function stormPrecip(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
-  return stormFromHours(hwIntervals(records, now - lookbackHours * HOUR, now, 1).points);
+export function stormPrecip(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H, hn24 = null} = {}) {
+  return atLeastHn24(stormFromHours(hwIntervals(records, now - lookbackHours * HOUR, now, 1).points), hn24, now);
+}
+
+/* HST is never less than HN24: the last 24 h's snow is all part of the current storm. */
+function atLeastHn24(r, hn24, now) {
+  if (!Number.isFinite(hn24) || hn24 <= 0) return r;
+  const hst = Math.round(hn24 * 10) / 10;
+  if (r && r.hst >= hst) return r;
+  const since = now - STORM_BREAK_H * HOUR;
+  return {hst, start: r && r.start !== null && r.start < since ? r.start : since, partial: r ? r.partial : true};
 }
 
 function stormFromHours(hours) {
@@ -35,11 +46,12 @@ function stormFromHours(hours) {
     for (let j = i - W + 1; j <= i; j++) { if (hours[j].y === null) return false; sum += hours[j].y; }
     return sum < STORM_BREAK_CM;
   };
-  if (windowDry(n - 1)) return {hst: 0, start: null, partial: false};
-  let brk = -1;
-  for (let i = n - 2; i >= W - 1; i--) if (windowDry(i)) { brk = i; break; }
-  let total = 0, start = null, partial = brk < 0;
-  for (let i = brk + 1; i < n; i++) {
+  // The storm runs from the start of the most recent dry 24 h: snow in that window (under 1 cm)
+  // is the storm's opening, not a separate event.
+  let first = -1;
+  for (let i = n - 1; i >= W - 1; i--) if (windowDry(i)) { first = i - W + 1; break; }
+  let total = 0, start = null, partial = first < 0;
+  for (let i = Math.max(first, 0); i < n; i++) {
     const v = hours[i].y;
     if (v === null) { partial = true; continue; }
     if (v > 0 && start === null) start = hours[i].start;

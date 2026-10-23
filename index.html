@@ -1040,7 +1040,10 @@ async function fetchFTS360Station(id, hrs){
   const url = `/api/fts?station=${encodeURIComponent(id)}&hours=${hrs}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Proxy error: ' + res.status);
-  return sanitizeRecords(await res.json());
+  const recs=sanitizeRecords(await res.json());
+  /* No precip gauge: the feed's "new snow" field is the gauge increment and reads a flat 0, so HN comes from depth. */
+  if(HN_FROM_DEPTH_IDS.has(id)) recs.forEach(r=>{r.newSnow=null;});
+  return recs;
 }
 const cacheHours = {};
 function requestHours(){
@@ -1149,6 +1152,9 @@ function freshnessText(rec){
 /* The AB Env gauges (Sunshine, Bow Summit, Skoki) have no usable new-snow field, so their HN24 and HST come from
    the FTS precipitation total, 1 mm of precipitation counted as 1 cm of new snow. Mirrors HN_FROM_PRECIP_IDS in assets/snow-stations.js. */
 const HN_FROM_PRECIP_IDS = new Set(['fts-sunshine','fts-bowprecip','fts-skoki']);
+/* No precip gauge, so their "new snow" field (the gauge increment) reads a flat 0: HN24 and HST come from
+   the snow depth sensor. Mirrors HN_FROM_DEPTH_IDS in assets/snow-stations.js. */
+const HN_FROM_DEPTH_IDS = new Set(['fts-bowsummit','fts-simplo']);
 /* HN24: summed new-snow sensor readings, else the 24 h depth change (0 when the depth fell).
    Stations whose HS trace is excluded report no HN24, so no HST either. */
 function newSnow24h(id){
@@ -1365,7 +1371,7 @@ function renderHighLow(ids){
       `<td class="hl-focus">${latestVal!==null?latestVal.toFixed(1)+'°C':'—'}</td>`+
       `<td class="hl-focus">${hw!==null?hw.toFixed(1)+' mm':'—'}</td>`+
       `<td class="hl-focus">${hn!==null?hn.toFixed(1)+' cm':'—'}</td>`+
-      (hn!==null?`<td class="hl-focus" data-hst-id="${id}">…</td>`:`<td class="hl-focus">—</td>`)+
+      (hn!==null?`<td class="hl-focus" data-hst-id="${id}" data-hn24="${hn.toFixed(1)}">…</td>`:`<td class="hl-focus">—</td>`)+
       `<td class="hl-focus">${hs!==null?hs.toFixed(1)+' cm':'—'}</td>`+
       `<td class="hl-focus">${wind!==null?wind.toFixed(1)+' km/h':'—'}</td>`+
       `<td class="hl-focus">${gust!==null?gust.toFixed(1)+' km/h':'—'}</td>`;

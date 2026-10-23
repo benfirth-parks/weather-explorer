@@ -5,3 +5,10 @@
    precipitation total instead of a snow sensor, counting 1 mm as 1 cm (the Sunshine, Bow Summit and Skoki AB Env gauges; their "new snow" field is not a snow sensor, e.g. Skoki's reads a flat 0.1 every 15 min). */
 export const SNOW_EXCLUDED_IDS = new Set(['fts-bosup', 'fts-lookout', 'fts-simpup', 'fts-vulture', 'fts-whymper']);
 export const HN_FROM_PRECIP_IDS = new Set(['fts-sunshine', 'fts-bowprecip', 'fts-skoki']);
+/* HN_FROM_DEPTH_IDS: stations with no precipitation gauge whose feed still carries a "new snow"
+   field, which is the gauge increment (Rn_1) and so reads a flat 0. Their HN24 and HST come from
+   the snow depth sensor instead (index.html and mobile.html keep inline copies). */
+export const HN_FROM_DEPTH_IDS = new Set(['fts-bowsummit', 'fts-simplo']);
+export function withoutFalseNewSnow(id, records) {
+  return HN_FROM_DEPTH_IDS.has(id) ? records.map(r => ({...r, newSnow: null})) : records;
+}
