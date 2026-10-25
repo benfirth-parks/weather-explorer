@@ -1,12 +1,13 @@
 /* Clickable chart legends: clicking (or Enter/Space on) a legend entry shows or hides its series.
    At least one series always stays visible. What a viewer hides is remembered per legend `key`
    for the page session, so re-rendering a chart (new range, refresh, re-selection) keeps it hidden.
-   Axes set to display:'auto' disappear with their last visible series. */
+   Axes set to display:'auto' disappear with their last visible series.
+   `defaultHidden` names series that start hidden the first time a legend `key` is bound. */
 (function () {
   const hiddenByKey = new Map();
-  function hiddenSet(key) {
+  function hiddenSet(key, defaultHidden) {
     let set = hiddenByKey.get(key);
-    if (!set) { set = new Set(); hiddenByKey.set(key, set); }
+    if (!set) { set = new Set(defaultHidden || []); hiddenByKey.set(key, set); }
     return set;
   }
   function visibleCount(chart) {
@@ -20,9 +21,9 @@
     entry.title = on ? 'Click to hide this series' : 'Click to show this series';
   }
   /* entries[i] is the legend element for chart dataset i; names[i] is its stable name. */
-  window.bindLegendToggles = function (chart, entries, names, key) {
+  window.bindLegendToggles = function (chart, entries, names, key, defaultHidden) {
     if (!chart || !entries.length) return;
-    const hidden = hiddenSet(key);
+    const hidden = hiddenSet(key, defaultHidden);
     entries.forEach((entry, i) => { if (hidden.has(names[i])) chart.setDatasetVisibility(i, false); });
     // A remembered selection that hides everything here (e.g. different stations now) shows all.
     if (!visibleCount(chart)) entries.forEach((_, i) => chart.setDatasetVisibility(i, true));
