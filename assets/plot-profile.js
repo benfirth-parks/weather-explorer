@@ -42,14 +42,9 @@ function age(t) {
   return `${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'} ago`;
 }
 
-/* Data source: invented profiles (assets/plot-profile-mock.js) until MOCK_UNTIL, while the plots
-   have no snow, then /api/plot-profile. ?plotprofiles=mock or =live forces one; =off hides the panel. */
-const MOCK_UNTIL = Date.UTC(2026, 10, 1, 7); // 1 Nov 2026, 00:00 MST
+/* Data source: /api/plot-profile (real Banff Snowpack model runs and pits). ?plotprofiles=off hides the panel. */
 const MODE = (() => {
-  let asked = null;
-  try { asked = new URLSearchParams(location.search).get('plotprofiles'); } catch {}
-  if (asked === 'mock' || asked === 'live' || asked === 'off') return asked;
-  return Date.now() < MOCK_UNTIL ? 'mock' : 'live';
+  try { return new URLSearchParams(location.search).get('plotprofiles') === 'off' ? 'off' : 'live'; } catch { return 'live'; }
 })();
 export function plotForPair(ids) {
   if (MODE === 'off') return null;
@@ -57,7 +52,6 @@ export function plotForPair(ids) {
 }
 
 function load(plot, fresh) {
-  if (MODE === 'mock') return import('./plot-profile-mock.js').then(m => m.mockPlotProfile(plot) || Promise.reject(new Error('no mock')));
   let item = requests.get(plot);
   if (fresh || !item || Date.now() - item.at > MEMORY_MS) {
     item = {at: Date.now()};
@@ -148,7 +142,6 @@ function draw(box, data) {
   link.href = data.url; link.target = '_blank'; link.rel = 'noopener';
   head.append(link);
   box.append(head);
-  if (data.mock) box.append(element('p', 'plot-profile-mock', 'MOCK DATA: invented profiles for previewing this panel'));
   const sim = data.sim, pit = data.pit;
   const showPit = pit && pit.layers.length && pitIsCurrent(pit);
   const hsMax = Math.ceil(Math.max(20, sim?.hs || 0, showPit ? pit.hs || pit.layers[0]?.[0] || 0 : 0) * 1.08 / 10) * 10;
