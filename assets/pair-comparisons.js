@@ -46,7 +46,7 @@ function elevationColors(ids) {
   }
   return out;
 }
-const DEFAULT_SHOWN_KINDS = new Set(['wind', 'bar']);
+const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum']);
 const TYPE_DASH = {temp: [], wind: [7, 4], cum: [2, 3], hsdepth: [14, 4, 3, 4]};
 const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 1.8, hsdepth: 2};
 /* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
@@ -545,7 +545,7 @@ async function render(view) {
       }
     }
   });
-  // Only wind and the HN/HW bars show at first (Ben, 2026-10-25); the rest are a legend click away.
+  // Only wind and the HN/HW totals show at first (Ben, 2026-10-25); the rest are a legend click away.
   const names = datasets.map(d => `${d.station}:${d.kind}`);
   const offAtFirst = names.filter((_, i) => !DEFAULT_SHOWN_KINDS.has(datasets[i].kind));
   window.bindLegendToggles?.(view.chart, entries, names, `pair:${ids.join(',')}`, offAtFirst);
