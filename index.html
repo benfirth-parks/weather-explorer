@@ -860,6 +860,8 @@ document.querySelectorAll('.group-chip').forEach(chip=>chip.addEventListener('cl
   }else{
     groupFilter.add(g);
     chip.classList.add('active');
+    // Turning a group on selects its stations (within the elevation filter); turning it off removes them.
+    STATIONS.filter(s=>s.group===g && inElevBand(s)).forEach(s=>selected.add(s.stationId));
   }
   renderStationList();
   refreshMarkers();
