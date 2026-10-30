@@ -88,11 +88,11 @@ test('a depth rise under 2 cm is no hourly HN, so no HN24 or HST', () => {
   assert.equal(f.hn24_cm, 0);
   assert.equal(f.hst_cm, 0);
 });
-test('HN24 ignores settlement; HST settles but stays at least HN24', () => {
+test('HN24 ignores settlement; HST is the HS change, so it settles', () => {
   // 10 cm in the storm 20 to 15 h ago, then 4 cm of settlement over the last 12 h: the HS change is 6.
   const rows = [];
   for (let h = 48; h >= 0; h--) rows.push(rec(h, {snowHeight: h > 20 ? 50 : h > 15 ? 50 + (20 - h) * 2 : h > 12 ? 60 : 60 - (12 - h) / 3}));
   const f = snowFigures(rows, now, {id: 'fts-boslo'});
   assert.equal(f.hn24_cm, 10);
-  assert.equal(f.hst_cm, 10); // HS change 6, raised to HN24
+  assert.equal(f.hst_cm, 6); // 56 - 50
 });

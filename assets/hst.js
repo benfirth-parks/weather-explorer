@@ -2,16 +2,17 @@ import {HOUR, hnIntervals, hwIntervals, hsValues} from './pair-comparison-data.j
 
 /* HN24 and HST, Ben's rules of 30 Oct 2026. HN24 is the sum of the hourly HN over the last 24 h.
    HST is the change in HS (snow depth) over the current storm, like a storm board, so settlement
-   during the storm counts against it. Hourly HN comes from the HS (snow depth) trace, as in the paired panes' HN bars when a station has
-   no new-snow sensor: a 3 h running median of HS, with each rise of 2 cm or more above the last
-   reference level credited to the hour it happened in (pair-comparison-data.js hnIntervals). The
-   feeds' "new snow" fields are gauge increments (Rn_1), not snow, so they are not used.
-   The storm is the latest run of precipitation with no gap longer than STORM_GAP_H. Precipitation comes from the
-   station's gauge (hourly HW of 0.1 mm or more); a station with no gauge uses its hourly HN.
-   HST is 0 once STORM_GAP_H have passed with no precipitation, and is never below the HN24 the
-   caller passes. Hours with no data count toward a gap and mark the result partial. Used by the
-   24 h table and the AI summary's snow-by-pair block (index.html and mobile.html keep an inline
-   copy of the HN24 sum), so all report the same HN24 and HST. */
+   during the storm counts against it and HST can be less than HN24.
+   Hourly HN comes from the HS trace, as in the paired panes' HN bars: a 3 h running median of HS,
+   with each rise of 2 cm or more above the last reference level credited to the hour it happened
+   in (pair-comparison-data.js hnIntervals). The feeds' "new snow" fields are gauge increments
+   (Rn_1), not snow, so they are not used.
+   The storm is the latest run of precipitation with no gap longer than STORM_GAP_H. Precipitation
+   comes from the station's gauge (hourly HW of 0.1 mm or more); a station with no gauge uses its
+   hourly HN. HST is 0 once STORM_GAP_H have passed with no precipitation. Hours with no data count
+   toward a gap and mark the result partial. Used by the 24 h table and the AI summary's
+   snow-by-pair block (index.html and mobile.html keep an inline copy of the HN24 sum), so all
+   report the same HN24 and HST. */
 export const STORM_GAP_H = 24;
 export const HST_LOOKBACK_H = 240;
 /* HS at a time is the median of the valid readings within HS_HALF_WINDOW of it (none later than
@@ -34,7 +35,7 @@ export function newSnow24h(records, now = Date.now()) {
   return hourlyHn(records, now - 24 * HOUR, now).total;
 }
 
-export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H, hn24 = null} = {}) {
+export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
   const past = records.filter(r => Date.parse(r.measurementDateTime) <= now);
   const hs = hsValues(past);
   if (!hs.length) return null;
@@ -46,7 +47,7 @@ export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBA
     if (a === null || b === null) r = {hst: 0, start: storm.start, partial: true};
     else r = {hst: Math.max(0, Math.round((b - a) * 10) / 10), start: storm.start, partial: storm.partial};
   }
-  return atLeastHn24(r, hn24, now);
+  return r;
 }
 
 /* Start of the current storm: walk back from now through the hourly precipitation, and stop at
@@ -69,13 +70,4 @@ export function stormPeriod(records, now, lookbackHours = HST_LOOKBACK_H) {
   // The storm may have begun before the hours fetched.
   if (start !== null && start - from <= STORM_GAP_H * HOUR) partial = true;
   return {start, partial: start !== null && partial};
-}
-
-/* HST is never less than HN24: the last 24 h's snow is all part of the current storm. */
-function atLeastHn24(r, hn24, now) {
-  if (!Number.isFinite(hn24) || hn24 <= 0) return r;
-  const hst = Math.round(hn24 * 10) / 10;
-  if (r.hst >= hst) return r;
-  const since = now - 24 * HOUR;
-  return {hst, start: r.start !== null && r.start < since ? r.start : since, partial: r.partial};
 }

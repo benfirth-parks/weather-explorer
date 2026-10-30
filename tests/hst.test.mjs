@@ -36,11 +36,12 @@ test('no precipitation in the last 24 h: HST 0', () => {
   assert.equal(r.hst, 0);
   assert.equal(r.start, null);
 });
-test('HST is never below the HN24 passed in', () => {
-  const r = stormSnow(station({40: 5}, () => 20), NOW, {hn24: 1.7});
-  assert.equal(r.hst, 1.7);
-  assert.equal(r.start, NOW - 24 * HOUR);
-  assert.equal(stormSnow(station({30: 2, 12: 1, 2: 1}, h => (h > 30 ? 40 : 52)), NOW, {hn24: 4}).hst, 12); // already higher
+test('HST can be less than HN24: settlement counts', () => {
+  // Storm of 10 cm 20 to 15 h ago with rain, then 4 cm of settlement.
+  const hs = h => (h > 20 ? 50 : h > 15 ? 50 + (20 - h) * 2 : h > 12 ? 60 : 60 - (12 - h) / 3);
+  const recs = station({20: 1, 18: 1, 16: 1}, hs);
+  assert.equal(newSnow24h(recs, NOW), 10);
+  assert.equal(stormSnow(recs, NOW).hst, 6.2); // 56.2 (median of the last 90 min) - 50
 });
 test('settling during the storm never makes HST negative', () => {
   assert.equal(stormSnow(station({10: 1}, h => (h > 10 ? 50 : 47)), NOW).hst, 0);
