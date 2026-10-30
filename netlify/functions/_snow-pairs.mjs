@@ -67,7 +67,7 @@ function snowHeight24h(recs) {
 
 /* HN24, HST and HS for one station's records, ending at `now`, in whole cm.
    HN24 and HST: as the 24 h table (assets/hst.js): HN24 the sum of the hourly HN over the
-   last 24 h, HST the HS change over the current storm (same 10-day lookback).
+   last 24 h, HST the peak HS rise over the current storm (same 10-day lookback).
    HS: the latest spike-filtered depth. `id` applies the per-station rules in
    assets/snow-stations.js. */
 export function snowFigures(records, now, { hn = true, id = null } = {}) {
