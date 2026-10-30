@@ -18,7 +18,7 @@ import { bandRows, bandTableMarkdown, buildSnapshot, SYSTEM_PROMPT } from "./_ai
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v8"; /* v8: HN24 and HST sum the hourly HN */
+const CACHE_STORE = "rockies-weather-ai-summary-v9"; /* v9: HST is the HS change over the storm */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";

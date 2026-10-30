@@ -19,8 +19,8 @@ function show(cell, r) {
   cell.replaceChildren();
   if (!r) { cell.textContent = '—'; cell.title = 'No snow-depth data'; return; }
   cell.append(document.createTextNode(`${r.partial && r.hst > 0 ? '≥' : ''}${r.hst.toFixed(1)} cm`));
-  cell.title = r.hst === 0 ? (r.start ? `No hourly HN since the storm began, ${day.format(r.start)} MST` : `No storm: no precipitation in the last ${STORM_GAP_H} h`)
-    : `Sum of the hourly HN since the storm began, ${r.start ? day.format(r.start) + ' MST' : 'at the start of the data'} (precipitation with no gap over ${STORM_GAP_H} h)`
+  cell.title = r.hst === 0 ? (r.start ? `HS has not risen since the storm began, ${day.format(r.start)} MST` : `No storm: no precipitation in the last ${STORM_GAP_H} h`)
+    : `HS change since the storm began, ${r.start ? day.format(r.start) + ' MST' : 'at the start of the data'} (precipitation with no gap over ${STORM_GAP_H} h)`
       + (r.partial ? '. Some hours are missing or the storm began before the 10 days fetched, so this is a minimum.' : '');
 }
 function fill() {
@@ -30,9 +30,7 @@ function fill() {
     if (cell.dataset.hstDone === '1') continue;
     cell.dataset.hstDone = '1';
     cell.textContent = '…';
-    // HST is never below the HN24 shown in the same row.
-    const hn24 = Number(cell.dataset.hn24);
-    records(id).then(data => { if (cell.isConnected) show(cell, stormSnow(data, Date.now(), {hn24})); })
+    records(id).then(data => { if (cell.isConnected) show(cell, stormSnow(data, Date.now())); })
       .catch(() => { if (cell.isConnected) { cell.textContent = '—'; cell.title = 'Archive unavailable'; } });
   }
 }

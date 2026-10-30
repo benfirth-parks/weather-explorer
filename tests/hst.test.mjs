@@ -15,7 +15,7 @@ function station(rain, hs, hours = 240) {
   return out;
 }
 
-test('HST sums the hourly HN since the storm began', () => {
+test('HST is the HS change since the storm began', () => {
   // Precipitation 30 to 2 hours ago with a 10 h pause; HS 40 cm before, 52 cm now.
   const r = stormSnow(station({30: 2, 25: 1, 12: 3, 2: 1}, h => (h > 30 ? 40 : h > 2 ? 46 : 52)), NOW);
   assert.equal(r.hst, 12);
@@ -36,11 +36,12 @@ test('no precipitation in the last 24 h: HST 0', () => {
   assert.equal(r.hst, 0);
   assert.equal(r.start, null);
 });
-test('HST is never below the HN24 passed in', () => {
-  const r = stormSnow(station({40: 5}, () => 20), NOW, {hn24: 1.7});
-  assert.equal(r.hst, 1.7);
-  assert.equal(r.start, NOW - 24 * HOUR);
-  assert.equal(stormSnow(station({30: 2, 12: 1, 2: 1}, h => (h > 30 ? 40 : 52)), NOW, {hn24: 4}).hst, 12); // already higher
+test('HST can be less than HN24: settlement counts', () => {
+  // Storm of 10 cm 20 to 15 h ago with rain, then 4 cm of settlement.
+  const hs = h => (h > 20 ? 50 : h > 15 ? 50 + (20 - h) * 2 : h > 12 ? 60 : 60 - (12 - h) / 3);
+  const recs = station({20: 1, 18: 1, 16: 1}, hs);
+  assert.equal(newSnow24h(recs, NOW), 10);
+  assert.equal(stormSnow(recs, NOW).hst, 6.2); // 56.2 (median of the last 90 min) - 50
 });
 test('settling during the storm never makes HST negative', () => {
   assert.equal(stormSnow(station({10: 1}, h => (h > 10 ? 50 : 47)), NOW).hst, 0);
@@ -66,11 +67,11 @@ test('HS at a time is the median of readings within 90 min, none after now', () 
   assert.equal(hsMedianAt(hs, NOW - 2 * HOUR, NOW), 5); // 1, 2 and 3 h ago: 2, 8, 5
   assert.equal(hsMedianAt(hs, NOW - 10 * HOUR, NOW), null);
 });
-test('HST is the hourly HN summed, so settlement during the storm does not reduce it', () => {
-  // Rain 30 to 10 h ago; HS 40 -> 50 by 20 h ago, settles to 47, then 40 -> 52 total after a 5 cm burst.
+test('HST is the HS change, so settlement during the storm counts against it', () => {
+  // Rain 30 to 10 h ago; HS 40 -> 50 by 20 h ago, settles to 47, then 52 after a 5 cm burst.
   const hs = h => (h > 30 ? 40 : h > 20 ? 50 : h > 12 ? 47 : 52);
   const r = stormSnow(station({30: 2, 20: 1, 12: 3}, hs), NOW);
-  assert.equal(r.hst, 15);
+  assert.equal(r.hst, 12); // 52 - 40, where summing the hourly HN would give 15
 });
 test('HN24 sums the hourly HN over the last 24 h and ignores the new-snow field', () => {
   const recs = station({30: 2, 10: 2}, h => (h > 30 ? 40 : h > 10 ? 46 : 50)).map(r => ({...r, newSnow: 0.1}));
