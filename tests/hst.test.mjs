@@ -15,33 +15,36 @@ function station(rain, hs, hours = 240) {
   return out;
 }
 
-test('HST is the HS change since the storm began', () => {
-  // Precipitation 30 to 2 hours ago with a 10 h pause; HS 40 cm before, 52 cm now.
-  const r = stormSnow(station({30: 2, 25: 1, 12: 3, 2: 1}, h => (h > 30 ? 40 : h > 2 ? 46 : 52)), NOW);
+test('HST is the HS rise since the storm began', () => {
+  // Snow 30 to 2 hours ago with no gap over 24 h; HS 40 cm before, 46 by 25 h ago, 49 by 12 h ago, 52 now.
+  const r = stormSnow(station({30: 2, 25: 1, 12: 3, 2: 1}, h => (h > 30 ? 40 : h > 25 ? 43 : h > 12 ? 46 : h > 2 ? 49 : 52)), NOW);
   assert.equal(r.hst, 12);
   assert.equal(r.start, NOW - 31 * HOUR);
   assert.equal(r.partial, false);
 });
-test('a gap of more than 24 h with no precipitation starts a new storm', () => {
-  // Rain 60 h ago, then nothing for 40 h, then rain again: only the second storm counts.
+test('a gap of more than 24 h with no new snow starts a new storm', () => {
+  // Snow 60 h ago, then nothing for 40 h, then snow again: only the second storm counts.
   const r = stormSnow(station({60: 5, 20: 2, 5: 2}, h => (h > 60 ? 30 : h > 20 ? 38 : 43)), NOW);
   assert.equal(r.hst, 5);
   assert.equal(r.start, NOW - 21 * HOUR);
 });
 test('a gap of exactly 24 h keeps the storm going', () => {
-  assert.equal(stormPeriod(station({30: 1, 5: 1}, () => 10), NOW).start, NOW - 31 * HOUR);
+  assert.equal(stormPeriod(station({}, h => (h > 30 ? 10 : h > 5 ? 13 : 16)), NOW).start, NOW - 31 * HOUR);
 });
-test('no precipitation in the last 24 h: HST 0', () => {
+test('rain with no depth rise is not a storm', () => {
+  assert.equal(stormSnow(station({5: 3}, () => 20), NOW).hst, 0);
+});
+test('no new snow in the last 24 h: HST 0', () => {
   const r = stormSnow(station({40: 5}, h => (h > 40 ? 20 : 26)), NOW);
   assert.equal(r.hst, 0);
   assert.equal(r.start, null);
 });
-test('HST can be less than HN24: settlement counts', () => {
+test('settlement after the peak does not reduce HST', () => {
   // Storm of 10 cm 20 to 15 h ago with rain, then 4 cm of settlement.
   const hs = h => (h > 20 ? 50 : h > 15 ? 50 + (20 - h) * 2 : h > 12 ? 60 : 60 - (12 - h) / 3);
   const recs = station({20: 1, 18: 1, 16: 1}, hs);
   assert.equal(newSnow24h(recs, NOW), 10);
-  assert.equal(stormSnow(recs, NOW).hst, 6.2); // 56.2 (median of the last 90 min) - 50
+  assert.equal(stormSnow(recs, NOW).hst, 10); // peak 60 - 50, not the 6 cm left after settling
 });
 test('settling during the storm never makes HST negative', () => {
   assert.equal(stormSnow(station({10: 1}, h => (h > 10 ? 50 : 47)), NOW).hst, 0);
@@ -78,4 +81,9 @@ test('HN24 sums the hourly HN over the last 24 h and ignores the new-snow field'
   assert.equal(newSnow24h(recs, NOW), 4);
   assert.equal(hourlyHn(recs, NOW - 24 * HOUR, NOW).points.length, 24);
   assert.equal(newSnow24h([], NOW), null);
+});
+test('a depth that falls below the storm start keeps the peak rise', () => {
+  // 6 cm of new snow 10 h ago, then the whole pack settles 8 cm.
+  const r = stormSnow(station({}, h => (h > 10 ? 80 : h > 8 ? 86 : 86 - (8 - h))), NOW);
+  assert.equal(r.hst, 6);
 });
