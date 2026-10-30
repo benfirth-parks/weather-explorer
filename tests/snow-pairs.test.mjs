@@ -14,7 +14,7 @@ function hourly(rain, hs, hours = 240) {
   }
   return rows;
 }
-test('HN24 is the 24 h HS change; HST the HS change since precipitation began', () => {
+test('HN24 sums the hourly HN over 24 h; HST over the storm since precipitation began', () => {
   // Precipitation from 40 h ago to 2 h ago, no gap over 24 h; HS 80 -> 92 -> 100.
   const f = snowFigures(hourly({40: 3, 30: 2, 10: 4, 2: 1}, h => (h > 40 ? 80 : h > 20 ? 92 : 100)), now);
   assert.equal(f.hn24_cm, 8);
@@ -26,13 +26,14 @@ test('no precipitation in the last 24 h gives HST 0', () => {
   assert.equal(f.hn24_cm, 0);
   assert.equal(f.hst_cm, 0);
 });
-test("Sunshine: HN24 and HST from HS, not the gauge's 1 mm = 1 cm", () => {
-  // 0.5 mm an hour for the last 30 h, while HS rose 8 cm.
+test("Sunshine: HN24 and HST from hourly HN off HS, not the gauge's 1 mm = 1 cm", () => {
+  // 0.5 mm an hour for the last 30 h, while HS rose 8 cm. The 2 cm rise credited just after
+  // 24 h ago began before it, so HN24 is 7 rather than the 6 cm HS change.
   const rain = {};
   for (let h = 0; h < 30; h++) rain[h] = 0.5;
   const f = snowFigures(hourly(rain, h => (h >= 30 ? 50 : 58 - Math.round(h / 30 * 8))), now, {id: 'fts-sunshine'});
   assert.equal(f.hst_cm, 8);
-  assert.equal(f.hn24_cm, 6);
+  assert.equal(f.hn24_cm, 7);
   assert.equal(f.hs_cm, 58);
   assert.doesNotMatch(snowPairsMarkdown([{label: 'Lookout / Sunshine Village', hn: true, ...f}]), /precip gauge/);
 });
@@ -49,12 +50,12 @@ test('markdown block lists every pair', () => {
   ]);
   assert.equal(md, '**Snow Amounts** (observed, nearest 1 cm)\n- Simpson Upper / Lower: HN24 **5 cm** · HST **20 cm** · HS no data\n- Lookout / Sunshine Village: HS **87 cm** (no HN sensor)');
 });
-test('HN24 from the HS change when there is no new-snow sensor, ignoring spikes', () => {
+test('HN24 sums the hourly HN from HS, ignoring spikes and the new-snow field', () => {
   const rows = [];
   for (let h = 30; h >= 0; h--) rows.push(rec(h, {snowHeight: h > 24 ? 100 : 100 + (24 - h) * 0.3}));
   rows.push(rec(5.5, {snowHeight: 160})); // a 50 cm spike the table drops
   const f = snowFigures(rows, now);
-  assert.equal(f.hn24_cm, 7); // 107.2 - 100
+  assert.equal(f.hn24_cm, 6); // three 2 cm rises; the last 1.2 cm has not reached the 2 cm step
   assert.equal(f.hs_cm, 107);
 });
 test('a falling depth gives HN24 0, not no data', () => {
@@ -80,10 +81,18 @@ test('no-gauge stations take HN from depth, not their flat-zero new-snow field',
   assert.equal(f.hn24_cm, 4);
   assert.equal(f.hst_cm, 4);
 });
-test('HST is never below HN24 on a depth-only station', () => {
+test('a depth rise under 2 cm is no hourly HN, so no HN24 or HST', () => {
   const rows = [];
   for (let h = 48; h >= 0; h--) rows.push(rec(h, {snowHeight: h < 8 ? 3.7 : 2}));
   const f = snowFigures(rows, now, {id: 'fts-boslo'});
-  assert.equal(f.hn24_cm, 2);
-  assert.equal(f.hst_cm, 2); // the depth rule's 2 cm threshold alone would give 0
+  assert.equal(f.hn24_cm, 0);
+  assert.equal(f.hst_cm, 0);
+});
+test('HN24 and HST ignore settlement after the snow', () => {
+  // 10 cm in the storm 20 to 15 h ago, then 4 cm of settlement over the last 12 h: the HS change would say 6.
+  const rows = [];
+  for (let h = 48; h >= 0; h--) rows.push(rec(h, {snowHeight: h > 20 ? 50 : h > 15 ? 50 + (20 - h) * 2 : h > 12 ? 60 : 60 - (12 - h) / 3}));
+  const f = snowFigures(rows, now, {id: 'fts-boslo'});
+  assert.equal(f.hn24_cm, 10);
+  assert.equal(f.hst_cm, 10);
 });

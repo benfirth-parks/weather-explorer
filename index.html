@@ -602,7 +602,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
     <div id="emptyState" class="empty-state" style="display:none;"><h3>No stations selected</h3><p>Choose one or more stations from the sidebar or map to see trends and station diagnostics.</p></div>
     <div id="dataView">
       <div class="kpi-row" id="kpiRow"></div>
-      <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">24h station summary</div><div class="panel-title-sub">Most recent rolling 24-hour window. HW is gauge precipitation in mm; HN24 is new snow in cm, from a direct sensor where available or otherwise the 24-hour depth change; HS is the most recent snow depth / height of snow in cm where a usable snow sensor is available. HST is storm snow in cm (OGRS): new snow since the current storm began, from the same new-snow data as HN24 over the last 10 days; a storm ends once a 24 h period has under 1 cm, so HST is 0 after a dry day. Hover a value for the storm's start. At the Sunshine Village and Bow Summit AB Env gauges, HN24 and HST come from the precipitation gauge total, counting 1 mm as 1 cm.</div></div></div><div style="overflow:auto;"><table class="hl-table"><colgroup><col style="width:18%"><col style="width:10%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:7%"><col style="width:9%"><col style="width:7%"><col style="width:7%"><col style="width:7%"></colgroup><thead><tr><th>Station</th><th class="hl-compact">Last updated</th><th class="hl-compact">Elev</th><th class="hl-focus">High</th><th class="hl-focus">Low</th><th class="hl-focus">Latest</th><th class="hl-focus">HW 24h</th><th class="hl-focus">HN24</th><th class="hl-focus" title="Height of storm snow (OGRS): new snow since the start of the current storm. A storm ends once a 24 h period has under 1 cm.">HST</th><th class="hl-focus">HS</th><th class="hl-focus">Avg wind</th><th class="hl-focus">Peak gust</th></tr></thead><tbody id="highLowBody"></tbody></table></div></div>
+      <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">24h station summary</div><div class="panel-title-sub">Most recent rolling 24-hour window. HW is gauge precipitation in mm; HN24 is new snow in cm: the sum of the hourly HN over the last 24 hours, where hourly HN is each rise of 2 cm or more in the smoothed snow depth; HS is the most recent snow depth / height of snow in cm where a usable snow sensor is available. HST is storm snow in cm: the sum of the hourly HN since the current storm began, the storm being the latest run of precipitation with no gap over 24 h (looking back up to 10 days), so HST is 0 after a dry day; it is never below HN24. Hover a value for the storm's start.</div></div></div><div style="overflow:auto;"><table class="hl-table"><colgroup><col style="width:18%"><col style="width:10%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:7%"><col style="width:9%"><col style="width:7%"><col style="width:7%"><col style="width:7%"></colgroup><thead><tr><th>Station</th><th class="hl-compact">Last updated</th><th class="hl-compact">Elev</th><th class="hl-focus">High</th><th class="hl-focus">Low</th><th class="hl-focus">Latest</th><th class="hl-focus">HW 24h</th><th class="hl-focus">HN24</th><th class="hl-focus" title="Height of storm snow: the sum of the hourly HN since the current storm began. A storm ends after 24 h with no precipitation.">HST</th><th class="hl-focus">HS</th><th class="hl-focus">Avg wind</th><th class="hl-focus">Peak gust</th></tr></thead><tbody id="highLowBody"></tbody></table></div></div>
       <div class="panel" style="margin:var(--space-5);">
         <div class="panel-header"><div><div class="panel-title" id="trendTitle">Temperature trend</div><div class="panel-title-sub" id="trendSub">Hourly observations</div></div><div><select class="small-select" id="mainMetricSelect"><option value="airTempAvg">Air temperature</option><option value="snowHeight">Snow height</option><option value="windSpeedAvg">Wind speed avg</option><option value="relativeHumidity">Relative humidity</option><option value="precipTotal">Precipitation HW (mm)</option><option value="selectedAvg" selected>Averages: temp, wind, precip</option></select></div></div>
         <div class="chart-box tall"><canvas id="trendChart"></canvas></div>
@@ -1157,19 +1157,31 @@ const HN_FROM_DEPTH_IDS = new Set(['fts-bowsummit','fts-simplo']);
 /* Gauge stations with no working snow depth sensor: no HN24, HST or HS (HW unchanged).
    Mirrors NO_SNOW_SENSOR_IDS in assets/snow-stations.js. */
 const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki','fts-lakelouise','fts-boulder','fts-castle','fts-vermillion']);
-/* HN24: HS now minus HS 24 h ago (0 when the depth fell), for every station (Ben, 23 Oct 2026; the feeds'
-   "new snow" fields are gauge increments, not snow). No HS, or an excluded HS trace, means no HN24 and no HST. */
+/* HN24: the sum of the hourly HN over the last 24 h, for every station (Ben, 30 Oct 2026). Hourly HN comes
+   from HS: a 3 h running median of the depth, with each rise of 2 cm or more above the last reference level
+   counted as new snow, and settlement lowering the reference (the feeds' "new snow" fields are gauge increments,
+   not snow). Mirrors newSnow24h / hnIntervals in assets/hst.js and assets/pair-comparison-data.js.
+   No HS, or an excluded HS trace, means no HN24 and no HST. */
 function newSnow24h(id){
   if(SNOW_GRAPH_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return null;
-  const now=Date.now();
-  const depth=filterSnowSpikes(windowedData(id,25.5).filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight')
-    .map(d=>({x:new Date(d.measurementDateTime).getTime(),y:Number(d.snowHeight)}));
-  /* HS at a time: median of the readings within 90 min of it, to damp the sensor's daily wander. Mirrors hsMedianAt in assets/hst.js. */
-  const hsAt=t=>{const ys=depth.filter(p=>Math.abs(p.x-t)<=5400000&&p.x<=now).map(p=>p.y).sort((a,b)=>a-b); if(!ys.length) return null; const m=ys.length>>1; return ys.length%2?ys[m]:(ys[m-1]+ys[m])/2;};
-  const a=hsAt(now-24*3600000), b=hsAt(now);
-  if(a===null||b===null) return null;
-  const total=Math.round((b-a)*10)/10;
-  return total>50 ? null : Math.max(0,total);
+  const now=Date.now(), from=now-24*3600000;
+  const depth=filterSnowSpikes(windowedData(id,30).filter(d=>{const v=numOf(d.snowHeight); return Number.isFinite(v)&&v>=0&&v<=600;}),'snowHeight')
+    .map(d=>({x:new Date(d.measurementDateTime).getTime(),y:Number(d.snowHeight)}))
+    .filter(p=>Number.isFinite(p.x)&&p.x>from-6*3600000&&p.x<=now).sort((a,b)=>a.x-b.x);
+  let lo=0, hi=0, ref=null, last=null, seen=false, total=0;
+  for(let i=0;i<depth.length;i++){
+    const x=depth[i].x;
+    while(depth[lo].x<x-5400000) lo++;
+    while(hi+1<depth.length&&depth[hi+1].x<=x+5400000) hi++;
+    const ys=depth.slice(lo,hi+1).map(p=>p.y).sort((a,b)=>a-b), m=ys.length>>1;
+    const y=ys.length%2?ys[m]:(ys[m-1]+ys[m])/2;
+    if(last!==null && x-last>5400000) ref=null; // a gap of over 90 min resets the reference
+    last=x;
+    if(ref===null || y<ref) ref=y;
+    else if(y-ref>=2){ if(x>from && y-ref<=50) total+=y-ref; ref=y; }
+    if(x>from) seen=true;
+  }
+  return seen ? Math.round(total*10)/10 : null;
 }
 /* HS = the most recent usable snow depth / height-of-snow observation.
    Stations excluded from the snow graphs are also excluded here because their

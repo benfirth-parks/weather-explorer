@@ -5,7 +5,7 @@
    0.1 cm there). */
 
 import { HOUR } from "../../assets/pair-comparison-data.js";
-import { stormSnow, hsMedianAt, HST_LOOKBACK_H } from "../../assets/hst.js";
+import { stormSnow, newSnow24h, HST_LOOKBACK_H } from "../../assets/hst.js";
 import { SNOW_EXCLUDED_IDS, NO_SNOW_SENSOR_IDS, withoutFalseNewSnow } from "../../assets/snow-stations.js";
 
 /* Mirrors STATION_PAIRS in index.html; `snow` is the pair's snow station
@@ -25,9 +25,9 @@ export function round1cm(cm) {
   return cm === null || cm === undefined ? null : Math.round(cm);
 }
 
-/* The dashboard's record cleanup and 24 h rules (sanitizeRecords, filterSnowSpikes,
-   newSnow24h and snowHeight24h in index.html), mirrored here so the summary reports
-   the same HN24 and HS as the 24 h station summary table. Keep them in step. */
+/* The dashboard's record cleanup and HS rules (sanitizeRecords, filterSnowSpikes and
+   snowHeight24h in index.html), mirrored here so the summary reports the same HS as the
+   24 h station summary table. Keep them in step. HN24 is newSnow24h in assets/hst.js. */
 const num = (v) => (v === null || v === undefined || v === "" ? NaN : Number(v));
 const time = (r) => new Date(r.measurementDateTime).getTime();
 export function sanitizeRecords(records) {
@@ -58,13 +58,6 @@ function filterSnowSpikes(records) {
   }
   return out;
 }
-function newSnow24h(recs, now) {
-  const depth = filterSnowSpikes(recs.filter((d) => Number.isFinite(num(d.snowHeight)))).map((d) => ({ x: time(d), y: Number(d.snowHeight) }));
-  const a = hsMedianAt(depth, now - 24 * HOUR, now), b = hsMedianAt(depth, now, now);
-  if (a === null || b === null) return null;
-  const total = Math.round((b - a) * 10) / 10;
-  return total > 50 ? null : Math.max(0, total);
-}
 function snowHeight24h(recs) {
   const depth = filterSnowSpikes(recs.filter((d) => Number.isFinite(num(d.snowHeight))));
   if (!depth.length) return null;
@@ -73,18 +66,17 @@ function snowHeight24h(recs) {
 }
 
 /* HN24, HST and HS for one station's records, ending at `now`, in whole cm.
-   HN24 and HS: as the 24 h table (HS now minus HS 24 h ago, each a 3 h median, 0 when
-   the depth fell; latest spike-filtered depth). `id` applies
-   the per-station rules in assets/snow-stations.js.
-   HST: as the 24 h table (assets/hst.js), over the same 10-day lookback, and never below HN24. */
+   HN24 and HST: as the 24 h table (assets/hst.js), the sum of the hourly HN over the last
+   24 h and over the current storm (same 10-day lookback), HST never below HN24.
+   HS: the latest spike-filtered depth. `id` applies the per-station rules in
+   assets/snow-stations.js. */
 export function snowFigures(records, now, { hn = true, id = null } = {}) {
   if (SNOW_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
   const clean = withoutFalseNewSnow(id, sanitizeRecords(records)).filter((r) => time(r) <= now);
   const last24 = clean.filter((r) => time(r) >= now - 24 * HOUR);
-  const last25 = clean.filter((r) => time(r) >= now - 25.5 * HOUR);
   let hn24 = null, hst = null;
   if (hn) {
-    hn24 = newSnow24h(last25, now);
+    hn24 = newSnow24h(clean, now);
     hst = hn24 === null ? null : stormSnow(clean, now, { hn24 })?.hst ?? null;
   }
   const hs = snowHeight24h(last24);

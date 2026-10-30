@@ -18,7 +18,7 @@ import { bandRows, bandTableMarkdown, buildSnapshot, SYSTEM_PROMPT } from "./_ai
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v7"; /* v7: AB Env gauges take HN24/HST from the precip total (1 mm = 1 cm) */
+const CACHE_STORE = "rockies-weather-ai-summary-v8"; /* v8: HN24 and HST sum the hourly HN */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";

@@ -214,7 +214,7 @@ function summarizeStation(meta, observations, lastSyncedAt) {
     temp_low_c: tempRange.min,
     temp_latest_c: latest(observations, "airTempAvg"),
     precip_24h_mm: precip24h !== null ? Math.round(precip24h * 10) / 10 : null,
-    new_snow_hn24_cm: snow.hn24_cm, /* 24 h HS change, as the 24 h table */
+    new_snow_hn24_cm: snow.hn24_cm, /* sum of the hourly HN over 24 h, as the 24 h table */
     snow_depth_hs_cm: snow.hs_cm,
     snow_depth_change_24h_cm: snowDelta !== null ? Math.round(snowDelta * 10) / 10 : null,
     wind_avg_kmh: windRange.max !== null ? Math.round((windRange.min + windRange.max) / 2 * 10) / 10 : null,

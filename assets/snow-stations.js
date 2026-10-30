@@ -1,6 +1,6 @@
 /* Per-station snow rules shared by the 24 h table's HST cells and the AI summary
    (index.html and mobile.html keep inline copies of these sets; keep them in step).
-   HN24 and HST come from HS at every station (assets/hst.js); the feeds' "new snow" fields are
+   HN24 and HST sum the hourly HN from HS at every station (assets/hst.js); the feeds' "new snow" fields are
    gauge increments, not snow. SNOW_EXCLUDED_IDS: ridge-top stations whose HS trace is not
    meaningful, so they report no HS, HN24 or HST. */
 export const SNOW_EXCLUDED_IDS = new Set(['fts-bosup', 'fts-lookout', 'fts-simpup', 'fts-vulture', 'fts-whymper']);
