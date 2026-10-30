@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stormSnow, stormPeriod, hsMedianAt} from '../assets/hst.js';
+import {stormSnow, stormPeriod, hsMedianAt, newSnow24h, hourlyHn} from '../assets/hst.js';
 import {HOUR} from '../assets/pair-comparison-data.js';
 
 const NOW = Date.UTC(2026, 0, 20, 7); // MST midnight, on an hour boundary
@@ -15,7 +15,7 @@ function station(rain, hs, hours = 240) {
   return out;
 }
 
-test('HST is the HS change since the storm began', () => {
+test('HST sums the hourly HN since the storm began', () => {
   // Precipitation 30 to 2 hours ago with a 10 h pause; HS 40 cm before, 52 cm now.
   const r = stormSnow(station({30: 2, 25: 1, 12: 3, 2: 1}, h => (h > 30 ? 40 : h > 2 ? 46 : 52)), NOW);
   assert.equal(r.hst, 12);
@@ -65,4 +65,16 @@ test('HS at a time is the median of readings within 90 min, none after now', () 
   assert.equal(hsMedianAt(hs, NOW, NOW), 5.5); // readings 0 and 1 h ago
   assert.equal(hsMedianAt(hs, NOW - 2 * HOUR, NOW), 5); // 1, 2 and 3 h ago: 2, 8, 5
   assert.equal(hsMedianAt(hs, NOW - 10 * HOUR, NOW), null);
+});
+test('HST is the hourly HN summed, so settlement during the storm does not reduce it', () => {
+  // Rain 30 to 10 h ago; HS 40 -> 50 by 20 h ago, settles to 47, then 40 -> 52 total after a 5 cm burst.
+  const hs = h => (h > 30 ? 40 : h > 20 ? 50 : h > 12 ? 47 : 52);
+  const r = stormSnow(station({30: 2, 20: 1, 12: 3}, hs), NOW);
+  assert.equal(r.hst, 15);
+});
+test('HN24 sums the hourly HN over the last 24 h and ignores the new-snow field', () => {
+  const recs = station({30: 2, 10: 2}, h => (h > 30 ? 40 : h > 10 ? 46 : 50)).map(r => ({...r, newSnow: 0.1}));
+  assert.equal(newSnow24h(recs, NOW), 4);
+  assert.equal(hourlyHn(recs, NOW - 24 * HOUR, NOW).points.length, 24);
+  assert.equal(newSnow24h([], NOW), null);
 });
