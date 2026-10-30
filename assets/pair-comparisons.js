@@ -14,15 +14,17 @@ const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days'], [336, '14 days'], [
    start (how much), with HS drawn as snow depth on its own axis.
    HN stations: new snow in cm, from a new-snow sensor where there is one, otherwise derived from HS. */
 const HN_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo']);
-/* Stations whose HS (snow depth) is drawn. Sunshine's AB Env gauge reports a usable depth but
-   its new-snow field is not usable as HN, so it gets HS depth + HW only. */
-const HS_DEPTH_IDS = new Set([...HN_IDS, 'fts-sunshine']);
+/* Gauge stations that also draw HN from their snow depth (Ben, 30 Oct 2026). Sunshine's AB Env
+   new-snow field is not usable as HN, so it is dropped and HN comes from HS, as in its HN24. */
+const HN_FROM_HS_IDS = new Set(['fts-sunshine']);
+/* Stations whose HS (snow depth) is drawn. */
+const HS_DEPTH_IDS = new Set([...HN_IDS, ...HN_FROM_HS_IDS]);
 /* Extra gauges drawn with a pair: the Bow Summit AB Env gauge's HW alongside Bow Summit's HN. */
 const EXTRA_PRECIP = {
   'fts-vulture,fts-bowsummit': [{id: 'fts-bowprecip', kind: 'hw'}]
 };
 /* Co-located HN (cm) and HW (mm) sources, used for storm density. */
-const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip']];
+const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip'], ['fts-sunshine', 'fts-sunshine']];
 /* Colour encodes the station by elevation band; line style encodes the data type.
    Alpine (>= 2200 m) blue, treeline (1800-2200 m) yellow, below treeline green — the site's own bands.
    When two stations of a pair share a band, the lower one steps down to the next colour so each
@@ -453,6 +455,7 @@ async function render(view) {
     }
     if (HN_IDS.has(id)) addPrecip(id, data, 'hn', i);
     else if (!host.noPrecipGaugeIds.has(id)) addPrecip(id, data, 'hw', i);
+    if (HN_FROM_HS_IDS.has(id)) addPrecip(id, data.map(r => ({...r, newSnow: null})), 'hn', i);
     if (HS_DEPTH_IDS.has(id)) addDepth(id, data, i);
   });
 
