@@ -51,6 +51,11 @@ function elevationColors(ids) {
 const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum']);
 const TYPE_DASH = {temp: [], wind: [7, 4], cum: [2, 3], hsdepth: [14, 4, 3, 4]};
 const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 1.8, hsdepth: 2};
+/* Y-axis colour = input type (Ben, 2026-10-31): axis line, ticks and title. Kept clear of red and the station band colours. */
+const AXIS_COLORS = {
+  light: {yWind: '#7b4fd6', yCm: '#0a8ca0', yMm: '#b0369c', yTemp: '#7a5230', yHs: '#5f6b7a'},
+  dark: {yWind: '#a88bf5', yCm: '#3cc3d6', yMm: '#e07acb', yTemp: '#b39a82', yHs: '#9aa6b5'}
+};
 /* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
 const CLEANOUT_COLOR = '#e00000';
 const cleanoutRequests = new Map();
@@ -513,8 +518,10 @@ async function render(view) {
   const grid = css.getPropertyValue('--color-divider').trim();
   const tick = {color: text, font: {size: narrow ? 9 : 11}};
   // Phone width: tick colours identify each y-axis, so titles are dropped to give the plot room.
-  const axisTick = {...tick, ...(narrow ? {maxTicksLimit: 6, padding: 1} : {})};
-  const axisName = label => ({display: true, text: label, color: text, font: {size: narrow ? 9 : 11}, padding: narrow ? 0 : 4});
+  const axisColor = AXIS_COLORS[themeKey()];
+  const axisTick = id => ({...tick, color: axisColor[id], ...(narrow ? {maxTicksLimit: 6, padding: 1} : {})});
+  const axisName = (id, label) => ({display: true, text: label, color: axisColor[id], font: {size: narrow ? 9 : 11, weight: '600'}, padding: narrow ? 0 : 4});
+  const axisBorder = id => ({display: true, color: axisColor[id], width: 2});
   const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && d.kind === 'bar').map(d => d.method))].join(' / ') + ' ' + unit;
   const hasWind = datasets.some(d => d.kind === 'wind');
   view.chart = new window.Chart(view.canvas, {
@@ -537,13 +544,13 @@ async function render(view) {
           },
           ticks: {...tick, maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
             callback: value => hours === 24 ? hourClock.format(value) : (hours === 72 ? `${dayClock.format(value)} ${hourClock.format(value)}` : dayClock.format(value))}},
-        yTemp: {display: 'auto', position: 'left', title: axisName('°C'), grid: {color: grid}, ticks: axisTick},
-        yWind: {display: hasWind ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(narrow ? 'km/h' : 'Wind km/h'), grid: {drawOnChartArea: false}, ticks: axisTick},
-        yHs: {display: hasDepth ? 'auto' : false, position: 'left', title: axisName(narrow ? 'HS' : 'HS cm'), grid: {drawOnChartArea: false}, ticks: axisTick,
+        yTemp: {display: 'auto', position: 'left', title: axisName('yTemp', '°C'), border: axisBorder('yTemp'), grid: {color: grid}, ticks: axisTick('yTemp')},
+        yWind: {display: hasWind ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName('yWind', narrow ? 'km/h' : 'Wind km/h'), border: axisBorder('yWind'), grid: {drawOnChartArea: false}, ticks: axisTick('yWind')},
+        yHs: {display: hasDepth ? 'auto' : false, position: 'left', title: axisName('yHs', narrow ? 'HS' : 'HS cm'), border: axisBorder('yHs'), grid: {drawOnChartArea: false}, ticks: axisTick('yHs'),
           grace: '10%'},
-        yCm: {display: precipUnits.has('cm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(axisTitle('cm')), grid: {drawOnChartArea: false}, ticks: axisTick,
+        yCm: {display: precipUnits.has('cm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName('yCm', axisTitle('cm')), border: axisBorder('yCm'), grid: {drawOnChartArea: false}, ticks: axisTick('yCm'),
           suggestedMax: 2},
-        yMm: {display: precipUnits.has('mm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(axisTitle('mm')), grid: {drawOnChartArea: false}, ticks: axisTick,
+        yMm: {display: precipUnits.has('mm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName('yMm', axisTitle('mm')), border: axisBorder('yMm'), grid: {drawOnChartArea: false}, ticks: axisTick('yMm'),
           suggestedMax: 2}
       }
     }
