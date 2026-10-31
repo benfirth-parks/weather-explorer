@@ -36,6 +36,7 @@
 .pair-compare-legend-group > span { display:flex; align-items:center; gap:6px; color:var(--color-text-muted); padding-left:2px; }
 .pair-compare-swatch { display:inline-block; width:22px; flex:0 0 22px; border-top:2.5px solid; }
 .pair-compare-swatch.bar { height:9px; border:0; border-radius:2px; }
+.pair-compare-swatch.cum { border-top-width:4px; }
 .pair-compare-status { color:var(--color-text); line-height:1.6; margin:10px 0 0; font-size:12px; }
 .pair-compare-status strong { font-weight:700; }
 .pair-compare-note { color:var(--color-text-muted); line-height:1.6; margin:6px 0 0; font-size:12px; }
