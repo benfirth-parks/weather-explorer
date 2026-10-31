@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<script>
+  /* Apply the saved light/dark choice before first paint; with no saved choice the system setting applies. */
+  try { const t = localStorage.getItem('wx-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
   <script>
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
     if (isMobile && location.pathname === "/") {
@@ -56,6 +60,8 @@ button,input,select{font:inherit;color:inherit} button{cursor:pointer;background
 .topbar-actions{display:flex;align-items:center;gap:var(--space-2);}
 .icon-btn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-md);color:var(--color-text-muted);transition:background var(--transition-interactive);}
 .icon-btn:hover{background:var(--color-surface-offset);}
+#themeToggle .theme-icon-sun{display:none;}
+[data-theme="dark"] #themeToggle .theme-icon-sun{display:block;} [data-theme="dark"] #themeToggle .theme-icon-moon{display:none;}
 .icon-btn svg{width:18px;height:18px;}
 .external-link-btn{display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);font-weight:500;padding:var(--space-2) var(--space-4);border-radius:var(--radius-md);background:var(--color-primary-highlight);color:var(--color-primary-hover);transition:all var(--transition-interactive);}
 .external-link-btn:hover{background:var(--color-primary);color:var(--color-text-inverse);}
@@ -573,7 +579,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
   </div>
 </div>
 <button class="icon-btn" id="refreshBtn" aria-label="Refresh data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button>
-<button class="icon-btn" id="themeToggle" aria-label="Switch theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></button>
+<button class="icon-btn" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode"><svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></button>
 </div>
 </header>
 <aside class="sidebar">
@@ -1907,16 +1913,26 @@ setMobileView('data');
 updateMobileBadge();
 
 /* ---- Theme toggle ---- */
+/* Follows the system setting until the button is used; the choice is then remembered on this device. */
 (function(){
-  const root=document.documentElement;
-  let mode=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
-  root.setAttribute('data-theme',mode);
+  const root=document.documentElement, KEY='wx-theme', sys=matchMedia('(prefers-color-scheme: dark)');
+  let saved=null; try{ saved=localStorage.getItem(KEY); }catch(e){}
+  let mode=saved==='dark'||saved==='light'?saved:(sys.matches?'dark':'light');
   const btn=document.getElementById('themeToggle');
+  function apply(next){
+    const changed=next!==root.getAttribute('data-theme');
+    mode=next; root.setAttribute('data-theme',mode);
+    const label=mode==='dark'?'Switch to light mode':'Switch to dark mode';
+    if(btn){ btn.setAttribute('aria-label',label); btn.title=label; }
+    if(changed && selected.size) renderAll();
+  }
+  apply(mode);
   if(btn) btn.addEventListener('click',()=>{
-    mode = mode==='dark'?'light':'dark';
-    root.setAttribute('data-theme',mode);
-    if(selected.size) renderAll();
+    const next=mode==='dark'?'light':'dark';
+    try{ localStorage.setItem(KEY,next); }catch(e){}
+    saved=next; apply(next);
   });
+  sys.addEventListener('change',e=>{ if(saved!=='dark'&&saved!=='light') apply(e.matches?'dark':'light'); });
 })();
 
 /* ---- Click-to-enlarge modal for per-station snow / precip cards ------------
