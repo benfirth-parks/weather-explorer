@@ -418,7 +418,7 @@ let lassoActive = false;
 let cache = {};
 let trendChart, windRoseChart, gustChart;
 const snowState = {};
-const SNOW_CARD_RANGES = [[24,'Last 24 hours'],[72,'Last 72 hours'],[168,'Last 7 days']];
+const SNOW_CARD_RANGES = [[24,'Last 24 hours'],[72,'Last 72 hours'],[168,'Last 7 days'],[336,'Last 14 days'],[720,'Last 30 days']];
 const SNOW_GRAPH_EXCLUDED_IDS = new Set(['fts-bosup','fts-lookout','fts-simpup','fts-vulture','fts-whymper']);
 const WIND_DEFAULT_IDS = new Set(STATIONS.filter(s=>s.elevation>=2200).map(s=>s.stationId));
 
