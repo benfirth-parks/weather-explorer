@@ -29,7 +29,7 @@ const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip'], ['fts-sunshine', 'fts
    Alpine (>= 2200 m) blue, treeline (1800-2200 m) yellow, below treeline green — the site's own bands.
    When two stations of a pair share a band, the lower one steps down to the next colour so each
    station keeps its own colour. No red: that is reserved for the Avy Control lines. */
-const BAND_COLORS = {light: ['#2a78d6', '#d39000', '#008300'], dark: ['#3987e5', '#c98500', '#008300']};
+const BAND_COLORS = {light: ['#2a78d6', '#d39000', '#008300'], dark: ['#3987e5', '#c98500', '#2fa84f']};
 const bandOf = elevation => elevation >= 2200 ? 0 : elevation >= 1800 ? 1 : 2;
 function themeKey() {
   const t = document.documentElement.dataset.theme;
