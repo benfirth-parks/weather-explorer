@@ -33,8 +33,9 @@ function themeKey() {
   return t === 'light' ? 'light' : t === 'dark' || matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum']);
-const TYPE_DASH = {temp: [], wind: [7, 4], cum: [2, 3], hsdepth: [14, 4, 3, 4]};
-const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 1.8, hsdepth: 2};
+const TYPE_DASH = {temp: [], wind: [7, 4], cum: [1, 5], hsdepth: [14, 4, 3, 4]};
+// HN/HW running totals are the boldest series so they stand out (Ben, 2026-10-31): thick round dots.
+const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 3.6, hsdepth: 2};
 /* Y-axis colour = input type (Ben, 2026-10-31): axis line, ticks and title. Kept clear of red. */
 const AXIS_COLORS = {
   light: {yWind: '#7b4fd6', yCm: '#0a8ca0', yMm: '#b0369c', yTemp: '#7a5230', yHs: '#5f6b7a'},
@@ -43,6 +44,9 @@ const AXIS_COLORS = {
 /* Lines take their axis colour (Ben, 2026-10-31); the station shows as a shade of it,
    highest station deepest, lower stations paler. */
 const SHADE_MIX = {light: [['#000000', 0.25], ['#ffffff', 0.4], ['#ffffff', 0.65]], dark: [['#000000', 0.15], ['#ffffff', 0.45], ['#ffffff', 0.7]]};
+// HN/HW keep more colour on the lower station so both precip series stay strong.
+const PRECIP_SHADE_MIX = {light: [['#000000', 0.2], ['#ffffff', 0.2], ['#ffffff', 0.4]], dark: [['#ffffff', 0], ['#ffffff', 0.35], ['#ffffff', 0.55]]};
+const PRECIP_AXES = new Set(['yCm', 'yMm']);
 function mixHex(a, b, t) {
   const n = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
   const [x, y] = [n(a), n(b)];
@@ -54,7 +58,7 @@ function elevationRanks(ids) {
   return Object.fromEntries(sorted.map((id, i) => [id, Math.min(i, 2)]));
 }
 function axisShade(axis, rank) {
-  const theme = themeKey(), [to, t] = SHADE_MIX[theme][rank];
+  const theme = themeKey(), [to, t] = (PRECIP_AXES.has(axis) ? PRECIP_SHADE_MIX : SHADE_MIX)[theme][rank];
   return mixHex(AXIS_COLORS[theme][axis], to, t);
 }
 /* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
@@ -417,9 +421,9 @@ async function render(view) {
     precipUnits.add(unit);
     totals[id] = {...(totals[id] || {}), [kind]: result.total};
     datasets.push({type: 'bar', station: id, label: `${name} ${label} per ${step} h`, short: `${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
-      borderColor: color, backgroundColor: color + 'b3', borderWidth: 0,
+      borderColor: color, backgroundColor: color, borderWidth: 0,
       barPercentage: 0.9, categoryPercentage: 1, grouped: true});
-    datasets.push({station: id, label: `${name} ${label} total`, short: `${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
+    datasets.push({station: id, label: `${name} ${label} total`, short: `${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 0, borderCapStyle: 'round',
       ...line('cum', id, axis), tension: 0});
     let fact = `${name} ${label} **${result.total.toFixed(1)} ${unit}**`;
     if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
@@ -500,7 +504,7 @@ async function render(view) {
       const swatch = element('i', `pair-compare-swatch ${d.kind}`);
       swatch.style.borderColor = d.borderColor;
       if (d.kind === 'bar') swatch.style.background = d.backgroundColor;
-      else swatch.style.borderImage = d.borderDash.length ? `repeating-linear-gradient(90deg, ${d.borderColor} 0 ${d.borderDash[0]}px, transparent ${d.borderDash[0]}px ${d.borderDash[0] + d.borderDash[1]}px) 1` : '';
+      else { const [on, off] = d.kind === 'cum' ? [4, 3] : d.borderDash; swatch.style.borderImage = d.borderDash.length ? `repeating-linear-gradient(90deg, ${d.borderColor} 0 ${on}px, transparent ${on}px ${on + off}px) 1` : ''; }
       swatch.setAttribute('aria-hidden', 'true');
       item.append(swatch, document.createTextNode(`${d.short} (${d.unit})`));
       group.append(item);
