@@ -206,6 +206,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
 .snow-modal-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--color-divider);}
 .snow-modal-title{font-weight:600;font-size:var(--text-md);}
 .snow-modal-sub{font-size:var(--text-xs);color:var(--color-text-faint);margin-top:2px;}
+.snow-modal-controls{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;justify-content:flex-end;}
 .snow-modal-close{background:transparent;border:1px solid var(--color-divider);color:var(--color-text);border-radius:var(--radius-sm);padding:6px 10px;cursor:pointer;font:inherit;}
 .snow-modal-close:hover{border-color:var(--color-primary);color:var(--color-primary);}
 .snow-modal-body{flex:1;position:relative;padding:var(--space-4);min-height:0;}
@@ -341,7 +342,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
         <div class="panel" id="gustPanel"><div class="panel-header"><div><div class="panel-title">Average wind speed</div><div class="panel-title-sub">Average wind speeds across selected stations; higher stations are emphasized. Arrows every 4 h show the direction the wind is blowing toward</div></div></div><div class="chart-box"><canvas id="gustChart"></canvas></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
       </div>
       <div class="panel" id="gustPeakPanel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Wind gusts</div><div class="panel-title-sub">Peak recorded gust per observation across selected stations; higher stations are emphasized</div></div></div><div class="chart-box"><canvas id="gustPeakChart"></canvas></div><div class="legend-row" id="gustPeakNote" style="color:var(--color-text-faint);font-size:var(--text-xs);"></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
-      <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Snow depth &amp; precipitation by station</div><div class="panel-title-sub">Each station has its own metric selector and time slider, default 24h. Precipitation-gauge stations show HW, the accumulated water equivalent in mm; snow stations show depth, floored at 0. AB Env gauges offer both and open on HW. Each selector also offers HN and HW per hour as bars, where the station measures them.</div></div></div><div class="per-station-grid" id="snowCards"></div></div>
+      <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Snow depth &amp; precipitation by station</div><div class="panel-title-sub">Each station has its own metric selector and time slider, default 24h. Snow stations open on snow depth (HS), floored at 0; precipitation-gauge stations open on HW. AB Env gauges offer both. New snow (HN) and HW show hourly bars with a dotted running total for the selected range, using the same rules as the 24h summary. Enlarge a graph to switch the view and range there too.</div></div></div><div class="per-station-grid" id="snowCards"></div></div>
     </div>
   </div>
 </main>
@@ -1313,11 +1314,16 @@ function renderGustPeak(ids){
   });
 }
 function snowLabel(h){if(h<24)return `Last ${h} hours`; if(h===24)return 'Last 24 hours'; if(h<24*31)return `Last ${Math.round(h/24)} days`; const months=(h/24/30).toFixed(1).replace('.0',''); return `Last ${months} months`;}
-/* Hourly HN and HW bars for the station cards (Ben, 31 Oct 2026), drawn with the paired panes' rules:
+/* New snow (HN) and HW views for the station cards (Ben, 31 Oct 2026): hourly bars plus a dotted
+   cumulative line (running sum of the hourly values over the selected range), drawn with the paired panes' rules:
    hourly HN from HS (3 h running median, each rise of 2 cm or more; the feeds' "new snow" fields are ignored)
    and hourly HW from the gauge, via hnIntervals / hwIntervals in assets/pair-comparison-data.js.
-   Bars take the station's elevation-band colour: Alpine blue, Treeline yellow, Below treeline green. */
-const HOURLY_METRICS = new Map([['hnHourly','HN per hour (cm)'],['hwHourly','HW per hour (mm)']]);
+   These replace the old "New snow (24h depth change)" line, the old HW accumulation line and the separate
+   "per hour" options. Bars and line take the station's elevation-band colour: Alpine blue, Treeline yellow,
+   Below treeline green. */
+const HOURLY_METRICS = new Map([['hnHourly','New snow HN (cm)'],['hwHourly','HW (mm)']]);
+/* Earlier menu values map onto the combined views. */
+const LEGACY_SNOW_METRICS = {newSnow:'hnHourly',precipTotal:'hwHourly'};
 let pairData=null;
 const pairDataReady=import('/assets/pair-comparison-data.js').then(m=>(pairData=m));
 const HOURLY_BAND_COLORS={light:['#2a78d6','#d39000','#008300'],dark:['#3987e5','#c98500','#008300']};
@@ -1331,11 +1337,31 @@ function hourlyAvailable(id,metric,records){
   if(metric==='hwHourly') return !NO_PRECIP_GAUGE_IDS.has(id)&&records.some(d=>Number.isFinite(numOf(d.precipTotal))||Number.isFinite(numOf(d.precipIncr)));
   return false;
 }
-function hourlyOptionsHtml(id,metric,records){
-  return [...HOURLY_METRICS].filter(([k])=>hourlyAvailable(id,k,records)).map(([k,l])=>`<option value="${k}" ${metric===k?'selected':''}>${l}</option>`).join('');
+/* The views a station's menu offers, in menu order. Shared by the card and its enlarged view. */
+function snowMetricOptions(id,records){
+  const isHW=usesHW24(id), dual=DUAL_METRIC_IDS.has(id);
+  const hasSnowHeight=(!isHW||dual)&&records.some(d=>d.snowHeight!=null);
+  const hasPrecip=records.some(d=>Number.isFinite(numOf(d.precipTotal))||Number.isFinite(numOf(d.precipIncr)));
+  const hn=hourlyAvailable(id,'hnHourly',records), hw=hourlyAvailable(id,'hwHourly',records);
+  const opts=[];
+  const push=k=>opts.push([k,k==='snowHeight'?'Snow height (cm)':HOURLY_METRICS.get(k)]);
+  if(isHW){
+    if(hw) push('hwHourly'); else if(hasPrecip) opts.push(['precipTotal','HW (mm)']);
+    if(hasSnowHeight) push('snowHeight');
+    if(hn) push('hnHourly');
+  } else {
+    if(hasSnowHeight) push('snowHeight');
+    if(hn) push('hnHourly');
+    if(hw) push('hwHourly');
+  }
+  return opts;
 }
-/* Chart config for a card or its enlarged view; null until the shared module has loaded. */
-function hourlyBarConfig(id,hours,fontSize){
+function snowMetricOptionsHtml(opts,metric){
+  return opts.map(([k,l])=>`<option value="${k}" ${metric===k?'selected':''}>${l}</option>`).join('');
+}
+/* Chart config for a card or its enlarged view; null until the shared module has loaded.
+   The enlarged view has no hover box and no hover dots, like the expanded pair graphs. */
+function hourlyBarConfig(id,hours,fontSize,enlarged){
   if(!pairData) return null;
   const metric=snowState[id].metric, isHN=metric==='hnHourly', unit=isHN?'cm':'mm';
   const s=STATIONS.find(x=>x.stationId===id);
@@ -1345,20 +1371,27 @@ function hourlyBarConfig(id,hours,fontSize){
   const tick={color:c.text,font:{family:"'Courier Prime', monospace",size:fontSize}};
   const label=isHN?'HN':'HW';
   const note=result.total===null?`No valid ${label} in this period`:`${label} ${result.total.toFixed(1)} ${unit} over the period`;
-  return {type:'bar',data:{datasets:[{label:`${s.name} ${label} per hour`,data:result.points,backgroundColor:color+'b3',borderColor:color,borderWidth:0,barPercentage:0.9,categoryPercentage:1}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},title:{display:true,text:note,color:c.text,font:{size:fontSize}},
-      tooltip:{callbacks:{title:items=>{const p=items[0].raw; return new Date(p.start).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+' to '+new Date(p.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});},label:item=>`${label} ${item.raw.y.toFixed(1)} ${unit}`}}},
-      scales:{x:{type:'time',min:from,max:to,time:{unit:hours<=48?'hour':'day'},ticks:tick,grid:{color:c.grid}},y:{beginAtZero:true,min:0,ticks:tick,grid:{color:c.grid},title:{display:true,text:unit+' per hour',color:c.text}}}}};
+  const tooltip=enlarged?{enabled:false}:{callbacks:{title:items=>{const p=items[0].raw; if(p.start==null) return new Date(p.x).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); return new Date(p.start).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+' to '+new Date(p.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});},label:item=>item.datasetIndex===0?`${label} ${item.raw.y.toFixed(1)} ${unit} this hour`:`${label} ${item.raw.y.toFixed(1)} ${unit} total`}};
+  return {type:'bar',data:{datasets:[
+      {type:'bar',label:`${label} per hour`,data:result.points,yAxisID:'y',backgroundColor:color+'b3',hoverBackgroundColor:color+'b3',borderColor:color,borderWidth:0,barPercentage:0.9,categoryPercentage:1,order:2},
+      {type:'line',label:`${label} total`,data:result.cumulative,yAxisID:'y1',borderColor:color,backgroundColor:color,borderWidth:1.8,borderDash:[2,3],pointRadius:0,pointHoverRadius:enlarged?0:3,tension:0,spanGaps:false,order:1}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},
+      plugins:{legend:{display:true,position:'bottom',labels:{color:c.text,font:{size:fontSize-1},boxWidth:14,boxHeight:2}},title:{display:true,text:note,color:c.text,font:{size:fontSize}},tooltip},
+      scales:{x:{type:'time',min:from,max:to,time:{unit:hours<=48?'hour':'day'},ticks:tick,grid:{color:c.grid}},
+        y:{beginAtZero:true,min:0,ticks:tick,grid:{color:c.grid},title:{display:true,text:unit+' per hour',color:c.text}},
+        y1:{position:'right',beginAtZero:true,min:0,ticks:tick,grid:{drawOnChartArea:false},title:{display:true,text:unit+' total',color:c.text}}}}};
 }
 function drawHourlyCardChart(id){
   const ctx=document.getElementById('snowChart-'+id);
   if(!ctx) return;
-  const cfg=hourlyBarConfig(id,snowState[id].hours,11);
+  const cfg=hourlyBarConfig(id,snowState[id].hours,11,false);
   if(!cfg){ pairDataReady.then(()=>drawSnowChart(id)); return; }
   if(snowCharts[id]) snowCharts[id].destroy();
   snowCharts[id]=new Chart(ctx,cfg);
 }
+let lastSnowCardIds=[];
 function renderSnowCards(ids){
+  lastSnowCardIds=ids;
   const wrap=document.getElementById('snowCards');
   wrap.innerHTML='';
   ids.filter(id=>!SNOW_GRAPH_EXCLUDED_IDS.has(id)).forEach(id=>{
@@ -1382,7 +1415,7 @@ function renderSnowCards(ids){
       wrap.appendChild(card);
       return;
     }
-    if(!isHW&&!hasSnowHeight&&!hasNewSnow){
+    if(!isHW&&!hasSnowHeight&&!hourlyAvailable(id,'hnHourly',records)&&!hourlyAvailable(id,'hwHourly',records)){
       card.innerHTML=`<div class="station-card-head"><div><div class="station-card-title">${s.name}</div><div class="station-card-meta">${s.park} · ${s.elevation} m</div></div></div><div class="station-meta">No snow metrics currently available in the loaded archive.</div>`;
       wrap.appendChild(card);
       return;
@@ -1391,15 +1424,13 @@ function renderSnowCards(ids){
        range menu also offers 72 h and 7 days. */
     const state=snowState[id]||{metric:isHW?'precipTotal':(hasSnowHeight?'snowHeight':'newSnow'),hours:24};
     if(!SNOW_CARD_RANGES.some(([h])=>h===state.hours)) state.hours=24;
-    if(HOURLY_METRICS.has(state.metric)&&hourlyAvailable(id,state.metric,records)){ /* keep the hourly view */ }
-    else if(isHW){ if(!(dual&&state.touched&&state.metric==='snowHeight'&&hasSnowHeight)) state.metric='precipTotal'; }
-    else {
-      if(state.metric==='precipTotal') state.metric=hasSnowHeight?'snowHeight':'newSnow';
-      if(state.metric==='snowHeight'&&!hasSnowHeight) state.metric='newSnow';
-      if(state.metric==='newSnow'&&!hasNewSnow) state.metric='snowHeight';
-    }
+    const opts=snowMetricOptions(id,records);
+    if(LEGACY_SNOW_METRICS[state.metric]) state.metric=LEGACY_SNOW_METRICS[state.metric];
+    /* Gauge stations open on HW until the menu is used; any view the station can't show falls back to the first in the menu. */
+    if(isHW&&!state.touched&&opts.length) state.metric=opts[0][0];
+    if(opts.length&&!opts.some(([k])=>k===state.metric)) state.metric=opts[0][0];
     snowState[id]=state;
-    card.innerHTML=`<div class="station-card-head"><div><div class="station-card-title">${s.name}</div><div class="station-card-meta">${s.park} · ${s.elevation} m</div></div><select class="small-select" data-role="snow-metric" aria-label="Accumulation metric for ${s.name}">${isHW?`<option value="precipTotal" ${state.metric==='precipTotal'?'selected':''}>HW (mm)</option>`+(dual&&hasSnowHeight?`<option value="snowHeight" ${state.metric==='snowHeight'?'selected':''}>Snow height</option>`:``):`<option value="snowHeight" ${state.metric==='snowHeight'?'selected':''} ${hasSnowHeight?'':'disabled'}>Snow height</option><option value="newSnow" ${state.metric==='newSnow'?'selected':''} ${hasNewSnow?'':'disabled'}>${hasDirectNewSnow?'New snow':'New snow (24h depth change)'}</option>`}${hourlyOptionsHtml(id,state.metric,records)}</select></div><div class="range-label"><select class="small-select" data-role="snow-hours" aria-label="Time range for ${s.name}">${SNOW_CARD_RANGES.map(([h,l])=>`<option value="${h}" ${state.hours===h?'selected':''}>${l}</option>`).join('')}</select></div><div class="chart-box" data-role="snow-chartbox" title="Tap to enlarge" style="height:220px;margin-top:var(--space-3);"><canvas id="snowChart-${id}"></canvas><button type="button" class="enlarge-chip" data-role="snow-enlarge" aria-label="Enlarge chart">Enlarge</button></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>`;
+    card.innerHTML=`<div class="station-card-head"><div><div class="station-card-title">${s.name}</div><div class="station-card-meta">${s.park} · ${s.elevation} m</div></div><select class="small-select" data-role="snow-metric" aria-label="Accumulation metric for ${s.name}">${snowMetricOptionsHtml(opts,state.metric)}</select></div><div class="range-label"><select class="small-select" data-role="snow-hours" aria-label="Time range for ${s.name}">${SNOW_CARD_RANGES.map(([h,l])=>`<option value="${h}" ${state.hours===h?'selected':''}>${l}</option>`).join('')}</select></div><div class="chart-box" data-role="snow-chartbox" title="Tap to enlarge" style="height:220px;margin-top:var(--space-3);"><canvas id="snowChart-${id}"></canvas><button type="button" class="enlarge-chip" data-role="snow-enlarge" aria-label="Enlarge chart">Enlarge</button></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>`;
     wrap.appendChild(card);
     const sel=card.querySelector('[data-role="snow-metric"]');
     sel.addEventListener('change',e=>{snowState[id].metric=e.target.value; snowState[id].touched=true; renderSnowCards(ids);});
@@ -1520,9 +1551,13 @@ function openSnowChartModal(id){
   const s=STATIONS.find(x=>x.stationId===id); if(!s) return;
   const metricKey=state.metric;
   const metricLabel = HOURLY_METRICS.has(metricKey) ? HOURLY_METRICS.get(metricKey)
-                    : metricKey==='precipTotal' ? 'HW accumulation (mm)'
-                    : metricKey==='snowHeight'  ? 'Snow depth (cm)'
-                    : 'New snow (cm)';
+                    : metricKey==='precipTotal' ? 'HW (mm)'
+                    : 'Snow height (cm)';
+  /* The enlarged view carries the card's menus so the view and range can be switched there. */
+  const msel=modal.querySelector('[data-role="modal-metric"]'), hsel=modal.querySelector('[data-role="modal-hours"]');
+  msel.innerHTML=snowMetricOptionsHtml(snowMetricOptions(id,cache[id]||[]),metricKey);
+  hsel.innerHTML=SNOW_CARD_RANGES.map(([h,l])=>`<option value="${h}" ${state.hours===h?'selected':''}>${l}</option>`).join('');
+  modal.dataset.station=id;
   modal.querySelector('.snow-modal-title').textContent=`${s.name} \u2014 ${metricLabel}`;
   modal.querySelector('.snow-modal-sub').textContent=`${s.park} \u00b7 ${s.elevation} m \u00b7 ${(SNOW_CARD_RANGES.find(([h])=>h===state.hours)||SNOW_CARD_RANGES[0])[1]}`;
   const canvas=modal.querySelector('canvas');
@@ -1530,7 +1565,7 @@ function openSnowChartModal(id){
   if(snowModalChart){ try{ snowModalChart.destroy(); }catch(e){} snowModalChart=null; }
   let cfg;
   if(HOURLY_METRICS.has(metricKey)){
-    cfg=hourlyBarConfig(id,state.hours,12);
+    cfg=hourlyBarConfig(id,state.hours,12,true);
     if(!cfg){ pairDataReady.then(()=>openSnowChartModal(id)); return; }
   } else if(metricKey==='precipTotal'){
     const series=precipAccumSeries(windowedData(id,state.hours));
@@ -1556,10 +1591,21 @@ function openSnowChartModal(id){
   el.className='snow-modal';
   el.setAttribute('role','dialog');
   el.setAttribute('aria-modal','true');
-  el.innerHTML=`<div class="snow-modal-panel" role="document"><div class="snow-modal-head"><div><div class="snow-modal-title"></div><div class="snow-modal-sub"></div></div><button type="button" class="snow-modal-close" aria-label="Close">Close</button></div><div class="snow-modal-body"><canvas></canvas></div></div>`;
+  el.innerHTML=`<div class="snow-modal-panel" role="document"><div class="snow-modal-head"><div><div class="snow-modal-title"></div><div class="snow-modal-sub"></div></div><div class="snow-modal-controls"><select class="small-select" data-role="modal-metric" aria-label="Graph view"></select><select class="small-select" data-role="modal-hours" aria-label="Time range"></select><button type="button" class="snow-modal-close" aria-label="Close">Close</button></div></div><div class="snow-modal-body"><canvas></canvas></div></div>`;
   document.body.appendChild(el);
   el.addEventListener('click',e=>{ if(e.target===el) closeSnowChartModal(); });
   el.querySelector('.snow-modal-close').addEventListener('click',closeSnowChartModal);
+  el.querySelector('[data-role="modal-metric"]').addEventListener('change',e=>{
+    const id=el.dataset.station; if(!id||!snowState[id]) return;
+    snowState[id].metric=e.target.value; snowState[id].touched=true;
+    renderSnowCards(lastSnowCardIds); openSnowChartModal(id);
+  });
+  el.querySelector('[data-role="modal-hours"]').addEventListener('change',async e=>{
+    const id=el.dataset.station; if(!id||!snowState[id]) return;
+    const h=Number(e.target.value); snowState[id].hours=h;
+    if((cacheHours[id]||0)<h){ cache[id]=await fetchStation(id,h); cacheHours[id]=h; }
+    renderSnowCards(lastSnowCardIds); openSnowChartModal(id);
+  });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape' && el.classList.contains('open')) closeSnowChartModal(); });
 })();
 initElevControls(); renderStationList(); refreshMarkers(); updateHoursLabel(); loadAndRender();
