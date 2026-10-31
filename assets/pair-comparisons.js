@@ -25,32 +25,38 @@ const EXTRA_PRECIP = {
 };
 /* Co-located HN (cm) and HW (mm) sources, used for storm density. */
 const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip'], ['fts-sunshine', 'fts-sunshine']];
-/* Colour encodes the station by elevation band; line style encodes the data type.
-   Alpine (>= 2200 m) blue, treeline (1800-2200 m) yellow, below treeline green — the site's own bands.
-   When two stations of a pair share a band, the lower one steps down to the next colour so each
-   station keeps its own colour. No red: that is reserved for the Avy Control lines. */
-const BAND_COLORS = {light: ['#2a78d6', '#d39000', '#008300'], dark: ['#3987e5', '#c98500', '#2fa84f']};
-const bandOf = elevation => elevation >= 2200 ? 0 : elevation >= 1800 ? 1 : 2;
+/* Colour encodes the input type and matches its Y axis (Ben, 2026-10-31); the station shows as a
+   shade of that colour (highest deepest). Line style also encodes the type. No red: that is
+   reserved for the Avy Control lines. */
 function themeKey() {
   const t = document.documentElement.dataset.theme;
   return t === 'light' ? 'light' : t === 'dark' || matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
-/* Station id -> colour for the stations drawn together, highest first. */
-function elevationColors(ids) {
-  const palette = BAND_COLORS[themeKey()], out = {}, taken = new Set();
-  const sorted = [...ids].sort((a, b) => (host.stations[b].elevation ?? 0) - (host.stations[a].elevation ?? 0));
-  for (const id of sorted) {
-    let slot = bandOf(host.stations[id].elevation ?? 0);
-    while (taken.has(slot) && slot < 2) slot++;
-    if (taken.has(slot)) slot = [0, 1, 2].find(n => !taken.has(n)) ?? slot;
-    taken.add(slot);
-    out[id] = palette[slot];
-  }
-  return out;
-}
 const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum']);
 const TYPE_DASH = {temp: [], wind: [7, 4], cum: [2, 3], hsdepth: [14, 4, 3, 4]};
 const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 1.8, hsdepth: 2};
+/* Y-axis colour = input type (Ben, 2026-10-31): axis line, ticks and title. Kept clear of red. */
+const AXIS_COLORS = {
+  light: {yWind: '#7b4fd6', yCm: '#0a8ca0', yMm: '#b0369c', yTemp: '#7a5230', yHs: '#5f6b7a'},
+  dark: {yWind: '#a88bf5', yCm: '#3cc3d6', yMm: '#e07acb', yTemp: '#b39a82', yHs: '#9aa6b5'}
+};
+/* Lines take their axis colour (Ben, 2026-10-31); the station shows as a shade of it,
+   highest station deepest, lower stations paler. */
+const SHADE_MIX = {light: [['#000000', 0.25], ['#ffffff', 0.4], ['#ffffff', 0.65]], dark: [['#000000', 0.15], ['#ffffff', 0.45], ['#ffffff', 0.7]]};
+function mixHex(a, b, t) {
+  const n = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [n(a), n(b)];
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+/* Station id -> rank in the pair, highest first. */
+function elevationRanks(ids) {
+  const sorted = [...new Set(ids)].sort((a, b) => (host.stations[b].elevation ?? 0) - (host.stations[a].elevation ?? 0));
+  return Object.fromEntries(sorted.map((id, i) => [id, Math.min(i, 2)]));
+}
+function axisShade(axis, rank) {
+  const theme = themeKey(), [to, t] = SHADE_MIX[theme][rank];
+  return mixHex(AXIS_COLORS[theme][axis], to, t);
+}
 /* Avy Control days (A/C ticked) on the pair's tab of the field sheet: red line + "Avy Control" and that day's cleanout. */
 const CLEANOUT_COLOR = '#e00000';
 const cleanoutRequests = new Map();
@@ -398,23 +404,23 @@ async function render(view) {
   const step = binStepHours(hours);
   const narrow = view.body.clientWidth < 560;
   const totals = {};
-  // Each series takes its station's colour; the type sets the line style.
-  const colorOf = elevationColors([...ids, ...extras.map(e => e.id)]);
-  const line = (kind, id) => ({borderColor: colorOf[id], backgroundColor: colorOf[id], borderWidth: TYPE_WIDTH[kind], borderDash: TYPE_DASH[kind]});
+  // Each series takes its axis (input type) colour, shaded by station elevation; the type also sets the line style.
+  const rankOf = elevationRanks([...ids, ...extras.map(e => e.id)]);
+  const line = (kind, id, axis) => { const c = axisShade(axis, rankOf[id]); return {borderColor: c, backgroundColor: c, borderWidth: TYPE_WIDTH[kind], borderDash: TYPE_DASH[kind]}; };
   // HN (cm) or HW (mm): interval bars + running-total line on the same axis.
   function addPrecip(id, data, kind, preferredSlot) {
     const name = host.stations[id].name;
     const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step);
     const label = result.method, unit = kind === 'hw' ? 'mm' : 'cm', axis = unit === 'mm' ? 'yMm' : 'yCm';
     if (result.total === null) { notes.push(`${name}: no valid ${label} in this period.`); return; }
-    const slot = preferredSlot, color = colorOf[id];
+    const slot = preferredSlot, color = axisShade(axis, rankOf[id]);
     precipUnits.add(unit);
     totals[id] = {...(totals[id] || {}), [kind]: result.total};
     datasets.push({type: 'bar', station: id, label: `${name} ${label} per ${step} h`, short: `${label} per ${step} h`, unit, kind: 'bar', method: label, slot, step, data: result.points, yAxisID: axis, order: 10,
       borderColor: color, backgroundColor: color + 'b3', borderWidth: 0,
       barPercentage: 0.9, categoryPercentage: 1, grouped: true});
     datasets.push({station: id, label: `${name} ${label} total`, short: `${label} total`, unit, kind: 'cum', slot, data: result.cumulative, yAxisID: axis, order: 4,
-      ...line('cum', id), tension: 0});
+      ...line('cum', id, axis), tension: 0});
     let fact = `${name} ${label} **${result.total.toFixed(1)} ${unit}**`;
     if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
     facts.push(fact);
@@ -425,7 +431,7 @@ async function render(view) {
     if (!hs.latest) { notes.push(`${name}: no valid HS in this period.`); return; }
     const slot = preferredSlot;
     datasets.push({station: id, label: `${name} HS depth`, short: 'HS depth', unit: 'cm', kind: 'hsdepth', slot, data: hs.points, yAxisID: 'yHs', order: 3,
-      ...line('hsdepth', id), tension: 0.2});
+      ...line('hsdepth', id, 'yHs'), tension: 0.2});
     const sign = hs.change > 0 ? '+' : '';
     facts.push(`${name} HS **${hs.latest.y.toFixed(0)} cm**${hs.change !== null ? ` (${sign}${hs.change.toFixed(1)} cm over the period)` : ''}`);
   }
@@ -441,13 +447,13 @@ async function render(view) {
     const temp = metricSeries(data, 'temperature', from, to);
     if (temp.points.some(p => p.y !== null)) {
       datasets.push({station: id, label: `${name} temp`, short: 'Temperature', unit: '°C', kind: 'temp', slot: i, data: temp.points, yAxisID: 'yTemp', order: 1,
-        ...line('temp', id), tension: 0.2});
+        ...line('temp', id, 'yTemp'), tension: 0.2});
     } else notes.push(`${name}: no valid temperature.`);
     if (!host.hiddenWindIds.has(id)) {
       const wind = metricSeries(data, 'wind', from, to);
       if (wind.points.some(p => p.y !== null)) {
         datasets.push({station: id, label: `${name} wind`, short: 'Wind', unit: 'km/h', kind: 'wind', slot: i, data: markArrows(wind.points, hours, narrow), yAxisID: 'yWind', order: 2,
-          ...line('wind', id), tension: 0.2});
+          ...line('wind', id, 'yWind'), tension: 0.2});
         const pk = peak(wind.points);
         if (pk) facts.push(`${name} peak wind **${pk.y.toFixed(0)} km/h** at ${when(pk.x, hours)}`);
         winds.push({name, points: wind.points});
@@ -478,15 +484,14 @@ async function render(view) {
     view.status.textContent = 'Chart library unavailable. Reload the page to try again.';
     return;
   }
-  // Legend beside the chart: grouped by station (its colour), one entry per series drawn in the
+  // Legend beside the chart: grouped by station (dot shade: higher station darker), one entry per series drawn in the
   // chart's line style. Clicking an entry shows or hides that series (assets/legend-toggle.js).
   const entries = [];
   for (const station of [...new Set(datasets.map(d => d.station))]) {
     const group = element('div', 'pair-compare-legend-group');
-    const first = datasets.find(d => d.station === station);
     const head = element('div', 'pair-compare-legend-head');
     const dot = element('i');
-    dot.style.background = first.borderColor;
+    dot.style.background = axisShade('yHs', rankOf[station]); // neutral shade: higher station darker
     dot.setAttribute('aria-hidden', 'true');
     head.append(dot, document.createTextNode(host.stations[station].name));
     group.append(head);
@@ -513,8 +518,10 @@ async function render(view) {
   const grid = css.getPropertyValue('--color-divider').trim();
   const tick = {color: text, font: {size: narrow ? 9 : 11}};
   // Phone width: tick colours identify each y-axis, so titles are dropped to give the plot room.
-  const axisTick = {...tick, ...(narrow ? {maxTicksLimit: 6, padding: 1} : {})};
-  const axisName = label => ({display: true, text: label, color: text, font: {size: narrow ? 9 : 11}, padding: narrow ? 0 : 4});
+  const axisColor = AXIS_COLORS[themeKey()];
+  const axisTick = id => ({...tick, color: axisColor[id], ...(narrow ? {maxTicksLimit: 6, padding: 1} : {})});
+  const axisName = (id, label) => ({display: true, text: label, color: axisColor[id], font: {size: narrow ? 9 : 11, weight: '600'}, padding: narrow ? 0 : 4});
+  const axisBorder = id => ({display: true, color: axisColor[id], width: 2});
   const axisTitle = unit => [...new Set(datasets.filter(d => d.unit === unit && d.kind === 'bar').map(d => d.method))].join(' / ') + ' ' + unit;
   const hasWind = datasets.some(d => d.kind === 'wind');
   view.chart = new window.Chart(view.canvas, {
@@ -537,13 +544,13 @@ async function render(view) {
           },
           ticks: {...tick, maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
             callback: value => hours === 24 ? hourClock.format(value) : (hours === 72 ? `${dayClock.format(value)} ${hourClock.format(value)}` : dayClock.format(value))}},
-        yTemp: {display: 'auto', position: 'left', title: axisName('°C'), grid: {color: grid}, ticks: axisTick},
-        yWind: {display: hasWind ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(narrow ? 'km/h' : 'Wind km/h'), grid: {drawOnChartArea: false}, ticks: axisTick},
-        yHs: {display: hasDepth ? 'auto' : false, position: 'left', title: axisName(narrow ? 'HS' : 'HS cm'), grid: {drawOnChartArea: false}, ticks: axisTick,
+        yTemp: {display: 'auto', position: 'left', title: axisName('yTemp', '°C'), border: axisBorder('yTemp'), grid: {color: grid}, ticks: axisTick('yTemp')},
+        yWind: {display: hasWind ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName('yWind', narrow ? 'km/h' : 'Wind km/h'), border: axisBorder('yWind'), grid: {drawOnChartArea: false}, ticks: axisTick('yWind')},
+        yHs: {display: hasDepth ? 'auto' : false, position: 'left', title: axisName('yHs', narrow ? 'HS' : 'HS cm'), border: axisBorder('yHs'), grid: {drawOnChartArea: false}, ticks: axisTick('yHs'),
           grace: '10%'},
-        yCm: {display: precipUnits.has('cm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(axisTitle('cm')), grid: {drawOnChartArea: false}, ticks: axisTick,
+        yCm: {display: precipUnits.has('cm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName('yCm', axisTitle('cm')), border: axisBorder('yCm'), grid: {drawOnChartArea: false}, ticks: axisTick('yCm'),
           suggestedMax: 2},
-        yMm: {display: precipUnits.has('mm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName(axisTitle('mm')), grid: {drawOnChartArea: false}, ticks: axisTick,
+        yMm: {display: precipUnits.has('mm') ? 'auto' : false, position: 'right', beginAtZero: true, title: axisName('yMm', axisTitle('mm')), border: axisBorder('yMm'), grid: {drawOnChartArea: false}, ticks: axisTick('yMm'),
           suggestedMax: 2}
       }
     }
