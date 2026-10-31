@@ -628,7 +628,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
 <dt>No snow figures</dt><dd>Ridge-top stations (Vulture Peak, Bosworth Upper, Lookout, Simpson Upper, Whymper) and stations without a working depth sensor (Skoki, Lake Louise, Boulder Creek, Castle, Vermillion Crossing) show — for HN24, HST and HS.</dd>
 </dl></details></div>
       <div class="panel" style="margin:var(--space-5);">
-        <div class="panel-header"><div><div class="panel-title" id="trendTitle">Temperature trend</div><div class="panel-title-sub" id="trendSub">Hourly observations</div></div><div><select class="small-select" id="mainMetricSelect"><option value="airTempAvg">Air temperature</option><option value="snowHeight">Snow height</option><option value="windSpeedAvg">Wind speed avg</option><option value="relativeHumidity">Relative humidity</option><option value="precipTotal">Precipitation HW (mm)</option><option value="selectedAvg" selected>Averages: temp, wind, precip</option></select></div></div>
+        <div class="panel-header"><div><div class="panel-title" id="trendTitle">Temperature trend</div><div class="panel-title-sub" id="trendSub">Hourly observations</div></div><div><select class="small-select" id="mainMetricSelect"><option value="airTempAvg">Air temperature</option><option value="snowHeight">Snow height</option><option value="windSpeedAvg">Wind speed avg</option><option value="relativeHumidity">Relative humidity</option><option value="precipTotal">Precipitation HW (mm)</option><option value="selectedAvg" selected>Averages: temp, wind, precip, HN</option></select></div></div>
         <div class="chart-box tall"><canvas id="trendChart"></canvas></div>
         <div class="legend-row" id="trendLegend"></div>
         <div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>
@@ -1418,9 +1418,44 @@ function renderHighLow(ids){
 /* ---- Selected-station averages: mean temperature, mean wind and mean precipitation across the
    stations currently selected, combined on one chart. Each station is first reduced to one value per
    time bucket so a station reporting every 15 min does not outweigh an hourly one. Precipitation is
-   the mean of the per-station HW increments (stations without a gauge are excluded), accumulated. */
+   the mean of the per-station HW increments (stations without a gauge are excluded), accumulated.
+   HN (Ben, 31 Oct 2026) is the mean of the per-station HN, accumulated over the window, with the 24 h
+   summary's HN24 rule: hourly HN from HS (3 h running median, each rise of 2 cm or more; the feeds'
+   "new snow" fields are ignored), via hnIntervals in assets/pair-comparison-data.js. Stations with no
+   working depth sensor, or an excluded HS trace, are left out, as they have no HN24. */
 const AVG_PRECIP_MIN_MM=1.5;
-function selectedAverageSeries(ids,bucketMs){
+function selectedAverageHn(ids,bucketMs,bounds){
+  if(!pairData||!bounds) return {line:[],count:0};
+  const from=bounds.min.getTime(), to=bounds.max.getTime(), stepHours=bucketMs/3600000;
+  const hnIds=[], byEnd=new Map();
+  ids.forEach(id=>{
+    if(SNOW_GRAPH_EXCLUDED_IDS.has(id)||NO_SNOW_SENSOR_IDS.has(id)) return;
+    const depth=filterSnowSpikes((cache[id]||[]).filter(d=>{const t=new Date(d.measurementDateTime).getTime(), v=numOf(d.snowHeight); return t>from-6*3600000&&t<=to&&Number.isFinite(v)&&v>=0&&v<=600;}),'snowHeight');
+    if(!depth.length) return;
+    const r=pairData.hnIntervals(depth.map(d=>({...d,newSnow:null})),from,to,stepHours);
+    if(r.total===null) return;
+    hnIds.push(id);
+    r.points.forEach(p=>{ if(p.y!==null) byEnd.set(p.end,(byEnd.get(p.end)||0)+p.y); });
+  });
+  if(!hnIds.length) return {line:[],count:0};
+  let running=0;
+  const line=[{x:new Date(from),y:0}].concat([...byEnd.keys()].sort((a,b)=>a-b).map(end=>{running+=byEnd.get(end)/hnIds.length; return {x:new Date(end),y:Math.round(running*10)/10};}));
+  return {line,count:hnIds.length};
+}
+/* What the averages chart shows when the page opens (Ben, 31 Oct 2026): temp, wind and precip, unless the
+   selected stations' mean HN24 (the 24 h summary's figure) is over 3 cm, when it opens on HN alone.
+   The legend toggles still switch any series on or off after that. */
+const AVG_OPEN_ON_HN_CM=3;
+function avgOpeningHidden(ids){
+  const hn=ids.map(newSnow24h).filter(v=>v!==null);
+  const mean=hn.length?hn.reduce((p,q)=>p+q,0)/hn.length:0;
+  return mean>AVG_OPEN_ON_HN_CM?['temp','wind','precip']:['hn'];
+}
+/* The opening choice is made on the first render that has data; an earlier empty render uses its own key. */
+function avgLegendKey(ids){
+  return ids.some(id=>(cache[id]||[]).length)?['trend-avg',avgOpeningHidden(ids)]:['trend-avg-loading',['hn']];
+}
+function selectedAverageSeries(ids,bucketMs,bounds){
   const key=t=>Math.floor(t/bucketMs)*bucketMs;
   const temp=new Map(), wind=new Map(), precip=new Map(), dirVec=new Map();
   const add=(map,k,id,v)=>{let b=map.get(k); if(!b){b=new Map(); map.set(k,b);} const s=b.get(id)||{sum:0,n:0}; s.sum+=v; s.n++; b.set(id,s);};
@@ -1445,29 +1480,34 @@ function selectedAverageSeries(ids,bucketMs){
   /* Gauge noise adds up to a millimetre or so on dry days, so an average total of 1.5 mm or less
      over the window is not drawn. */
   const precipHidden=precipLine.length>0&&precipLine[precipLine.length-1].y<=AVG_PRECIP_MIN_MM;
-  return {temp:meanOf(temp),wind:windPts,precip:precipHidden?[]:precipLine,precipCount:precipIds.length,precipHidden};
+  const hn=selectedAverageHn(ids,bucketMs,bounds);
+  return {temp:meanOf(temp),wind:windPts,precip:precipHidden?[]:precipLine,precipCount:precipIds.length,precipHidden,hn:hn.line,hnCount:hn.count};
 }
 function renderTrendAverage(ids,bounds,windowHours){
   const bucketMs=(windowHours>24*21?24:1)*3600000;
-  const s=selectedAverageSeries(ids,bucketMs);
+  const s=selectedAverageSeries(ids,bucketMs,bounds);
+  /* HN needs the shared module; draw without it now and again once it has loaded. */
+  if(!pairData) pairDataReady.then(()=>{ if(metric==='selectedAvg'&&selected.size) renderTrend(Array.from(selected)); });
   const c=chartTextColors(), font={family:"'Courier Prime', monospace",size:11};
-  const colors={temp:'#d9534f',wind:'#2f7fb8',precip:'#3a9d5d'};
+  const colors={temp:'#d9534f',wind:'#2f7fb8',precip:'#3a9d5d',hn:'#7b5fc4'};
   const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase();
   document.getElementById('trendTitle').textContent='Selected-Station Averages';
-  document.getElementById('trendSub').textContent=`Mean of ${ids.length} selected station${ids.length===1?'':'s'} · ${bucketMs>3600000?'daily':'hourly'} means · ${windowLabel} window`+(s.temp.length||s.wind.length||s.precip.length?'':' · no data available in this range');
+  document.getElementById('trendSub').textContent=`Mean of ${ids.length} selected station${ids.length===1?'':'s'} · ${bucketMs>3600000?'daily':'hourly'} means · ${windowLabel} window`+(s.temp.length||s.wind.length||s.precip.length||s.hn.length?'':' · no data available in this range');
   if(trendChart) trendChart.destroy();
   trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets:[
     {label:'Avg air temperature (°C)',data:s.temp,yAxisID:'yTemp',borderColor:colors.temp,backgroundColor:colors.temp+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false},
     {label:'Avg wind speed (km/h)',data:s.wind,yAxisID:'yWind',arrowColor:colors.wind,borderColor:colors.wind,backgroundColor:colors.wind+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false},
-    {label:'Avg precipitation HW (mm, accumulated)',data:s.precip,yAxisID:'yPrecip',borderColor:colors.precip,backgroundColor:colors.precip+'33',borderWidth:2,pointRadius:0,tension:.1,fill:'origin',stepped:false}
+    {label:'Avg precipitation HW (mm, accumulated)',data:s.precip,yAxisID:'yPrecip',borderColor:colors.precip,backgroundColor:colors.precip+'33',borderWidth:2,pointRadius:0,tension:.1,fill:'origin',stepped:false},
+    {label:'Avg new snow HN (cm, accumulated)',data:s.hn,yAxisID:'yHn',borderColor:colors.hn,backgroundColor:colors.hn+'33',borderWidth:2,pointRadius:0,tension:0,fill:false}
   ]},plugins:[windArrowPlugin],options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const d=ctx.raw; const unit=ctx.dataset.yAxisID==='yTemp'?' °C':ctx.dataset.yAxisID==='yWind'?' km/h':' mm'; return `${ctx.dataset.label.split(' (')[0]}: ${d.y}${unit}${d.dir!=null?` · from ${Math.round(d.dir)}°`:''}${d.n?` (${d.n} stn)`:''}`;}}}},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const d=ctx.raw; const unit=ctx.dataset.yAxisID==='yTemp'?' °C':ctx.dataset.yAxisID==='yWind'?' km/h':ctx.dataset.yAxisID==='yHn'?' cm':' mm'; return `${ctx.dataset.label.split(' (')[0]}: ${d.y}${unit}${d.dir!=null?` · from ${Math.round(d.dir)}°`:''}${d.n?` (${d.n} stn)`:''}`;}}}},
     scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit:timeUnitFor(windowHours)},ticks:{color:c.text,font},grid:{color:c.grid}},
       yTemp:{display:'auto',position:'left',title:{display:true,text:'°C',color:colors.temp,font},ticks:{color:colors.temp,font},grid:{color:c.grid}},
       yWind:{display:'auto',position:'right',beginAtZero:true,title:{display:true,text:'km/h',color:colors.wind,font},ticks:{color:colors.wind,font},grid:{drawOnChartArea:false}},
-      yPrecip:{display:'auto',position:'right',beginAtZero:true,min:0,title:{display:true,text:'mm',color:colors.precip,font},ticks:{color:colors.precip,font},grid:{drawOnChartArea:false}}}}});
-  document.getElementById('trendLegend').innerHTML=[['temp','Avg air temperature (°C)'],['wind','Avg wind speed (km/h) · arrows show direction the wind blows toward'],['precip',`Avg precipitation HW, accumulated (mm) · ${s.precipCount} gauge${s.precipCount===1?'':'s'}${s.precipHidden?` · not shown: ${AVG_PRECIP_MIN_MM} mm or less`:''}`]].map(([k,l])=>`<span class="legend-item"><span class="legend-dot" style="background:${colors[k]}"></span>${l}</span>`).join('');
-  bindLegendToggles(trendChart,[...document.getElementById('trendLegend').children],['temp','wind','precip'],'trend-avg');
+      yPrecip:{display:'auto',position:'right',beginAtZero:true,min:0,title:{display:true,text:'mm',color:colors.precip,font},ticks:{color:colors.precip,font},grid:{drawOnChartArea:false}},
+      yHn:{display:'auto',position:'right',beginAtZero:true,min:0,title:{display:true,text:'cm',color:colors.hn,font},ticks:{color:colors.hn,font},grid:{drawOnChartArea:false}}}}});
+  document.getElementById('trendLegend').innerHTML=[['temp','Avg air temperature (°C)'],['wind','Avg wind speed (km/h) · arrows show direction the wind blows toward'],['precip',`Avg precipitation HW, accumulated (mm) · ${s.precipCount} gauge${s.precipCount===1?'':'s'}${s.precipHidden?` · not shown: ${AVG_PRECIP_MIN_MM} mm or less`:''}`],['hn',`Avg new snow HN, accumulated (cm) · HN24 rule · ${s.hnCount} depth sensor${s.hnCount===1?'':'s'}`]].map(([k,l])=>`<span class="legend-item"><span class="legend-dot" style="background:${colors[k]}"></span>${l}</span>`).join('');
+  bindLegendToggles(trendChart,[...document.getElementById('trendLegend').children],['temp','wind','precip','hn'],...avgLegendKey(ids));
 }
 function renderTrend(ids){if(metric==='selectedAvg'){renderTrendAverage(ids,axisBounds(),hours);return;} const meta=METRIC_META[metric]; const bounds=axisBounds(); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw.filter(d=>Number.isFinite(numOf(d.snowHeight))),'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join(''); bindLegendToggles(trendChart,[...document.getElementById('trendLegend').children],ids,'trend-stations');}
 function windFocusIds(ids){const hi=ids.filter(id=>WIND_DEFAULT_IDS.has(id)); return hi.length?hi:ids;}
