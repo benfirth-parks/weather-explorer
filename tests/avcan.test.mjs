@@ -29,6 +29,10 @@ test("fetchBackup only runs when FTS360 is 3 h+ behind and returns hours after i
   assert.equal(await fetchBackup("fts-boslo", [{ measurementDateTime: iso(now - H) }], { now, fetchImpl }).then((r) => r.length), 0);
   assert.equal(await fetchBackup("fts-skoki", [{ measurementDateTime: iso(lastFts) }], { now, fetchImpl }).then((r) => r.length), 0);
   assert.equal(called, 1);
+  // The live API answers with a bare array, newest first.
+  const arrayImpl = async () => ({ ok: true, json: async () => [...measurements].reverse() });
+  const fromArray = await fetchBackup("fts-boslo", [{ measurementDateTime: iso(lastFts) }], { now, fetchImpl: arrayImpl });
+  assert.deepEqual(fromArray.map((r) => r.measurementDateTime), [iso(now - 12 * H), iso(now - H)]);
 });
 
 test("archive merge: FTS360 replaces backup records, backup never overwrites FTS360", async () => {

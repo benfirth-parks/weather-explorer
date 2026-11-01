@@ -98,5 +98,7 @@ export async function fetchBackup(stationId, observations, { now = Date.now(), f
   const res = await fetchImpl(url, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`Avalanche Canada ${res.status}`);
   const body = await res.json();
-  return backupRecordsAfter(body && body.measurements, Number.isFinite(newest) ? newest : -Infinity);
+  // The API returns a bare array (newest first); the docs show { measurements: [...] }.
+  const list = Array.isArray(body) ? body : body && body.measurements;
+  return backupRecordsAfter(list, Number.isFinite(newest) ? newest : -Infinity);
 }
