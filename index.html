@@ -533,6 +533,13 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
 <link rel="stylesheet" href="/assets/legend-toggle.css">
 <script src="/assets/legend-toggle.js"></script>
 <script defer src="https://banff-app-portal.netlify.app/t.js" data-app="rockiesweatherdataexplorer"></script>
+<style>
+.feed-status-banner{background:#fff3d6;color:#5a3d00;border-bottom:1px solid #e2b85a;padding:8px 16px;font-size:0.875rem;line-height:1.4;text-align:center;}
+.feed-status-banner[hidden]{display:none;}
+[data-theme="dark"] .feed-status-banner{background:#3a2c12;color:#f1d39a;border-bottom-color:#7a5a1e;}
+@media (prefers-color-scheme: dark){:root:not([data-theme]) .feed-status-banner{background:#3a2c12;color:#f1d39a;border-bottom-color:#7a5a1e;}}
+</style>
+<script src="/assets/feed-status.js" defer></script>
 </head>
 <body>
 <div class="app">
