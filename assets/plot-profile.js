@@ -64,7 +64,7 @@ function load(plot, fresh) {
 }
 
 /* One profile as an SVG: hardness bars (left) and temperature (right) on a shared height axis. */
-function drawProfile({layers, temps, tests, hsMax, aria, observed}) {
+function drawProfile({layers, temps, tests, hsMax, aria, observed, bykFlags = false}) {
   const css = getComputedStyle(document.documentElement);
   const muted = css.getPropertyValue('--color-text-muted').trim() || '#666';
   const grid = css.getPropertyValue('--color-divider').trim() || css.getPropertyValue('--color-border').trim() || '#ddd';
@@ -98,7 +98,7 @@ function drawProfile({layers, temps, tests, hsMax, aria, observed}) {
     if (!observed && Number.isFinite(T)) tip.push(`${T} °C`);
     if (!observed && w) tip.push(`${w}% liquid water`);
     if (f & 1) tip.push('melt-freeze crust');
-    if (f & 2) tip.push('candidate weak layer (grain-form flag, not stability)');
+    if (f & 2) tip.push(bykFlags ? 'weak layer the BYK model rates structurally unstable' : 'candidate weak layer (grain-form flag, not stability)');
     path.append(sv('title', {}, tip.join(' · ')));
     svg.append(path);
   }
@@ -134,11 +134,12 @@ function figure(title, meta, svg) {
 
 function draw(box, data) {
   box.replaceChildren();
+  const byk = data.source === 'byk';
   const head = element('div', 'plot-profile-head');
-  head.append(element('strong', '', `${data.name} study plot snowpack`));
+  head.append(element('strong', '', byk ? `${data.name} modelled snowpack` : `${data.name} study plot snowpack`));
   const elev = Number.isFinite(data.elevation) ? ` · ${data.elevation} m` : '';
-  head.append(document.createTextNode(`${elev} · from the Banff Snowpack site · `));
-  const link = element('a', '', 'open full season');
+  head.append(document.createTextNode(`${elev} · ${byk ? 'flat field, from the BYK Snowpack Model' : 'from the Banff Snowpack site'} · `));
+  const link = element('a', '', byk ? 'open in BYK model' : 'open full season');
   link.href = data.url; link.target = '_blank'; link.rel = 'noopener';
   head.append(link);
   box.append(head);
@@ -148,8 +149,8 @@ function draw(box, data) {
   const figs = element('div', 'plot-profile-figs');
   if (sim && sim.layers.length) {
     figs.append(figure('Modelled', `${clock.format(sim.t)} MST · HS ${Math.round(sim.hs ?? sim.layers[0][0])} cm`, drawProfile({
-      layers: sim.layers, temps: simTemps(sim.layers), hsMax, observed: false,
-      aria: `Modelled snow profile at ${data.name} study plot, ${clock.format(sim.t)} MST: ${sim.layers.length} layers, ${Math.round(sim.hs ?? sim.layers[0][0])} cm deep.`
+      layers: sim.layers, temps: simTemps(sim.layers), hsMax, observed: false, bykFlags: byk,
+      aria: `Modelled snow profile at ${data.name}${byk ? '' : ' study plot'}, ${clock.format(sim.t)} MST: ${sim.layers.length} layers, ${Math.round(sim.hs ?? sim.layers[0][0])} cm deep.`
     })));
   } else {
     figs.append(element('p', 'plot-profile-empty', sim ? `Modelled: no snow on the ground at ${clock.format(sim.t)} MST.` : 'Modelled: no profile published yet this season.'));
@@ -171,8 +172,12 @@ function draw(box, data) {
     key.append(item);
   }
   if (drawn) box.append(key);
-  const notes = drawn ? ['Bars = hand hardness by layer, coloured by grain form; outlined bars are candidate weak layers (grain-form flag, not stability). Hover a layer for details.'] : [];
-  if (showPit) {
+  const notes = drawn ? [byk
+    ? 'Bars = hand hardness by layer, coloured by grain form; outlined bars are weak layers the BYK model rates structurally unstable. Hover a layer for details.'
+    : 'Bars = hand hardness by layer, coloured by grain form; outlined bars are candidate weak layers (grain-form flag, not stability). Hover a layer for details.'] : [];
+  if (byk) {
+    notes.push('Driven by the Bosworth stations: Bosworth Lower temperature, humidity and snow depth (snowfall is added when its depth sensor rises), and Bosworth Upper ridge wind; cloud and radiation come from the weather model. No study plot or observed pits at this station.');
+  } else if (showPit) {
     if (pit.source === 'transcribed') notes.push('The pit was transcribed from a scanned profile.');
     const s = pit.score;
     if (s && (s.grainAgreement !== null || s.hardnessMae !== null)) {
@@ -187,7 +192,7 @@ function draw(box, data) {
   } else {
     notes.push(`No observed pit published yet for the ${data.season || 'current'} season.`);
   }
-  if (data.stale) notes.push('The Banff Snowpack site did not answer; showing the last copy read.');
+  if (data.stale) notes.push(`The ${byk ? 'BYK Snowpack Model' : 'Banff Snowpack site'} did not answer; showing the last copy read.`);
   notes.push(data.label || 'Experimental snowpack-structure simulation, not an avalanche forecast.');
   box.append(element('p', 'plot-profile-note', notes.join(' ')));
 }
@@ -196,14 +201,14 @@ function draw(box, data) {
 export async function renderPlotProfile(box, plot, {fresh = false, isCurrent = () => true} = {}) {
   box.hidden = false;
   box.setAttribute('aria-busy', 'true');
-  box.replaceChildren(element('p', 'plot-profile-note', 'Loading study plot snowpack…'));
+  box.replaceChildren(element('p', 'plot-profile-note', 'Loading modelled snowpack…'));
   try {
     const data = await load(plot, fresh);
     if (!isCurrent()) return;
     draw(box, data);
   } catch (error) {
     if (!isCurrent()) return;
-    box.replaceChildren(element('p', 'plot-profile-note', 'Study plot snowpack unavailable right now.'));
+    box.replaceChildren(element('p', 'plot-profile-note', 'Modelled snowpack unavailable right now.'));
   } finally {
     box.setAttribute('aria-busy', 'false');
   }
