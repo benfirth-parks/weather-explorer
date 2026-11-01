@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {utcTime, currentSeason, summarisePlot, simTemps, hardnessLabel, pitIsCurrent, plotForPairIds} from './plot-profile-fixture.mjs';
+import {utcTime, currentSeason, summarisePlot, simTemps, hardnessLabel, pitIsCurrent, plotForPairIds, decodeByk, summariseByk} from './plot-profile-fixture.mjs';
 import handler from '../netlify/functions/plot-profile.mjs';
 import {SITES, SEASON} from './plot-profile-fixture.mjs';
 
@@ -50,7 +50,8 @@ test('a pit is drawn only while it is under two weeks old', () => {
 test('only pairs at a study plot get a profile', () => {
   assert.equal(plotForPairIds(['fts-vulture', 'fts-bowsummit']), 'bow_summit');
   assert.equal(plotForPairIds(['fts-lookout', 'fts-sunshine']), 'goats_eye');
-  assert.equal(plotForPairIds(['fts-bosup', 'fts-boslo']), null);
+  assert.equal(plotForPairIds(['fts-bosup', 'fts-boslo']), 'bosworth_lower');
+  assert.equal(plotForPairIds(['fts-whymper', 'fts-stanley']), null);
 });
 
 test('the function returns the compact record and rejects unknown plots', async () => {
@@ -83,6 +84,50 @@ test('the function reports the source being down', async () => {
   try {
     const res = await handler(new Request('https://x/api/plot-profile?plot=goats_eye'));
     assert.equal(res.status, 502);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+/* BYK /api/point layout (banff-snowpack-model netlify/lib/pipeline.mjs): flat field is aspect 0. 80 cm deep:
+   new snow 0-12 cm (PP, F), a crust 12-15 cm (MFcr, K), facets 15-80 cm (FC, 4F) rated a weak layer at 40 cm. */
+const BYK_DAY = t => ({t, date: '2026-11-01', hs: [80, 70, 75, 60, 72],
+  A: [[0, 0, 10, -80, 3, 90, 120, 8, 50, -40, 10, 400, 150, 4, 20, -20, 15, 260], [], [], [], []],
+  W: [[[40, 4, 492000, 72, 5], [5, 0, 492100, 20, 1]], [], [], [], []]});
+test('a BYK flat-field profile becomes heights above ground with grain codes and weak-layer outlines', () => {
+  const rows = decodeByk(BYK_DAY(493000));
+  assert.deepEqual(rows, [
+    [80, 68, 'PP', 1, 90, -8, null, 0],
+    [68, 65, 'MFcr', 5, 400, -4, null, 1],
+    [65, 0, 'FC', 2, 260, -2, null, 2]
+  ]);
+  assert.deepEqual(decodeByk({}), []);
+});
+test('the BYK record uses the newest analysed state and has no pit', () => {
+  const s = summariseByk('bosworth_lower', {id: 'fts-boslo', season: '2026-27', days: [BYK_DAY(492990), BYK_DAY(492966)], forecast: {now: BYK_DAY(493000)}});
+  assert.equal(s.source, 'byk');
+  assert.equal(s.sim.t, 493000 * 3600000);
+  assert.equal(s.sim.hs, 80);
+  assert.equal(s.pit, null);
+  assert.equal(s.elevation, 2210);
+  assert.match(s.url, /point=fts-boslo$/);
+  const noNow = summariseByk('bosworth_lower', {days: [BYK_DAY(492966), BYK_DAY(492990)], forecast: null});
+  assert.equal(noNow.sim.t, 492990 * 3600000);
+  assert.equal(summariseByk('bosworth_lower', {days: []}).sim, null);
+});
+test('the function reads Bosworth Lower from the BYK model', async () => {
+  const realFetch = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async url => {
+    seen.push(String(url));
+    return new Response(JSON.stringify({id: 'fts-boslo', season: '2026-27', days: [BYK_DAY(493000)], forecast: null}), {status: 200});
+  };
+  try {
+    const res = await handler(new Request('https://x/api/plot-profile?plot=bosworth_lower'));
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.sim.layers.length, 3);
+    assert.deepEqual(seen, ['https://banff-snowpack-model.netlify.app/api/point?id=fts-boslo']);
   } finally {
     globalThis.fetch = realFetch;
   }

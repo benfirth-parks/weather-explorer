@@ -183,7 +183,7 @@ function mount(card) {
   const plot = plotForPair(ids);
   const profile = element('section', 'plot-profile');
   profile.hidden = true;
-  if (plot) profile.setAttribute('aria-label', 'Study plot snow profile');
+  if (plot) profile.setAttribute('aria-label', 'Modelled snow profile');
   panel.append(controls, body, status, note, retry, profile);
   card.append(panel);
   const view = {card, panel, toggle, state, ids, legend, body, chartBox, canvas, roses, status, note, retry, plot, profile, openCount: 0, version: 0, chart: null, roseCleanup: null, buttons: []};

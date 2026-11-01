@@ -1,5 +1,5 @@
 /* Synthetic Banff Snowpack site data in the layout written by snowagent.web.build. */
-export {utcTime, currentSeason, summarisePlot, simTemps, hardnessLabel, pitIsCurrent, PAIR_PLOTS} from '../assets/plot-profile-data.js';
+export {utcTime, currentSeason, summarisePlot, simTemps, hardnessLabel, pitIsCurrent, PAIR_PLOTS, decodeByk, summariseByk} from '../assets/plot-profile-data.js';
 import {PAIR_PLOTS} from '../assets/plot-profile-data.js';
 export const plotForPairIds = ids => PAIR_PLOTS[ids.join(',')] || null;
 

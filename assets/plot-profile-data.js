@@ -11,6 +11,21 @@
    Hand hardness index: F=1, 4F=2, 1F=3, P=4, K=5, I=6 (fractional = in between). */
 
 export const SNOWPACK_SITE = 'https://banff-snowpack.netlify.app';
+/* The BYK Snowpack Model (banff-snowpack-model.netlify.app) runs hourly at every FTS station. It fills in
+   where the Banff Snowpack site has no study plot. GET /api/point?id=<fts id> returns
+     {id, season, days: [{t, date, A, W, hs, ...}], forecast: {now: {t, A, W, hs, ...}, days} | null}
+   t is hours since the epoch (UTC). A, W and hs are per aspect [flat, N, E, S, W]; A[aspect] packs each layer,
+   top down, as 6 numbers: depth of its top below the surface (mm), grain class (BYK_CLASSES index),
+   hand hardness x10 (F=1 .. I=6, as above), temperature x10 (C), grain size x10 (mm), density (kg/m3).
+   W[aspect] lists weak layers as [depth_cm, class, burial_hour, p_percent, lemons]. */
+export const BYK_SITE = 'https://banff-snowpack-model.netlify.app';
+export const BYK_CLASSES = ['PP', 'DF', 'RG', 'FCxr', 'FC', 'DH', 'SH', 'MF', 'MFcr'];
+/* A BYK weak layer at or above this structural-instability index is outlined, as the BYK site labels it. */
+export const BYK_WEAK_MIN = 50;
+/* Stations without a study plot that show the BYK model's flat-field run instead. */
+export const BYK_POINTS = {
+  bosworth_lower: {id: 'fts-boslo', name: 'Bosworth Lower', elevation: 2210}
+};
 /* The three plots the Banff Snowpack site runs. */
 export const PLOTS = {
   bow_summit: 'Bow Summit',
@@ -22,7 +37,8 @@ export const PLOTS = {
 export const PAIR_PLOTS = {
   'fts-vulture,fts-bowsummit': 'bow_summit',
   'fts-simpup,fts-simplo': 'simpson',
-  'fts-lookout,fts-sunshine': 'goats_eye'
+  'fts-lookout,fts-sunshine': 'goats_eye',
+  'fts-bosup,fts-boslo': 'bosworth_lower'
 };
 /* An observed pit older than this is reported but not drawn. */
 export const PIT_MAX_AGE_DAYS = 14;
@@ -82,6 +98,46 @@ export function summarisePlot(plot, siteMeta, data) {
       } : null
     } : null,
     url: `${SNOWPACK_SITE}/?site=${encodeURIComponent(plot)}`
+  };
+}
+
+/* One BYK packed profile (flat field) -> rows in the Banff Snowpack layout, heights above ground:
+   [top_cm, bottom_cm, grain_form, hardness_index, density, temp_c, lwc_pct (not given: null), flags]. */
+export function decodeByk(snap) {
+  const a = Array.isArray(snap?.A?.[0]) ? snap.A[0] : [];
+  const hs = Number(snap?.hs?.[0]) || 0;
+  const n = Math.floor(a.length / 6);
+  const weak = (snap?.W?.[0] || []).filter(w => Array.isArray(w) && w[3] >= BYK_WEAK_MIN).map(w => w[0]);
+  const out = [];
+  for (let j = 0; j < n; j++) {
+    const dTop = a[6 * j] / 10, dBot = j + 1 < n ? a[6 * (j + 1)] / 10 : hs;
+    const top = Math.round(Math.max(0, hs - dTop) * 10) / 10, bottom = Math.round(Math.max(0, hs - Math.max(dBot, dTop)) * 10) / 10;
+    if (!(top > bottom)) continue;
+    const g = BYK_CLASSES[a[6 * j + 1]] || null;
+    let flags = g === 'MFcr' ? 1 : 0;
+    if (weak.some(d => d >= dTop - 0.5 && d <= Math.max(dBot, dTop) + 0.5)) flags |= 2;
+    out.push([top, bottom, g, a[6 * j + 2] / 10, Number.isFinite(a[6 * j + 5]) ? a[6 * j + 5] : null, a[6 * j + 3] / 10, null, flags]);
+  }
+  return out;
+}
+
+/* A BYK /api/point answer -> the same compact record as summarisePlot, with the newest analysed state
+   (forecast.now, else the last analysed day) as the simulated profile and no observed pit. */
+export function summariseByk(plot, data) {
+  const meta = BYK_POINTS[plot] || {};
+  const last = (data?.days || []).filter(d => Number.isFinite(d?.t)).sort((a, b) => a.t - b.t).at(-1) || null;
+  const now = data?.forecast?.now;
+  const snap = now && Number.isFinite(now.t) && (!last || now.t >= last.t) ? now : last;
+  return {
+    plot, source: 'byk',
+    name: meta.name || plot,
+    lat: null, lon: null, elevation: meta.elevation ?? null,
+    season: data?.season ?? null,
+    mode: 'live', live: null,
+    label: 'Unverified BYK Snowpack Model simulation (flat field at the station), not an avalanche forecast or danger rating.',
+    sim: snap ? {t: snap.t * 3600000, hs: Number(snap.hs?.[0]) || 0, layers: decodeByk(snap)} : null,
+    pit: null,
+    url: `${BYK_SITE}/?point=${encodeURIComponent(meta.id || '')}`
   };
 }
 
