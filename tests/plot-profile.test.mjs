@@ -51,7 +51,8 @@ test('only pairs at a study plot get a profile', () => {
   assert.equal(plotForPairIds(['fts-vulture', 'fts-bowsummit']), 'bow_summit');
   assert.equal(plotForPairIds(['fts-lookout', 'fts-sunshine']), 'goats_eye');
   assert.equal(plotForPairIds(['fts-bosup', 'fts-boslo']), 'bosworth_lower');
-  assert.equal(plotForPairIds(['fts-whymper', 'fts-stanley']), null);
+  assert.equal(plotForPairIds(['fts-whymper', 'fts-stanley']), 'stanley_lower');
+  assert.equal(plotForPairIds(['fts-stanley', 'fts-whymper']), null);
 });
 
 test('the function returns the compact record and rejects unknown plots', async () => {
@@ -111,6 +112,8 @@ test('the BYK record uses the newest analysed state and has no pit', () => {
   assert.equal(s.pit, null);
   assert.equal(s.elevation, 2210);
   assert.match(s.url, /point=fts-boslo$/);
+  assert.match(s.drivers, /Bosworth Upper ridge wind/);
+  assert.equal(summariseByk('stanley_lower', {days: [BYK_DAY(493000)]}).elevation, 1930);
   const noNow = summariseByk('bosworth_lower', {days: [BYK_DAY(492966), BYK_DAY(492990)], forecast: null});
   assert.equal(noNow.sim.t, 492990 * 3600000);
   assert.equal(summariseByk('bosworth_lower', {days: []}).sim, null);
