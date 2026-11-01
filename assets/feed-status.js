@@ -8,13 +8,17 @@
   const STALE_HOURS = 3;
   const RECHECK_MS = 10 * 60 * 1000;
 
-  function newestTime(records) {
-    let best = NaN;
+  // Newest FTS360 reading, and newest reading of any source (Avalanche Canada
+  // backup records carry source: "avalanche-canada").
+  function newestTimes(records) {
+    let fts = NaN, any = NaN;
     for (const r of Array.isArray(records) ? records : []) {
       const t = new Date(r && r.measurementDateTime).getTime();
-      if (Number.isFinite(t) && !(t <= best)) best = t;
+      if (!Number.isFinite(t)) continue;
+      if (!(t <= any)) any = t;
+      if (!r.source && !(t <= fts)) fts = t;
     }
-    return best;
+    return { fts, any };
   }
 
   function formatTime(ms) {
@@ -41,9 +45,11 @@
     const results = await Promise.allSettled(STATIONS.map(async (id) => {
       const res = await fetch(`/api/fts?station=${encodeURIComponent(id)}&hours=168`, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
-      return newestTime(await res.json());
+      return newestTimes(await res.json());
     }));
-    const times = results.filter((r) => r.status === "fulfilled" && Number.isFinite(r.value)).map((r) => r.value);
+    const ok = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+    const times = ok.map((v) => v.fts).filter(Number.isFinite);
+    const anyTimes = ok.map((v) => v.any).filter(Number.isFinite);
     // If the check itself failed, say nothing rather than guess.
     if (results.every((r) => r.status === "rejected")) return;
 
@@ -51,13 +57,17 @@
     const newest = times.length ? Math.max(...times) : NaN;
     const stale = !Number.isFinite(newest) || Date.now() - newest > STALE_HOURS * 3600 * 1000;
     if (!stale) { el.hidden = true; return; }
-    const since = Number.isFinite(newest) ? ` The latest reading is from ${formatTime(newest)}.` : "";
+    const since = Number.isFinite(newest) ? ` The latest FTS360 reading is from ${formatTime(newest)}.` : "";
+    const newestAny = anyTimes.length ? Math.max(...anyTimes) : NaN;
+    const backupFresh = Number.isFinite(newestAny) && Date.now() - newestAny <= STALE_HOURS * 3600 * 1000;
     el.innerHTML = "";
     const strong = document.createElement("strong");
     strong.textContent = "Data delayed: ";
     el.appendChild(strong);
     el.appendChild(document.createTextNode(
-      `FTS360 is not currently updating, so station data on this page is behind.${since} It will catch up automatically once FTS360 is back.`
+      backupFresh
+        ? `FTS360 is not currently updating.${since} Since then, snow height, temperature, wind and RH for most Parks stations come from Avalanche Canada's copy of the same station feed; HW and some stations are missing until FTS360 is back.`
+        : `FTS360 is not currently updating, so station data on this page is behind.${since} It will catch up automatically once FTS360 is back.`
     ));
     el.hidden = false;
   }

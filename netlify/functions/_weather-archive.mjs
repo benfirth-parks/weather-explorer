@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { fetchBackup, isBackupRecord, newestFtsTime } from "./_avcan.mjs";
 
 const STORE_NAME = "rockies-weather-archive-v1";
 const RETENTION_MS = Math.round(3 * 365.25 * 24 * 60 * 60 * 1000);
@@ -377,16 +378,17 @@ export async function readArchive(stationId) {
   return data;
 }
 
-function mergeAndPrune(existing, incoming) {
+export function mergeAndPrune(existing, incoming) {
   const cutoff = Date.now() - RETENTION_MS;
   const byTimestamp = new Map();
   for (const record of [...existing, ...incoming]) {
     const timestamp = new Date(record.measurementDateTime).getTime();
     if (!Number.isFinite(timestamp) || timestamp < cutoff) continue;
-    byTimestamp.set(record.measurementDateTime, {
-      ...(byTimestamp.get(record.measurementDateTime) || {}),
-      ...record
-    });
+    const prev = byTimestamp.get(record.measurementDateTime);
+    if (prev && !isBackupRecord(prev) && isBackupRecord(record)) continue; // FTS360 wins
+    // An FTS360 record replaces a backup one outright rather than merging into it.
+    const base = prev && isBackupRecord(prev) && !isBackupRecord(record) ? {} : prev || {};
+    byTimestamp.set(record.measurementDateTime, { ...base, ...record });
   }
   return [...byTimestamp.values()].sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
 }
@@ -407,24 +409,32 @@ async function saveArchive(stationId, observations, extra = {}) {
 
 export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
   const archive = await readArchive(stationId);
-  const newest = archive.observations.at(-1);
-  const newestTime = newest ? new Date(newest.measurementDateTime).getTime() : Number.NaN;
+  // Ignore Avalanche Canada backup records so FTS360 is asked for the whole gap.
+  const newestTime = newestFtsTime(archive.observations);
   const start = Number.isFinite(newestTime)
     ? new Date(newestTime - SYNC_OVERLAP_HOURS * 60 * 60 * 1000)
     : new Date(Date.now() - seedHours * 60 * 60 * 1000);
 
   const incoming = await fetchFts(stationId, start);
-  const observations = mergeAndPrune(archive.observations, incoming);
+  let observations = mergeAndPrune(archive.observations, incoming);
+  let backup = [];
+  try {
+    backup = await fetchBackup(stationId, observations);
+    if (backup.length) observations = mergeAndPrune(observations, backup);
+  } catch (err) {
+    console.warn(JSON.stringify({ event: "avcan-backup-failed", stationId, error: err?.message || String(err) }));
+  }
   const saved = await saveArchive(stationId, observations, {
     lastFtsRequestStart: start.toISOString(),
-    lastFtsRecordCount: incoming.length
+    lastFtsRecordCount: incoming.length,
+    lastBackupRecordCount: backup.length
   });
   try {
     await freezeCompletedYear(stationId, observations);
   } catch (err) {
     console.warn(JSON.stringify({ event: "history-freeze-failed", stationId, error: err?.message || String(err) }));
   }
-  return { stationId, fetched: incoming.length, retained: saved.observationCount, lastSyncedAt: saved.lastSyncedAt };
+  return { stationId, fetched: incoming.length, backup: backup.length, retained: saved.observationCount, lastSyncedAt: saved.lastSyncedAt };
 }
 
 /* Sync every station in parallel with Promise.allSettled so a single
