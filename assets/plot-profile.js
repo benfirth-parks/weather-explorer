@@ -176,7 +176,8 @@ function draw(box, data) {
     ? 'Bars = hand hardness by layer, coloured by grain form; outlined bars are weak layers the BYK model rates structurally unstable. Hover a layer for details.'
     : 'Bars = hand hardness by layer, coloured by grain form; outlined bars are candidate weak layers (grain-form flag, not stability). Hover a layer for details.'] : [];
   if (byk) {
-    notes.push('Driven by the Bosworth stations: Bosworth Lower temperature, humidity and snow depth (snowfall is added when its depth sensor rises), and Bosworth Upper ridge wind; cloud and radiation come from the weather model. No study plot or observed pits at this station.');
+    if (data.drivers) notes.push(data.drivers);
+    notes.push('No study plot or observed pits at this station.');
   } else if (showPit) {
     if (pit.source === 'transcribed') notes.push('The pit was transcribed from a scanned profile.');
     const s = pit.score;

@@ -24,7 +24,10 @@ export const BYK_CLASSES = ['PP', 'DF', 'RG', 'FCxr', 'FC', 'DH', 'SH', 'MF', 'M
 export const BYK_WEAK_MIN = 50;
 /* Stations without a study plot that show the BYK model's flat-field run instead. */
 export const BYK_POINTS = {
-  bosworth_lower: {id: 'fts-boslo', name: 'Bosworth Lower', elevation: 2210}
+  bosworth_lower: {id: 'fts-boslo', name: 'Bosworth Lower', elevation: 2210,
+    drivers: 'Driven by the Bosworth stations: Bosworth Lower temperature, humidity and snow depth (snowfall is added when its depth sensor rises), and Bosworth Upper ridge wind; cloud and radiation come from the weather model.'},
+  stanley_lower: {id: 'fts-stanley', name: 'Stanley Lower', elevation: 1930,
+    drivers: 'Driven by the Stanley Lower and Whymper stations: Stanley Lower temperature, humidity and snow depth (snowfall is added when its depth sensor rises), and Whymper ridge wind; cloud and radiation come from the weather model.'}
 };
 /* The three plots the Banff Snowpack site runs. */
 export const PLOTS = {
@@ -38,7 +41,8 @@ export const PAIR_PLOTS = {
   'fts-vulture,fts-bowsummit': 'bow_summit',
   'fts-simpup,fts-simplo': 'simpson',
   'fts-lookout,fts-sunshine': 'goats_eye',
-  'fts-bosup,fts-boslo': 'bosworth_lower'
+  'fts-bosup,fts-boslo': 'bosworth_lower',
+  'fts-whymper,fts-stanley': 'stanley_lower'
 };
 /* An observed pit older than this is reported but not drawn. */
 export const PIT_MAX_AGE_DAYS = 14;
@@ -129,7 +133,7 @@ export function summariseByk(plot, data) {
   const now = data?.forecast?.now;
   const snap = now && Number.isFinite(now.t) && (!last || now.t >= last.t) ? now : last;
   return {
-    plot, source: 'byk',
+    plot, source: 'byk', drivers: meta.drivers || null,
     name: meta.name || plot,
     lat: null, lon: null, elevation: meta.elevation ?? null,
     season: data?.season ?? null,
