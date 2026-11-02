@@ -1,0 +1,51 @@
+# Site watchdog: emails Ben when the site has a problem, and again when it
+# clears. Each problem opens one GitHub issue labelled "site-alert" that
+# mentions Ben, so GitHub emails him; the issue is closed with a "Resolved"
+# comment (another email) when the problem goes away. No setup needed beyond
+# GitHub email notifications being on (github.com/settings/notifications).
+#
+# Checks: the site loads, and the site's own hourly health check
+# (netlify/functions/site-health-check.mjs) is still running. Until
+# RESEND_API_KEY and ALERT_EMAIL are set on Netlify, it also raises that
+# hourly check's incidents: station data not updating, NOAA or FTS360 down,
+# site on Avalanche Canada backup, hourly sync stopped.
+#
+# GitHub runs scheduled workflows late or skips them when busy, so alerts
+# from here can lag by a few hours. The Resend email from Netlify is hourly.
+
+name: Site watchdog
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: site-watchdog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Make sure the site-alert label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh label create site-alert --color D93F0B --description "Automatic site health alert" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+      - name: Check site and raise or clear alerts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://rockiesweatherdataexplorer.netlify.app' }}
+          ALERT_MENTION: ${{ vars.ALERT_MENTION || '@benfirth-parks' }}
+        run: node scripts/site_watchdog.mjs
