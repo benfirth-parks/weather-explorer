@@ -1,4 +1,4 @@
-# Temporary: look up Waterton stations on Avalanche Canada and NOAA's PDT.
+# Temporary diagnostics branch workflow.
 name: diag waterton
 on:
   push:
@@ -8,23 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          set -x
-          curl -sS -m 60 https://weather.prod.avalanche.ca/stations -o stations.json || true
-          python3 - <<'PY'
-          import json
-          d=json.load(open('stations.json'))
-          items=d if isinstance(d,list) else d.get('data') or d.get('items') or d.get('stations') or d
-          print('TYPE',type(d).__name__, (list(d.keys())[:10] if isinstance(d,dict) else len(d)))
-          print('SAMPLE',json.dumps(items[0] if isinstance(items,list) else items)[:1500])
-          for s in (items if isinstance(items,list) else []):
-              t=json.dumps(s)
-              lat=None
-              for k in ('latitude','lat'):
-                  if k in s: lat=s[k]
-              loc=s.get('location') or {}
-              if isinstance(loc,dict): lat=lat or loc.get('latitude')
-              if 'aterton' in t or 'Parks Canada' in t or (lat and 48.9<float(lat)<49.3):
-                  print('ST',t[:700])
-          PY
-          curl -sS -m 120 https://dcs1.noaa.gov/pdts_compressed.txt -o pdt.txt || true
-          wc -l pdt.txt; grep -i "waterton\|WLNP\|cameron\|PCGCCA" pdt.txt | cut -c1-200 | head -80
+          for s in fts-boslo fts-simplo fts-vulture fts-sunshine fts-skoki fts-maligne; do
+            curl -sS -m 60 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=24" -o r.json
+            python3 -c "
+          import json,sys
+          d=json.load(open('r.json'))
+          obs=d.get('observations') or d.get('data') or []
+          last=obs[-1] if obs else {}
+          srcs={}
+          for o in obs: srcs[o.get('source','fts')]=srcs.get(o.get('source','fts'),0)+1
+          print('FTS','$s','n=',len(obs),'last=',last.get('measurementDateTime'),'src=',last.get('source','fts'),srcs,'lastSynced=',d.get('lastSyncedAt'))
+          " || head -c 300 r.json
+          done
