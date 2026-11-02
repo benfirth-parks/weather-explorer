@@ -405,6 +405,14 @@ def decode_message(raw: bytes) -> dict:
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
+FAILOVER_SERVERS = [
+    "cdadata.wcda.noaa.gov",
+    "cdabackup.wcda.noaa.gov",
+    "lrgseddn1.cr.usgs.gov",
+    "lrgseddn2.cr.usgs.gov",
+]
+
+
 def build_search_criteria(dcp_addresses: Iterable[str], since: str) -> str:
     lines = [f"DRS_SINCE: {since}", "DRS_UNTIL: now"]
     for addr in dcp_addresses:
@@ -429,21 +437,36 @@ def main() -> int:
     dcp_addresses = [
         addr for addr, sid in STATIONS.items() if sid not in SKIP_STATIONS
     ]
-    print(f"[lrgs] connecting {server}:{port} as {user}")
+    max_seconds = float(os.environ.get("LRGS_MAX_SECONDS", "120"))
+    # Try the chosen server first, then the other public LRGS servers.
+    servers = [server] + [s for s in FAILOVER_SERVERS if s != server]
     print(f"[lrgs] requesting {len(dcp_addresses)} stations since '{since}'")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    client = LRGSClient(server, port, user, password)
-    try:
-        client.connect()
-        print(f"[lrgs] authenticated, protocol v{client.protocol_version}")
-        crit = build_search_criteria(dcp_addresses, since)
-        client.send_criteria(crit)
-        print(f"[lrgs] search criteria accepted ({len(crit)} bytes)")
-        messages = client.read_all(max_seconds=120)
-        print(f"[lrgs] received {len(messages)} messages")
-    finally:
-        client.close()
+    messages: list[bytes] | None = None
+    client: LRGSClient | None = None
+    last_err: Exception | None = None
+    for host in servers:
+        print(f"[lrgs] connecting {host}:{port}")
+        client = LRGSClient(host, port, user, password)
+        try:
+            client.connect()
+            print(f"[lrgs] authenticated, protocol v{client.protocol_version}")
+            crit = build_search_criteria(dcp_addresses, since)
+            client.send_criteria(crit)
+            print(f"[lrgs] search criteria accepted ({len(crit)} bytes)")
+            messages = client.read_all(max_seconds=max_seconds)
+            print(f"[lrgs] received {len(messages)} messages from {host}")
+            server = host
+            break
+        except (OSError, LRGSError) as ex:
+            last_err = ex
+            print(f"[lrgs] {host} failed: {ex}", file=sys.stderr)
+        finally:
+            client.close()
+    if messages is None:
+        print(f"ERROR: all LRGS servers failed (last: {last_err})", file=sys.stderr)
+        return 1
 
     # Group by station, keep the most-recent-per-station in latest.json
     by_station: dict[str, list[dict]] = {}

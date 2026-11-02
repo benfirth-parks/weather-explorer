@@ -1,9 +1,12 @@
 # NOAA LRGS ingestion for Canadian Rockies FTS stations.
 #
 # Connects to NOAA/Wallops LRGS server every 15 minutes, pulls raw GOES-DCP
-# transmissions for the Parks Canada / Avalanche Canada FTS stations, decodes
-# them, and commits data/lrgs/*.json to the repo. The Netlify function
-# `lrgs.mjs` reads those files and serves them to index2.html.
+# transmissions for the Parks Canada / Avalanche Canada FTS stations and keeps
+# them as a workflow artifact (lrgs-<run id>). Nothing is committed to main, so
+# the live site is not rebuilt every 15 minutes. While the decoding is being
+# worked out against FTS360, the site does not read this data.
+#
+# Run it by hand with a longer "since" (e.g. "now - 14 days") to pull history.
 #
 # Setup:
 #   1. Register with NOAA/Wallops DCS operator:  (757) 824-7450
@@ -14,7 +17,7 @@
 #        LRGS_USER      NOAA-issued username
 #        LRGS_PASSWORD  NOAA-issued password
 #   3. (Optional) Override server via repo variable LRGS_SERVER; default is
-#      cdadata.wcda.noaa.gov. Failover candidates:
+#      cdadata.wcda.noaa.gov. The script falls back to the others in turn:
 #        cdabackup.wcda.noaa.gov
 #        lrgseddn1.cr.usgs.gov
 #        lrgseddn2.cr.usgs.gov
@@ -28,19 +31,24 @@ on:
   schedule:
     # Every 15 minutes, offset from other jobs.
     - cron: "5,20,35,50 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'How far back to fetch, e.g. "now - 14 days"'
+        required: false
+        default: "now - 30 minutes"
 
 concurrency:
   group: lrgs-ingest
   cancel-in-progress: false
 
 permissions:
-  contents: write   # needs to commit data/lrgs/*.json back to main
+  contents: read
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,25 +79,17 @@ jobs:
           LRGS_USER: ${{ secrets.LRGS_USER }}
           LRGS_PASSWORD: ${{ secrets.LRGS_PASSWORD }}
           LRGS_SERVER: ${{ vars.LRGS_SERVER || 'cdadata.wcda.noaa.gov' }}
-          LRGS_SINCE: "now - 30 minutes"
-          LRGS_OUT: data/lrgs
+          LRGS_SINCE: ${{ inputs.since || 'now - 30 minutes' }}
+          LRGS_MAX_SECONDS: "1200"
+          LRGS_OUT: lrgs-out
         run: |
           set -euo pipefail
           python scripts/lrgs_ingest.py
 
-      - name: Commit updated data
+      - name: Keep messages as an artifact
         if: steps.check.outputs.run == 'true'
-        run: |
-          set -euo pipefail
-          git config user.name  "lrgs-ingest[bot]"
-          git config user.email "lrgs-ingest[bot]@users.noreply.github.com"
-          git add data/lrgs
-          if git diff --cached --quiet; then
-            echo "::notice::No LRGS changes to commit"
-          else
-            # Amend on top of previous same-day commit to keep history light
-            git commit -m "chore(lrgs): ingest $(date -u +'%Y-%m-%dT%H:%MZ')"
-            # Pull-rebase in case another push landed while we ran
-            git pull --rebase --autostash origin main || true
-            git push origin HEAD:main
-          fi
+        uses: actions/upload-artifact@v4
+        with:
+          name: lrgs-${{ github.run_id }}
+          path: lrgs-out
+          retention-days: 30
