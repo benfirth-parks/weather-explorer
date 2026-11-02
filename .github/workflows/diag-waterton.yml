@@ -1,24 +1,13 @@
-# Temporary diagnostics: pull NOAA LRGS history and FTS archive onto this branch.
-name: diag lrgs pull
+# Temporary diagnostics: check what the live site is serving.
+name: diag live check
 on:
   push:
     branches: [diag/waterton]
     paths-ignore: ["diag-data/**"]
-permissions:
-  contents: write
 jobs:
-  pull:
+  look:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - env:
-          LRGS_USER: ${{ secrets.LRGS_USER }}
-          LRGS_PASSWORD: ${{ secrets.LRGS_PASSWORD }}
-        run: H=3 node diag/node-check.mjs && H=48 node diag/node-check.mjs | head -3
-      - if: false
-        run: |
-          git config user.name diag-bot; git config user.email diag-bot@users.noreply.github.com
-          git add diag-data && git commit -qm "diag data [skip ci]" && git push origin HEAD:diag/waterton
+      - run: |
+          curl -sS https://rockiesweatherdataexplorer.netlify.app/assets/feed-status.js | grep -c "NOAA" | sed 's/^/LIVE noaa-mentions /'
+          curl -sS "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-waterton&hours=6" | head -c 300 | sed 's/^/LIVE waterton /'
