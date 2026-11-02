@@ -9,7 +9,7 @@ jobs:
     steps:
       - run: |
           for s in fts-bowprecip fts-vermillion fts-sunshine fts-waterton fts-boslo; do
-            curl -sS "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=40" -o r.json
+            curl -sS "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=41" -o r.json
             python3 -c "
           import json; d=json.load(open('r.json')); d=d if isinstance(d,list) else d.get('observations',[])
           from collections import Counter
