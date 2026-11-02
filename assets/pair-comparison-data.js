@@ -187,8 +187,8 @@ export function hw24Series(records, from, to) {
 }
 
 // ---- Interval precipitation (when it fell) and storm totals (how much) ----
-// Bins are aligned to fixed-MST boundaries (MST = UTC-7) so they line up with the chart's ticks.
-const MST_OFFSET = 7 * HOUR;
+// Bins are aligned to fixed Alberta-time boundaries (UTC-6 year-round since Nov 2026) so they line up with the chart's ticks.
+const MST_OFFSET = 6 * HOUR;
 // HN and HW bars are hourly at every span (Ben, 30 Oct 2026).
 export function binStepHours() { return 1; }
 export function bins(from, to, stepHours) {

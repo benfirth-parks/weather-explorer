@@ -10,7 +10,7 @@ export const PAIR_TABS = {
   'fts-lookout,fts-sunshine': {match: ['sunshine', 'lookout']},
   'fts-whymper,fts-stanley': {match: ['stanley', 'whymper']}
 };
-const MST_OFFSET_MS = 7 * 3600000;
+const MST_OFFSET_MS = 6 * 3600000;
 
 export function parseCsv(text) {
   const rows = [];
@@ -53,7 +53,7 @@ export function tabForPair(pair, tabs) {
 const checked = v => /^(true|yes|y|x|✓|✔|1)$/i.test(String(v).trim());
 const MONTHS = {jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12};
 
-/* A sheet date (and optional time) in MST -> epoch ms, or null. A date with no time is placed at 08:00, the morning study plot observation. */
+/* A sheet date (and optional time) in Alberta time (UTC-6) -> epoch ms, or null. A date with no time is placed at 08:00, the morning study plot observation. */
 export function parseWhen(dateText, timeText = '') {
   const s = String(dateText).trim();
   let y, mo, d, rest = '';

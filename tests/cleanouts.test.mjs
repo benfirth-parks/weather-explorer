@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseCsv, parseTabs, tabForPair, parseWhen, cleanoutsFromCsv} from '../assets/cleanouts-data.js';
 
-const MST = (y, mo, d, h, mi) => Date.UTC(y, mo - 1, d, h + 7, mi);
+// Alberta time: UTC-6 year-round since Nov 2026.
+const MST = (y, mo, d, h, mi) => Date.UTC(y, mo - 1, d, h + 6, mi);
 
 test('parseCsv handles quotes, commas and newlines', () => {
   assert.deepEqual(parseCsv('a,"b,c","d ""e"""\r\n1,"x\ny",3\n'), [['a', 'b,c', 'd "e"'], ['1', 'x\ny', '3']]);
 });
 
-test('parseWhen reads common sheet formats as MST', () => {
+test('parseWhen reads common sheet formats as Alberta time', () => {
   assert.equal(parseWhen('2026-10-14', '14:30'), MST(2026, 10, 14, 14, 30));
   assert.equal(parseWhen('10/14/2026 8:05:00'), MST(2026, 10, 14, 8, 5));
   assert.equal(parseWhen('14-Oct-2026', '2:15 PM'), MST(2026, 10, 14, 14, 15));
