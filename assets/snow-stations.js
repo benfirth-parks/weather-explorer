@@ -15,4 +15,4 @@ export function withoutFalseNewSnow(id, records) {
    Boulder Creek, Lake Louise and Vermillion Crossing Fire report no depth; Castle Fire's depth reads
    about -180 to -220 cm). Ben, 23 Oct 2026: they show no HN24, HST or HS; HW is unchanged.
    index.html and mobile.html keep inline copies. */
-export const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki', 'fts-lakelouise', 'fts-boulder', 'fts-castle', 'fts-vermillion']);
+export const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki', 'fts-lakelouise', 'fts-boulder', 'fts-castle', 'fts-vermillion', 'fts-waterton']);
