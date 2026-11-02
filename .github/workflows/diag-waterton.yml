@@ -12,12 +12,13 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
       - env:
           LRGS_USER: ${{ secrets.LRGS_USER }}
           LRGS_PASSWORD: ${{ secrets.LRGS_PASSWORD }}
-        run: python diag/avcan.py
-      - run: |
+        run: H=3 node diag/node-check.mjs && H=48 node diag/node-check.mjs | head -3
+      - if: false
+        run: |
           git config user.name diag-bot; git config user.email diag-bot@users.noreply.github.com
           git add diag-data && git commit -qm "diag data [skip ci]" && git push origin HEAD:diag/waterton
