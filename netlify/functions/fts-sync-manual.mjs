@@ -60,7 +60,9 @@ export default async (request) => {
   }
 
   try {
-    const summary = await syncAllStations();
+    /* ?noaaHours=N (1-72) asks NOAA for a longer window, to refill a gap. */
+    const noaaHours = Math.min(Math.max(Number(url.searchParams.get("noaaHours")) || 6, 1), 72);
+    const summary = await syncAllStations({ noaaHours });
 
     /* Emit the same structured log line as the scheduled path so both
        runs are indexable together in Netlify's function logs. */
