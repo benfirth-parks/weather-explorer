@@ -1,22 +1,23 @@
-# Temporary diagnostics branch workflow.
-name: diag waterton
+# Temporary diagnostics: pull NOAA LRGS history and FTS archive onto this branch.
+name: diag lrgs pull
 on:
   push:
     branches: [diag/waterton]
+    paths-ignore: ["diag-data/**"]
+permissions:
+  contents: write
 jobs:
-  look:
+  pull:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - env:
+          LRGS_USER: ${{ secrets.LRGS_USER }}
+          LRGS_PASSWORD: ${{ secrets.LRGS_PASSWORD }}
+        run: python diag/pull.py
       - run: |
-          for s in fts-boslo fts-simplo fts-vulture fts-sunshine fts-skoki fts-maligne; do
-            curl -sS -m 60 -D h.txt "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=24" -o r.json; grep -i "x-\|last" h.txt | sed "s/^/HDR $s /"
-            python3 -c "
-          import json,sys
-          d=json.load(open('r.json'))
-          obs=d if isinstance(d,list) else (d.get('observations') or [])
-          last=obs[-1] if obs else {}
-          srcs={}
-          for o in obs: srcs[o.get('source','fts')]=srcs.get(o.get('source','fts'),0)+1
-          print('FTS','$s','n=',len(obs),'last=',last.get('measurementDateTime'),'src=',last.get('source','fts'),srcs); print('LAST3',json.dumps(obs[-3:])[:900])
-          " || true
-          done
+          git config user.name diag-bot; git config user.email diag-bot@users.noreply.github.com
+          git add diag-data && git commit -qm "diag data [skip ci]" && git push origin HEAD:diag/waterton
