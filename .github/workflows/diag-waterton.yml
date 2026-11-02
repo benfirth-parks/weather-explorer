@@ -9,14 +9,14 @@ jobs:
     steps:
       - run: |
           for s in fts-boslo fts-simplo fts-vulture fts-sunshine fts-skoki fts-maligne; do
-            curl -sS -m 60 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=24" -o r.json
+            curl -sS -m 60 -D h.txt "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=24" -o r.json; grep -i "x-\|last" h.txt | sed "s/^/HDR $s /"
             python3 -c "
           import json,sys
           d=json.load(open('r.json'))
-          obs=d.get('observations') or d.get('data') or []
+          obs=d if isinstance(d,list) else (d.get('observations') or [])
           last=obs[-1] if obs else {}
           srcs={}
           for o in obs: srcs[o.get('source','fts')]=srcs.get(o.get('source','fts'),0)+1
-          print('FTS','$s','n=',len(obs),'last=',last.get('measurementDateTime'),'src=',last.get('source','fts'),srcs,'lastSynced=',d.get('lastSyncedAt'))
-          " || head -c 300 r.json
+          print('FTS','$s','n=',len(obs),'last=',last.get('measurementDateTime'),'src=',last.get('source','fts'),srcs); print('LAST3',json.dumps(obs[-3:])[:900])
+          " || true
           done
