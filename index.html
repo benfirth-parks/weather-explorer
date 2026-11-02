@@ -724,7 +724,7 @@ let selected = new Set(STATIONS_GROUP1.map(s=>s.stationId));
    no fixed upper bound on how far back FTS360 archives go, so this is a generous sentinel
    (10 years) rather than a real duration — /api/fts is asked to return everything it has. */
 const ALL_HOURS = 87600;
-const MST_OFFSET_MS = 7*3600*1000;
+const MST_OFFSET_MS = 6*3600*1000;
 function mstMidnightUtc(y,m,d){return new Date(Date.UTC(y,m,d,7,0,0,0));}
 function todayMstMidnight(){const now=new Date(); const mstMs=now.getTime()-MST_OFFSET_MS; const mst=new Date(mstMs); return mstMidnightUtc(mst.getUTCFullYear(), mst.getUTCMonth(), mst.getUTCDate());}
 function isoDateFromMstMidnight(dt){const mstMs=dt.getTime()-MST_OFFSET_MS; const mst=new Date(mstMs); const y=mst.getUTCFullYear(); const m=String(mst.getUTCMonth()+1).padStart(2,'0'); const d=String(mst.getUTCDate()).padStart(2,'0'); return y+'-'+m+'-'+d;}
@@ -921,7 +921,7 @@ function updateHoursLabel(){
     let dur;
     if(days>=2) dur=Math.round(days)+' days';
     else dur=hrs+' hours';
-    labelEl.textContent = fromLabel+' to '+toLabel+' MST ('+dur+')';
+    labelEl.textContent = fromLabel+' to '+toLabel+' MT ('+dur+')';
     if(fd) fd.value=isoDateFromMstMidnight(viewRange.from);
     if(td) td.value=isoDateFromMstMidnight(endInclusive);
   }
@@ -1655,7 +1655,7 @@ function renderWindRose(ids){
   ro.observe(container);
   canvas._windRoseCleanup=()=>ro.disconnect();
 }
-/* Wind-direction arrows on the average-wind chart: one arrow per station every 4 h (MST hours
+/* Wind-direction arrows on the average-wind chart: one arrow per station every 4 h (Alberta-time hours
    0,4,8,...), pointing the way the wind blows toward (reported direction + 180°). Longer ranges
    thin to every 12 h (≤30 d) or 24 h so the arrows stay legible. */
 const windArrowCache={};

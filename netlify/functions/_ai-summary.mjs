@@ -164,10 +164,10 @@ function summarizeStation(meta, observations, lastSyncedAt) {
   const lateWindDir  = vectorMeanWind(lateObs);
   const windDirShiftDeg = bearingDelta(earlyWindDir.deg, lateWindDir.deg);
 
-  /* Hour-of-day (0–23) in Mountain Standard Time (UTC−7, no DST) for the
+  /* Hour-of-day (0–23) in Alberta time (UTC−6 year-round since Nov 2026) for the
      observation containing the window's high and low temperatures. Lets the
      model say "peaked mid-afternoon" rather than just "peak was 22 °C". */
-  const MST_OFFSET_HOURS = -7;
+  const MST_OFFSET_HOURS = -6;
   function hourOfExtreme(observations, key, wantMax) {
     let idx = -1;
     let best = wantMax ? -Infinity : Infinity;

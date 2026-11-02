@@ -101,9 +101,9 @@ const WIND_CLASSES = [
   {label: 'Extreme (>60)',    max: Infinity, color: 'rgb(178,34,52)',  border: 'rgb(138,20,36)'}
 ];
 const ROSE_DIRS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-const clock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
-const dayClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', month:'short', day:'numeric'});
-const hourClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+7', hour:'2-digit', minute:'2-digit', hour12:false});
+const clock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+6', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+const dayClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+6', month:'short', day:'numeric'});
+const hourClock = new Intl.DateTimeFormat('en-CA', {timeZone:'Etc/GMT+6', hour:'2-digit', minute:'2-digit', hour12:false});
 
 function element(tag, className, text) {
   const el = document.createElement(tag);
@@ -215,12 +215,12 @@ function peak(points) {
 function when(x, hours) { return hours === 24 ? hourClock.format(x) : clock.format(x); }
 
 /* ---- Wind-direction arrows on the wind line ----
-   One arrow at the first reading of each MST step (2 h on 24 h, 4 h on 72 h, 12 h on 7 days),
+   One arrow at the first reading of each Alberta-time step (2 h on 24 h, 4 h on 72 h, 12 h on 7 days),
    pointing the way the wind blows toward (reported direction + 180°), as on the dashboard. */
 /* Narrow (phone-width) charts double the step so arrows don't overlap. */
 function arrowStepHours(hours, narrow = false) { return (hours <= 24 ? 2 : hours <= 72 ? 4 : hours <= 168 ? 12 : hours <= 480 ? 24 : 48) * (narrow ? 2 : 1); }
 function markArrows(points, hours, narrow) {
-  const step = arrowStepHours(hours, narrow) * HOUR, offset = 7 * HOUR;
+  const step = arrowStepHours(hours, narrow) * HOUR, offset = 6 * HOUR;
   let lastBucket = null;
   return points.map(p => {
     if (p.y === null || p.dir === null || p.dir === undefined) return p;
@@ -539,9 +539,9 @@ async function render(view) {
       plugins: {legend: {display: false}, pairCleanouts: {markers: cleanoutMarks}, tooltip: {enabled: false}}, // no hover box (Ben, 2026-10-21)
       scales: {
         x: {type: 'time', min: from, max: to, offset: false, grid: {color: grid},
-          // Ticks on fixed-MST boundaries (MST midnight = 07:00 UTC), independent of the viewer's time zone.
+          // Ticks on fixed Alberta-time boundaries (UTC-6, midnight = 06:00 UTC), independent of the viewer's time zone.
           afterBuildTicks: axis => {
-            const step = (hours === 24 ? 6 : hours === 72 ? 12 : hours <= 168 ? 24 : hours <= 480 ? 48 : hours <= 720 ? 96 : 168) * HOUR, offset = 7 * HOUR;
+            const step = (hours === 24 ? 6 : hours === 72 ? 12 : hours <= 168 ? 24 : hours <= 480 ? 48 : hours <= 720 ? 96 : 168) * HOUR, offset = 6 * HOUR;
             const ticks = [];
             for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) ticks.push({value: t});
             axis.ticks = ticks;

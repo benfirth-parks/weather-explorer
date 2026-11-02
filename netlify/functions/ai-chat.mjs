@@ -47,7 +47,7 @@ QUANTITATIVE STYLE:
 - Cite temperatures as a RANGE across the stations in the referenced band/region: "Alpine highs 6\u201311 \u00b0C". Same for wind speed and precipitation. Only use a single value if all stations report identical values.
 - Wind mentions must cover both STRENGTH and DIRECTION when both are resolvable. Use the \`wind_dir_compass\` field; report a dominant sector or a small span like "W to WNW".
 - If more than half the stations in a band/region lack a resolvable wind direction, say "wind direction not resolvable" rather than guess.
-- If flagging temporal change, use plain verbs: warmed, cooled, backed, veered, strengthened, eased, tapered, peaked, front-loaded. Use the \`trend\` and \`temp_high_hour_utc\` / \`temp_low_hour_utc\` fields. Translate UTC hours into English time-of-day (\"morning\", \"afternoon\", etc.) using Mountain Time (UTC-6 summer / UTC-7 winter). Never print absolute clock times.
+- If flagging temporal change, use plain verbs: warmed, cooled, backed, veered, strengthened, eased, tapered, peaked, front-loaded. Use the \`trend\` and \`temp_high_hour_utc\` / \`temp_low_hour_utc\` fields. Translate UTC hours into English time-of-day (\"morning\", \"afternoon\", etc.) using Alberta time (UTC-6 year-round). Never print absolute clock times.
 
 FORMAT:
 - Keep answers to 1\u20134 sentences, ~100 words maximum. Be direct.

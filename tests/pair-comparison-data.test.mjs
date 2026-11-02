@@ -77,10 +77,10 @@ test('wind points carry a validated direction; series use plain HS / HN / HW lab
   assert.equal(hs24Series([], 0, HOUR).method, 'HS');
   assert.equal(hw24Series([], 0, HOUR).method, 'HW');
 });
-test('interval bins align to MST and HW intervals sum to the window total', async () => {
+test('interval bins align to Alberta time and HW intervals sum to the window total', async () => {
   const {bins, hwIntervals} = await import('../assets/pair-comparison-data.js');
   const b = bins(0, 24 * HOUR, 3);
-  assert.equal(Math.abs((b[1].start - 7 * HOUR) % (3 * HOUR)), 0);
+  assert.equal(Math.abs((b[1].start - 6 * HOUR) % (3 * HOUR)), 0);
   const gauge = Array.from({length: 13}, (_, h) => record(h, {precipTotal: 100 + (h >= 4 && h <= 8 ? (h - 3) * 2 : h > 8 ? 10 : 0)}));
   const hw = hwIntervals(gauge, 0, 12 * HOUR, 1);
   assert.equal(hw.total, 10);

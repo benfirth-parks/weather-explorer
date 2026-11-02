@@ -1248,7 +1248,7 @@ function renderWindRose(ids){
   ro.observe(container);
   canvas._windRoseCleanup=()=>ro.disconnect();
 }
-/* Wind-direction arrows on the average-wind chart: one arrow per station every 4 h (MST hours
+/* Wind-direction arrows on the average-wind chart: one arrow per station every 4 h (Alberta-time hours
    0,4,8,...), pointing the way the wind blows toward (reported direction + 180°). Longer ranges
    thin to every 12 h (≤30 d) or 24 h so the arrows stay legible. */
 const windArrowCache={};

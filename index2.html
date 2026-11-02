@@ -96,7 +96,7 @@ h2{font-size:11px;text-transform:uppercase;color:var(--text-muted);margin-bottom
       <label class="date-field"><span class="date-field-label">From</span><input type="date" id="fromDate"></label>
       <label class="date-field"><span class="date-field-label">To</span><input type="date" id="toDate"></label>
     </div>
-    <div class="range-label"><span id="hoursLabel">Last 7 days</span><span class="mono">Or pick From/To (MST)</span></div>
+    <div class="range-label"><span id="hoursLabel">Last 7 days</span><span class="mono">Or pick From/To (MT)</span></div>
   </div>
 
   <div class="sidebar-section">
@@ -202,7 +202,7 @@ const METRIC_META = {
 // ==================== State ====================
 let selected = new Set(STATIONS.filter(s=>s.group===1).map(s=>s.id));
 let metric = "temp";
-const MST_OFFSET_MS = 7*3600*1000;
+const MST_OFFSET_MS = 6*3600*1000;
 function todayMstMidnight(){const now=new Date(); const mst=new Date(now.getTime()-MST_OFFSET_MS); return new Date(Date.UTC(mst.getUTCFullYear(),mst.getUTCMonth(),mst.getUTCDate(),7,0,0,0));}
 function isoDate(dt){const mst=new Date(dt.getTime()-MST_OFFSET_MS); return mst.getUTCFullYear()+'-'+String(mst.getUTCMonth()+1).padStart(2,'0')+'-'+String(mst.getUTCDate()).padStart(2,'0');}
 function mstFromIso(iso){const p=iso.split('-').map(Number); return new Date(Date.UTC(p[0],p[1]-1,p[2],7,0,0,0));}

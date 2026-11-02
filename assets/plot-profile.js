@@ -15,8 +15,8 @@ const GRAIN = {
 };
 const KEY_GRAINS = ['PP', 'DF', 'RG', 'FC', 'FCxr', 'DH', 'SH', 'MF', 'MFcr'];
 const TEMP_COLOR = '#d9472b';
-const clock = new Intl.DateTimeFormat('en-CA', {timeZone: 'Etc/GMT+7', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false});
-const day = new Intl.DateTimeFormat('en-CA', {timeZone: 'Etc/GMT+7', year: 'numeric', month: 'short', day: 'numeric'});
+const clock = new Intl.DateTimeFormat('en-CA', {timeZone: 'Etc/GMT+6', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false});
+const day = new Intl.DateTimeFormat('en-CA', {timeZone: 'Etc/GMT+6', year: 'numeric', month: 'short', day: 'numeric'});
 const requests = new Map();
 const MEMORY_MS = 10 * 60000;
 
@@ -148,17 +148,17 @@ function draw(box, data) {
   const hsMax = Math.ceil(Math.max(20, sim?.hs || 0, showPit ? pit.hs || pit.layers[0]?.[0] || 0 : 0) * 1.08 / 10) * 10;
   const figs = element('div', 'plot-profile-figs');
   if (sim && sim.layers.length) {
-    figs.append(figure('Modelled', `${clock.format(sim.t)} MST · HS ${Math.round(sim.hs ?? sim.layers[0][0])} cm`, drawProfile({
+    figs.append(figure('Modelled', `${clock.format(sim.t)} MT · HS ${Math.round(sim.hs ?? sim.layers[0][0])} cm`, drawProfile({
       layers: sim.layers, temps: simTemps(sim.layers), hsMax, observed: false, bykFlags: byk,
-      aria: `Modelled snow profile at ${data.name}${byk ? '' : ' study plot'}, ${clock.format(sim.t)} MST: ${sim.layers.length} layers, ${Math.round(sim.hs ?? sim.layers[0][0])} cm deep.`
+      aria: `Modelled snow profile at ${data.name}${byk ? '' : ' study plot'}, ${clock.format(sim.t)} MT: ${sim.layers.length} layers, ${Math.round(sim.hs ?? sim.layers[0][0])} cm deep.`
     })));
   } else {
-    figs.append(element('p', 'plot-profile-empty', sim ? `Modelled: no snow on the ground at ${clock.format(sim.t)} MST.` : 'Modelled: no profile published yet this season.'));
+    figs.append(element('p', 'plot-profile-empty', sim ? `Modelled: no snow on the ground at ${clock.format(sim.t)} MT.` : 'Modelled: no profile published yet this season.'));
   }
   if (showPit) {
-    figs.append(figure('Observed pit', `${clock.format(pit.t)} MST (${age(pit.t)})${pit.hs ? ` · HS ${pit.hs} cm` : ''}`, drawProfile({
+    figs.append(figure('Observed pit', `${clock.format(pit.t)} MT (${age(pit.t)})${pit.hs ? ` · HS ${pit.hs} cm` : ''}`, drawProfile({
       layers: pit.layers, temps: pit.temps, tests: pit.tests, hsMax, observed: true,
-      aria: `Observed snow profile at ${data.name} study plot, ${clock.format(pit.t)} MST: ${pit.layers.length} layers.`
+      aria: `Observed snow profile at ${data.name} study plot, ${clock.format(pit.t)} MT: ${pit.layers.length} layers.`
     })));
   }
   box.append(figs);

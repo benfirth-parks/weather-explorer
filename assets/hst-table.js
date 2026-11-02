@@ -5,7 +5,7 @@ import {stormSnow, HST_LOOKBACK_H, STORM_GAP_H} from './hst.js';
 const host = window.weatherPairComparisonHost;
 const cache = new Map();
 const KEEP_MS = 30 * 60000;
-const day = new Intl.DateTimeFormat('en-CA', {timeZone: 'Etc/GMT+7', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false});
+const day = new Intl.DateTimeFormat('en-CA', {timeZone: 'Etc/GMT+6', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false});
 
 function records(id) {
   const hit = cache.get(id);
@@ -19,8 +19,8 @@ function show(cell, r) {
   cell.replaceChildren();
   if (!r) { cell.textContent = '—'; cell.title = 'No snow-depth data'; return; }
   cell.append(document.createTextNode(`${r.partial && r.hst > 0 ? '≥' : ''}${r.hst.toFixed(1)} cm`));
-  cell.title = r.hst === 0 ? (r.start ? `HS has not risen since the storm began, ${day.format(r.start)} MST` : `No storm: no new snow in the last ${STORM_GAP_H} h`)
-    : `Peak HS rise since the storm began, ${r.start ? day.format(r.start) + ' MST' : 'at the start of the data'} (new snow with no gap over ${STORM_GAP_H} h)`
+  cell.title = r.hst === 0 ? (r.start ? `HS has not risen since the storm began, ${day.format(r.start)} MT` : `No storm: no new snow in the last ${STORM_GAP_H} h`)
+    : `Peak HS rise since the storm began, ${r.start ? day.format(r.start) + ' MT' : 'at the start of the data'} (new snow with no gap over ${STORM_GAP_H} h)`
       + (r.partial ? '. Some hours are missing or the storm began before the 10 days fetched, so this is a minimum.' : '');
 }
 function fill() {
