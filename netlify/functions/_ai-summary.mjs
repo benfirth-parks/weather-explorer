@@ -46,10 +46,14 @@ export const STATION_META = [
   { stationId: "fts-jasperqd1",   name: "Jasper QD1 'Green'",                 elevation: 1585, park: "Jasper",   group: 4, ns: "North", ew: "West" },
   { stationId: "fts-dorothy",     name: "Dorothy",                            elevation: 1528, park: "Jasper",   group: 4, ns: "North", ew: "West" },
   { stationId: "fts-devona",      name: "Devona",                             elevation: 1402, park: "Jasper",   group: 4, ns: "North", ew: "East" },
-  { stationId: "fts-rangercreek", name: "Ranger Creek",                       elevation: 1289, park: "Jasper",   group: 4, ns: "North", ew: "West" }
+  { stationId: "fts-rangercreek", name: "Ranger Creek",                       elevation: 1289, park: "Jasper",   group: 4, ns: "North", ew: "West" },
+  // Group 5 · Waterton  (excluded from default summary scope)
+  { stationId: "fts-summitlake",  name: "Summit Lake",                        elevation: 2056, park: "Waterton", group: 5, ns: "South", ew: "East" },
+  { stationId: "fts-akamina",     name: "Akamina Pass",                       elevation: 1676, park: "Waterton", group: 5, ns: "South", ew: "East" },
+  { stationId: "fts-waterton",    name: "Waterton Townsite",                  elevation: 1294, park: "Waterton", group: 5, ns: "South", ew: "East" }
 ];
 
-const GROUP_LABELS = { 1: "Banff VS", 2: "Banff Fire", 3: "Jasper VS", 4: "Jasper Fire" };
+const GROUP_LABELS = { 1: "Banff VS", 2: "Banff Fire", 3: "Jasper VS", 4: "Jasper Fire", 5: "Waterton" };
 
 function num(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;

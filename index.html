@@ -597,7 +597,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
     <div class="map-hint" id="mapHint">Draw a shape around stations to select them</div>
   </div>
   <div class="sidebar-section"><h2>Main time range</h2><div class="range-controls"><div class="range-chip-row" id="presetChips"><button class="chip" data-hours="6">6h</button><button class="chip" data-hours="24">1d</button><button class="chip" data-hours="36">36h</button><button class="chip" data-hours="48">48h</button><button class="chip active" data-hours="72">72h</button><button class="chip" data-hours="96">96h</button><button class="chip" data-hours="168">7d</button><button class="chip" data-hours="240">10d</button><button class="chip" data-hours="480">20d</button><button class="chip" data-hours="720">30d</button><button class="chip" data-hours="1440">60d</button><button class="chip" data-hours="2160">90d</button><button class="chip" data-hours="4320">180d</button><button class="chip" data-hours="8640">360d</button><button class="chip" data-hours="87600" title="Full archived history for the selected stations">All</button></div><div class="date-range-row"><label class="date-field"><span class="date-field-label">From</span><input type="date" id="fromDate"></label><label class="date-field"><span class="date-field-label">To</span><input type="date" id="toDate"></label></div><div class="range-label"><span id="hoursLabel">Last 72 hours</span><span class="mono">Or pick From/To dates (MST)</span></div></div></div>
-  <div class="sidebar-section"><h2>Stations (<span id="stationCountLabel">16</span>)</h2><div class="range-chip-row" style="margin-bottom:var(--space-3);"><button class="chip group-chip active" data-group="1">Group 1 · Banff VS</button><button class="chip group-chip" data-group="2">Group 2 · Banff Fire</button><button class="chip group-chip" data-group="3">Group 3 · Jasper VS</button><button class="chip group-chip" data-group="4">Group 4 · Jasper Fire</button></div><div class="elev-filter"><div class="elev-head"><span>Elevation band</span><span class="mono" id="elevRangeLabel">1289–2930 m</span></div><div class="dual-range" id="elevDualRange"><div class="track"></div><div class="track-fill" id="elevTrackFill"></div><input type="range" id="elevMin" aria-label="Minimum station elevation"><input type="range" id="elevMax" aria-label="Maximum station elevation"></div><div class="elev-band-row" id="elevBandRow"></div></div><div class="station-list" id="stationList"></div><div class="btn-row"><button class="btn btn-ghost" id="selectAllBtn">Select all</button><button class="btn btn-ghost" id="clearBtn">Clear</button></div></div>
+  <div class="sidebar-section"><h2>Stations (<span id="stationCountLabel">16</span>)</h2><div class="range-chip-row" style="margin-bottom:var(--space-3);"><button class="chip group-chip active" data-group="1">Group 1 · Banff VS</button><button class="chip group-chip" data-group="2">Group 2 · Banff Fire</button><button class="chip group-chip" data-group="3">Group 3 · Jasper VS</button><button class="chip group-chip" data-group="4">Group 4 · Jasper Fire</button><button class="chip group-chip" data-group="5">Group 5 · Waterton</button></div><div class="elev-filter"><div class="elev-head"><span>Elevation band</span><span class="mono" id="elevRangeLabel">1289–2930 m</span></div><div class="dual-range" id="elevDualRange"><div class="track"></div><div class="track-fill" id="elevTrackFill"></div><input type="range" id="elevMin" aria-label="Minimum station elevation"><input type="range" id="elevMax" aria-label="Maximum station elevation"></div><div class="elev-band-row" id="elevBandRow"></div></div><div class="station-list" id="stationList"></div><div class="btn-row"><button class="btn btn-ghost" id="selectAllBtn">Select all</button><button class="btn btn-ghost" id="clearBtn">Clear</button></div></div>
   <div class="sidebar-section" style="border-bottom:none;flex:1;"><h2>About</h2><p style="font-size:var(--text-xs);color:var(--color-text-muted);line-height:1.6;">Select stations from the list, click map markers, or lasso-select multiple stations. The main trend and wind diagnostics use the main time slider. Snow depth cards below have their own per-station controls and default to 24 hours. Drag any panel's bottom-right corner to resize it. All stations in this app are FTS360 stations. Group 1 is Banff Visitor Safety, Group 2 Banff Fire, Group 3 Jasper Visitor Safety and Group 4 Jasper Fire; only Group 1 is selected on load. Stations above 2200 m are emphasized in wind views by default. See the <a href="https://playground.dx.dev.avalanche.ca/meteograms" target="_blank" rel="noopener noreferrer" style="color:var(--color-primary);">Avid forecast meteograms</a> for the official forecast.</p></div>
 </aside>
 <main class="main">
@@ -673,6 +673,8 @@ const STATIONS_GROUP2 = [{"stationId":"fts-boulder","name":"Boulder Creek - Fire
    it is stated in the FTS station name). */
 const STATIONS_GROUP3 = [{"stationId":"fts-tangleridge","name":"Tangle Ridge","latitude":52.226,"longitude":-117.257,"elevation":3009,"park":"Jasper","group":3,"color":"#888","provisional":true},{"stationId":"fts-coleman","name":"Coleman Avalanche Control","latitude":52.09691,"longitude":-116.92602,"elevation":2176,"park":"Banff","group":3,"color":"#888"},{"stationId":"fts-bigbend","name":"Big Bend","latitude":52.193,"longitude":-117.156,"elevation":2125,"park":"Banff","group":3,"color":"#888","provisional":true},{"stationId":"fts-maligne","name":"Maligne","latitude":52.7244,"longitude":-117.6494,"elevation":1712,"park":"Jasper","group":3,"color":"#888"},{"stationId":"fts-saskcrossing","name":"Saskatchewan Crossing","latitude":51.9681,"longitude":-116.7145,"elevation":1392,"park":"Banff","group":3,"color":"#888"}];
 const STATIONS_GROUP4 = [{"stationId":"fts-jasperqd1","name":"Jasper QD1 'Green'","latitude":52.6648,"longitude":-116.8767,"elevation":1585,"park":"Jasper","group":4,"color":"#888"},{"stationId":"fts-dorothy","name":"Dorothy","latitude":52.9008,"longitude":-118.2786,"elevation":1528,"park":"Jasper","group":4,"color":"#888"},{"stationId":"fts-devona","name":"Devona","latitude":53.1718,"longitude":-118.0292,"elevation":1402,"park":"Jasper","group":4,"color":"#888"},{"stationId":"fts-rangercreek","name":"Ranger Creek","latitude":52.5768,"longitude":-117.7208,"elevation":1289,"park":"Jasper","group":4,"color":"#888"}];
+/* ---- Group 5 · Waterton. NOAA-only (no FTS360 feed); positions and elevations from Avalanche Canada. */
+const STATIONS_GROUP5 = [{"stationId":"fts-summitlake","name":"Summit Lake","latitude":49.006447,"longitude":-114.03637,"elevation":2056,"park":"Waterton","group":5,"color":"#888"},{"stationId":"fts-akamina","name":"Akamina Pass","latitude":49.0333,"longitude":-114.05,"elevation":1676,"park":"Waterton","group":5,"color":"#888"},{"stationId":"fts-waterton","name":"Waterton Townsite","latitude":49.06468,"longitude":-113.903,"elevation":1294,"park":"Waterton","group":5,"color":"#888"}];
 /* ---- Elevation colour ramp: low = warm/red, high = cool/blue ---- */
 const ELEV_RAMP = [
   {t:0.00, c:[178, 34, 34]},   /* deep red      - lowest */
@@ -695,7 +697,7 @@ function elevationColor(elevation, lo, hi){
   return '#' + mix.map(v=>v.toString(16).padStart(2,'0')).join('');
 }
 (function assignElevationColors(){
-  const all = STATIONS_GROUP1.concat(STATIONS_GROUP2, STATIONS_GROUP3);
+  const all = STATIONS_GROUP1.concat(STATIONS_GROUP2, STATIONS_GROUP3, STATIONS_GROUP5);
   const elevs = all.map(s=>s.elevation).filter(Number.isFinite);
   const lo = Math.min(...elevs), hi = Math.max(...elevs);
   all.forEach(s=>{ s.color = elevationColor(s.elevation, lo, hi); });
@@ -704,8 +706,9 @@ function elevationColor(elevation, lo, hi){
 STATIONS_GROUP1.sort((a,b)=>b.elevation-a.elevation);
 STATIONS_GROUP2.sort((a,b)=>b.elevation-a.elevation);
 STATIONS_GROUP3.sort((a,b)=>b.elevation-a.elevation);
-const STATIONS = STATIONS_GROUP1.concat(STATIONS_GROUP2, STATIONS_GROUP3, STATIONS_GROUP4);
-const GROUP_LABELS = {1:"Banff VS", 2:"Banff Fire", 3:"Jasper VS", 4:"Jasper Fire"};
+STATIONS_GROUP5.sort((a,b)=>b.elevation-a.elevation);
+const STATIONS = STATIONS_GROUP1.concat(STATIONS_GROUP2, STATIONS_GROUP3, STATIONS_GROUP4, STATIONS_GROUP5);
+const GROUP_LABELS = {1:"Banff VS", 2:"Banff Fire", 3:"Jasper VS", 4:"Jasper Fire", 5:"Waterton"};
 const STATION_BY_ID = Object.fromEntries(STATIONS.map(s=>[s.stationId, s]));
 const FTS_STATION_HEXID = {"fts-boslo":"6160c6b964699463087281d9","fts-boulder":"6160c6b964699463087281db","fts-bosup":"6160c6b964699463087281dc","fts-vermillion":"6160c6b964699463087281e0","fts-whymper":"6160c6b964699463087281e3","fts-sunshine":"6160c6b964699463087281e8","fts-vulture":"6160c6b964699463087281e9","fts-stanley":"6160c6b964699463087281ea","fts-lakelouise":"6160c6b964699463087281eb","fts-bowsummit":"6160c6b964699463087281ec","fts-castle":"6160c6b964699463087281ef","fts-simplo":"6160c6b964699463087281fa","fts-bowprecip":"6160c6ba6469946308728202","fts-lookout":"6160c6b964699463087281e7","fts-simpup":"6160c6ba6469946308728203","fts-pikarun":"61e09ba56a379f48b21582f6","fts-skoki":"61e09ba56a379f48b21582f7","fts-maligne":"6160c6b36469946308727b36","fts-jasperqd1":"6160c6b964699463087281d0","fts-coleman":"6160c6b36469946308727b25","fts-dorothy":"6160c6b36469946308727b1b","fts-devona":"6160c6b36469946308727b1a","fts-saskcrossing":"6160c6b36469946308727b30","fts-rangercreek":"6160c6b36469946308727b2a","fts-bigbend":"6160c6a964699463087271e7","fts-tangleridge":"6160c6b36469946308727bca"};
 const METRIC_META = {
@@ -1188,7 +1191,7 @@ function freshnessText(rec){
 const HN_FROM_DEPTH_IDS = new Set(['fts-bowsummit','fts-simplo']);
 /* Gauge stations with no working snow depth sensor: no HN24, HST or HS (HW unchanged).
    Mirrors NO_SNOW_SENSOR_IDS in assets/snow-stations.js. */
-const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki','fts-lakelouise','fts-boulder','fts-castle','fts-vermillion']);
+const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki','fts-lakelouise','fts-boulder','fts-castle','fts-vermillion','fts-waterton']);
 /* HN24: the sum of the hourly HN over the last 24 h, for every station (Ben, 30 Oct 2026). Hourly HN comes
    from HS: a 3 h running median of the depth, with each rise of 2 cm or more above the last reference level
    counted as new snow, and settlement lowering the reference (the feeds' "new snow" fields are gauge increments,
@@ -1238,7 +1241,7 @@ const HW24_IDS = new Set(['fts-skoki','fts-boulder','fts-lakelouise','fts-pikaru
   'fts-bowprecip','fts-sunshine']);
 /* Whole groups can be HW24 too. The Jasper VS stations are precipitation-gauge sites,
    so their banner reports HW24 in mm rather than a snow depth the gauges cannot measure. */
-const HW24_GROUPS = new Set([3,4]);
+const HW24_GROUPS = new Set([3,4,5]);
 /* AB Env gauges report BOTH an accumulated precipitation total and a snow depth.
    Their graph cards offer HW (mm) and Snow height, defaulting to HW. */
 const DUAL_METRIC_IDS = new Set(['fts-bowprecip','fts-sunshine']);
