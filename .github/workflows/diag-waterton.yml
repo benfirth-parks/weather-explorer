@@ -1,4 +1,4 @@
-# Temporary diagnostics: check what the live site is serving.
+# Temporary diagnostics: wait for the live site to serve the NOAA build.
 name: diag live check
 on:
   push:
@@ -7,7 +7,12 @@ on:
 jobs:
   look:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - run: |
-          curl -sS https://rockiesweatherdataexplorer.netlify.app/assets/feed-status.js | grep -c "NOAA" | sed 's/^/LIVE noaa-mentions /'
-          curl -sS "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-waterton&hours=6" | head -c 300 | sed 's/^/LIVE waterton /'
+          for i in $(seq 1 90); do
+            n=$(curl -sS https://rockiesweatherdataexplorer.netlify.app/assets/feed-status.js | grep -c NOAA || true)
+            if [ "$n" != "0" ]; then echo "LIVE deployed after $i checks $(date -u +%H:%M:%SZ)"; exit 0; fi
+            sleep 10
+          done
+          echo "LIVE still old build $(date -u +%H:%M:%SZ)"
