@@ -2,6 +2,12 @@
   publish = "."
   functions = "netlify/functions"
 
+# Ben approved 2026-11-02: the NOAA LRGS username is a short word that also
+# appears in ordinary page text and trips Netlify's secret scan. The username
+# is not sensitive; LRGS_PASSWORD is still scanned.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "LRGS_USER"
+
 [[redirects]]
   from = "/api/fts"
   to = "/.netlify/functions/fts"
