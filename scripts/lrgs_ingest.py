@@ -124,6 +124,7 @@ MSG_ID_GOODBYE = b"b"        # clean disconnect
 # error codes we handle specially
 ERR_DMSGTIMEOUT = 11         # no matching messages available (real-time wait)
 ERR_DUNTIL = 35              # reached the "until" time
+DDS_PROTOCOL_VERSION = 14
 ERR_DAUTHFAILED = 47         # authentication failure
 ERR_DSTRONGREQUIRED = 55     # server requires SHA-256
 
@@ -139,10 +140,10 @@ class LRGSError(Exception):
 # ---------------------------------------------------------------------------
 # Authenticator hash (per DDS v14 §3.2.4)
 # ---------------------------------------------------------------------------
-def _preliminary_hash(username: str, password: str, algo: str = "sha256") -> bytes:
+def _preliminary_hash(username: str, password: str, algo: str = "sha1") -> bytes:
     """Step 1 shared secret: hash( username + password + username + password ).
 
-    Protocol v14 uses SHA-256 throughout when the server allows it.
+    Always SHA-1 in practice; only the authenticator step may use SHA-256.
     """
     h = hashlib.new(algo)
     ub = username.encode("ascii")
@@ -160,7 +161,9 @@ def _authenticator(username: str, password: str, ts_epoch: int,
 
     Time is 4-byte big-endian Unix epoch seconds. Returned as UPPERCASE hex.
     """
-    prelim = _preliminary_hash(username, password, algo)
+    # The stored password hash is always SHA-1, even when the authenticator
+    # itself uses SHA-256 (OpenDCS PasswordFileEntry.digestAlgo = "SHA").
+    prelim = _preliminary_hash(username, password, "sha1")
     tb = struct.pack(">I", ts_epoch)
     h = hashlib.new(algo)
     ub = username.encode("ascii")
@@ -239,23 +242,27 @@ class LRGSClient:
         self.sock: socket.socket | None = None
         self.protocol_version = 0
 
-    def connect(self) -> None:
+    def _open(self) -> None:
+        self.close()
         self.sock = socket.create_connection((self.host, self.port), timeout=self.timeout)
         self.sock.settimeout(self.timeout)
-        # Try authenticated hello with SHA-256 first (v14 preferred)
+
+    def connect(self) -> None:
+        # SHA-256 authenticator first (v14). If the server rejects it, retry on
+        # a fresh connection with a SHA-1 authenticator, as older servers want.
+        self._open()
         try:
             self._authenticate(algo="sha256")
         except LRGSError as e:
-            if e.server_code == ERR_DAUTHFAILED:
-                # Some older servers still want SHA-1 — retry once
-                self._authenticate(algo="sha")
-            else:
+            if e.server_code != ERR_DAUTHFAILED:
                 raise
+            self._open()
+            self._authenticate(algo="sha1")
 
     def _authenticate(self, algo: str) -> None:
         ts = int(time.time())
         auth = _authenticator(self.username, self.password, ts, algo)
-        body = f"{self.username} {_fmt_yy_ddd(ts)} {auth}".encode("ascii")
+        body = f"{self.username} {_fmt_yy_ddd(ts)} {auth} {DDS_PROTOCOL_VERSION}".encode("ascii")
         _send_msg(self.sock, MSG_ID_AUTH_HELLO, body)
         mt, resp = _recv_msg(self.sock)
         _check_error(resp)
