@@ -1,7 +1,8 @@
 /* Avalanche Canada backup feed.
    Avalanche Canada reads the same Parks Canada stations straight from the
-   NOAA GOES satellite feed, independently of FTS360. When FTS360 falls more
-   than BACKUP_AFTER_HOURS behind, the sync fills the hours after the newest
+   NOAA GOES satellite feed, independently of FTS360. It is the last source:
+   when both our own NOAA feed and FTS360 fall more than BACKUP_AFTER_HOURS
+   behind, the sync fills the hours after the newest
    FTS360 reading from Avalanche Canada's public weather API. Those records
    carry source: "avalanche-canada"; once FTS360 catches up, its own records
    replace them (see mergeAndPrune in _weather-archive.mjs).
@@ -33,7 +34,10 @@ export const AVCAN_STATION_IDS = {
   "fts-lookout": 121,
   "fts-sunshine": 122,
   "fts-maligne": 123,
-  "fts-tangleridge": 129
+  "fts-tangleridge": 129,
+  "fts-summitlake": 124,
+  "fts-waterton": 125,
+  "fts-akamina": 126
 };
 
 const FIELD_MAP = {
@@ -66,16 +70,27 @@ export function convertMeasurement(m) {
   return any ? rec : null;
 }
 
-/** Time (ms) of the newest FTS360 record, ignoring backup records. */
-export function newestFtsTime(observations) {
+/* Records carry the source that supplied them: none (FTS360), "noaa" or
+   "avalanche-canada". A NOAA record that FTS360 also delivered is marked
+   ftsSeen: true. */
+const isFtsRecord = (r) => !!r && (!r.source || r.ftsSeen === true);
+const isPrimaryRecord = (r) => !!r && !isBackupRecord(r);
+
+function newestTime(observations, keep) {
   for (let i = observations.length - 1; i >= 0; i--) {
     const r = observations[i];
-    if (isBackupRecord(r)) continue;
+    if (!keep(r)) continue;
     const t = new Date(r.measurementDateTime).getTime();
     if (Number.isFinite(t)) return t;
   }
   return Number.NaN;
 }
+
+/** Time (ms) of the newest record FTS360 delivered (sets the FTS360 request window). */
+export const newestFtsTime = (observations) => newestTime(observations, isFtsRecord);
+
+/** Time (ms) of the newest NOAA or FTS360 record, ignoring backup records. */
+export const newestPrimaryTime = (observations) => newestTime(observations, isPrimaryRecord);
 
 /** Backup records strictly after the newest FTS360 record, sorted. */
 export function backupRecordsAfter(measurements, afterMs) {
@@ -85,11 +100,11 @@ export function backupRecordsAfter(measurements, afterMs) {
     .sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
 }
 
-/** Fetches backup records for a station when FTS360 is behind; [] otherwise. */
+/** Fetches backup records for a station when NOAA and FTS360 are both behind; [] otherwise. */
 export async function fetchBackup(stationId, observations, { now = Date.now(), fetchImpl = fetch } = {}) {
   const avcanId = AVCAN_STATION_IDS[stationId];
   if (!avcanId) return [];
-  const newest = newestFtsTime(observations);
+  const newest = newestPrimaryTime(observations);
   if (Number.isFinite(newest) && now - newest < BACKUP_AFTER_HOURS * 3600 * 1000) return [];
   const from = Math.max(Number.isFinite(newest) ? newest : 0, now - MAX_BACKFILL_DAYS * 86400 * 1000);
   const url = new URL(`${AVCAN_BASE}/stations/${avcanId}/measurements`);
