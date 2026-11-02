@@ -4,7 +4,7 @@ now = dt.datetime.now(dt.timezone.utc)
 for sid in (124, 125, 126, 129, 123):
     for k in range(2):
         a = now - dt.timedelta(days=7 * (k + 1)); b = now - dt.timedelta(days=7 * k)
-        u = f"https://weather.prod.avalanche.ca/stations/{sid}/measurements?fromDate={a.isoformat()}&toDate={b.isoformat()}"
+        u = f"https://weather.prod.avalanche.ca/stations/{sid}/measurements?fromDate={a.strftime("%Y-%m-%dT%H:%M:%S.000Z")}&toDate={b.strftime("%Y-%m-%dT%H:%M:%S.000Z")}"
         try:
             with urllib.request.urlopen(u, timeout=60) as r:
                 open(f"diag-data/avcan/{sid}-{k}.json", "wb").write(r.read())
