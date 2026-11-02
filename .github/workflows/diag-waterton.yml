@@ -1,20 +1,20 @@
-# Temporary: one-off 48 h NOAA refill through the manual sync webhook.
-name: diag noaa refill
+name: diag verify
 on:
   push:
     branches: [diag/waterton]
     paths-ignore: ["diag-data/**"]
 jobs:
-  refill:
+  v:
     runs-on: ubuntu-latest
     steps:
-      - env:
-          ADMIN_TOKEN: ${{ secrets.ARCHIVE_ADMIN_TOKEN }}
-        run: |
-          curl -sS -m 120 -H "x-admin-token: ${ADMIN_TOKEN}" \
-            "https://rockiesweatherdataexplorer.netlify.app/api/fts-sync-manual?noaaHours=48" -o out.json -w "HTTP %{http_code}\n"
-          python3 -c "
-          import json; d=json.load(open('out.json'))
-          print('SUM', d.get('total'), d.get('succeeded'), d.get('failed'), d.get('durationMs'), json.dumps(d.get('noaa')))
-          for r in d.get('results', []): print('ST', r.get('stationId'), r.get('ok'), 'fts', r.get('fetched'), 'noaa', r.get('noaa'), 'bk', r.get('backup'), r.get('ftsError') or r.get('error') or '')
-          " || head -c 500 out.json
+      - run: |
+          for s in fts-bowprecip fts-vermillion fts-sunshine fts-waterton fts-boslo; do
+            curl -sS "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=40" -o r.json
+            python3 -c "
+          import json; d=json.load(open('r.json')); d=d if isinstance(d,list) else d.get('observations',[])
+          from collections import Counter
+          src=Counter(o.get('source','fts') for o in d)
+          pt=[o for o in d if 'precipTotal' in o and '2026-11-02T00' <= o['measurementDateTime'] < '2026-11-02T14']
+          print('V','$s',len(d),dict(src),'precipTotal Nov2 00-14Z:',len(pt), (pt[0]['precipTotal'],pt[-1]['precipTotal']) if pt else '', 'last', d[-1]['measurementDateTime'] if d else '')
+          "
+          done
