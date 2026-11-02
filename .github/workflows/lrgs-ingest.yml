@@ -27,10 +27,9 @@
 
 name: NOAA LRGS ingest
 
+# The live feed now runs in the Netlify station sync (netlify/functions/_lrgs.mjs).
+# This workflow is kept for manual history pulls only.
 on:
-  schedule:
-    # Every 15 minutes, offset from other jobs.
-    - cron: "5,20,35,50 * * * *"
   workflow_dispatch:
     inputs:
       since:

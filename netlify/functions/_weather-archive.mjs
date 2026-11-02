@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { fetchBackup, isBackupRecord, newestFtsTime } from "./_avcan.mjs";
+import { fetchNoaaRecords, LRGS_STATIONS, NOAA_SOURCE } from "./_lrgs.mjs";
 
 const STORE_NAME = "rockies-weather-archive-v1";
 const RETENTION_MS = Math.round(3 * 365.25 * 24 * 60 * 60 * 1000);
@@ -34,6 +35,14 @@ export const STATIONS = {
   "fts-bigbend": "6160c6a964699463087271e7",
   "fts-tangleridge": "6160c6b36469946308727bca"
 };
+
+/* Every station the archive keeps: FTS360 stations plus NOAA-only ones
+   (Waterton). */
+export const ALL_STATION_IDS = [...new Set([...Object.keys(STATIONS), ...Object.keys(LRGS_STATIONS)])];
+export const isKnownStation = (stationId) => ALL_STATION_IDS.includes(stationId);
+
+/* Hours of NOAA messages each scheduled sync asks for; overlap covers missed runs. */
+const NOAA_SYNC_HOURS = 6;
 
 function archiveStore() {
   return getStore(STORE_NAME);
@@ -378,17 +387,33 @@ export async function readArchive(stationId) {
   return data;
 }
 
+/* Feed priority for one timestamp: NOAA, then FTS360, then Avalanche Canada.
+   - A higher source over Avalanche Canada replaces the backup record outright.
+   - NOAA and FTS360 for the same time are combined: NOAA's values win and
+     FTS360 fills any field NOAA did not send. The record keeps source "noaa"
+     and is marked ftsSeen so the FTS360 request window stays right.
+   - Avalanche Canada never overrides NOAA or FTS360. */
+const rank = (r) => (r.source === NOAA_SOURCE ? 3 : isBackupRecord(r) ? 1 : 2);
+
+function combine(prev, record) {
+  if (!prev) return record.source === NOAA_SOURCE ? record : { ...record };
+  const a = rank(prev), b = rank(record);
+  if (b === 1 && a > 1) return prev;
+  if (a === 1 && b > 1) return record;
+  if (a === b) return { ...prev, ...record };
+  // NOAA and FTS360
+  const noaa = a === 3 ? prev : record, fts = a === 3 ? record : prev;
+  return { ...fts, ...noaa, source: NOAA_SOURCE, ftsSeen: true };
+}
+
 export function mergeAndPrune(existing, incoming) {
   const cutoff = Date.now() - RETENTION_MS;
   const byTimestamp = new Map();
   for (const record of [...existing, ...incoming]) {
     const timestamp = new Date(record.measurementDateTime).getTime();
     if (!Number.isFinite(timestamp) || timestamp < cutoff) continue;
-    const prev = byTimestamp.get(record.measurementDateTime);
-    if (prev && !isBackupRecord(prev) && isBackupRecord(record)) continue; // FTS360 wins
-    // An FTS360 record replaces a backup one outright rather than merging into it.
-    const base = prev && isBackupRecord(prev) && !isBackupRecord(record) ? {} : prev || {};
-    byTimestamp.set(record.measurementDateTime, { ...base, ...record });
+    const key = new Date(timestamp).toISOString();
+    byTimestamp.set(key, combine(byTimestamp.get(key), { ...record, measurementDateTime: key }));
   }
   return [...byTimestamp.values()].sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
 }
@@ -407,16 +432,27 @@ async function saveArchive(stationId, observations, extra = {}) {
   return archive;
 }
 
-export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
+export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS, noaa = []) {
   const archive = await readArchive(stationId);
-  // Ignore Avalanche Canada backup records so FTS360 is asked for the whole gap.
+  // Only records FTS360 delivered count here, so FTS360 is asked for the whole gap.
   const newestTime = newestFtsTime(archive.observations);
   const start = Number.isFinite(newestTime)
     ? new Date(newestTime - SYNC_OVERLAP_HOURS * 60 * 60 * 1000)
     : new Date(Date.now() - seedHours * 60 * 60 * 1000);
 
-  const incoming = await fetchFts(stationId, start);
-  let observations = mergeAndPrune(archive.observations, incoming);
+  let incoming = [];
+  let ftsError = null;
+  if (STATIONS[stationId]) {
+    try {
+      incoming = await fetchFts(stationId, start);
+    } catch (err) {
+      // With NOAA records in hand an FTS360 failure only loses the fallback.
+      if (!noaa.length) throw err;
+      ftsError = err?.message || String(err);
+      console.warn(JSON.stringify({ event: "fts-fetch-failed", stationId, error: ftsError }));
+    }
+  }
+  let observations = mergeAndPrune(archive.observations, [...incoming, ...noaa]);
   let backup = [];
   try {
     backup = await fetchBackup(stationId, observations);
@@ -427,6 +463,7 @@ export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
   const saved = await saveArchive(stationId, observations, {
     lastFtsRequestStart: start.toISOString(),
     lastFtsRecordCount: incoming.length,
+    lastNoaaRecordCount: noaa.length,
     lastBackupRecordCount: backup.length
   });
   try {
@@ -434,7 +471,11 @@ export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
   } catch (err) {
     console.warn(JSON.stringify({ event: "history-freeze-failed", stationId, error: err?.message || String(err) }));
   }
-  return { stationId, fetched: incoming.length, backup: backup.length, retained: saved.observationCount, lastSyncedAt: saved.lastSyncedAt };
+  return {
+    stationId, fetched: incoming.length, noaa: noaa.length, backup: backup.length,
+    ...(ftsError ? { ftsError } : {}),
+    retained: saved.observationCount, lastSyncedAt: saved.lastSyncedAt
+  };
 }
 
 /* Sync every station in parallel with Promise.allSettled so a single
@@ -442,15 +483,25 @@ export async function syncStation(stationId, seedHours = INITIAL_SEED_HOURS) {
    result object suitable for JSON responses and logs. Used by both the
    scheduled `fts-sync` function and the token-gated `fts-sync-manual`
    webhook so the two share exactly one code path. */
-export async function syncAllStations({ seedHours = INITIAL_SEED_HOURS } = {}) {
+export async function syncAllStations({ seedHours = INITIAL_SEED_HOURS, noaaHours = NOAA_SYNC_HOURS } = {}) {
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
+  // One NOAA session for all stations, shared by every station's sync.
+  const noaaPromise = fetchNoaaRecords({ sinceHours: noaaHours, deadlineMs: noaaHours > 12 ? 22000 : 15000 })
+    .catch((err) => {
+      console.warn(JSON.stringify({ event: "noaa-fetch-failed", error: err?.message || String(err) }));
+      return { configured: true, error: err?.message || String(err), byStation: new Map() };
+    });
   const settled = await Promise.allSettled(
-    Object.keys(STATIONS).map((stationId) => syncStation(stationId, seedHours))
+    ALL_STATION_IDS.map(async (stationId) => {
+      const noaa = await noaaPromise;
+      return syncStation(stationId, seedHours, noaa.byStation.get(stationId) || []);
+    })
   );
+  const noaa = await noaaPromise;
 
   const results = settled.map((r, i) => {
-    const stationId = Object.keys(STATIONS)[i];
+    const stationId = ALL_STATION_IDS[i];
     if (r.status === "fulfilled") return { stationId, ok: true, ...r.value };
     return { stationId, ok: false, error: r.reason?.message || String(r.reason) };
   });
@@ -467,6 +518,9 @@ export async function syncAllStations({ seedHours = INITIAL_SEED_HOURS } = {}) {
     total: results.length,
     succeeded,
     failed,
+    noaa: noaa.configured
+      ? { host: noaa.host || null, messages: noaa.messageCount || 0, error: noaa.error || null }
+      : { configured: false },
     results
   };
 }

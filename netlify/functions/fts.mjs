@@ -1,14 +1,4 @@
-import {
-  STATIONS,
-  INITIAL_SEED_HOURS,
-  readArchive,
-  syncStation,
-  selectHours,
-  readHistory,
-  downsample,
-  RETENTION_HOURS,
-  MAX_REQUEST_HOURS
-} from "./_weather-archive.mjs";
+import { INITIAL_SEED_HOURS, readArchive, syncStation, selectHours, readHistory, downsample, RETENTION_HOURS, MAX_REQUEST_HOURS, isKnownStation } from "./_weather-archive.mjs";
 
 /* If the archive is stale by more than this many minutes, the read
    handler synchronously refreshes it before responding. Chosen so it
@@ -35,7 +25,7 @@ export default async (request) => {
     const stationId = url.searchParams.get("station");
     const requestedHours = Number(url.searchParams.get("hours") || 24);
 
-    if (!stationId || !STATIONS[stationId]) {
+    if (!stationId || !isKnownStation(stationId)) {
       return new Response(
         JSON.stringify({ error: "Invalid station" }),
         {
