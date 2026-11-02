@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - run: |
-          for i in $(seq 1 90); do
+          for i in $(seq 1 40); do
             n=$(curl -sS https://rockiesweatherdataexplorer.netlify.app/assets/feed-status.js | grep -c NOAA || true)
             if [ "$n" != "0" ]; then echo "LIVE deployed after $i checks $(date -u +%H:%M:%SZ)"; exit 0; fi
             sleep 10
