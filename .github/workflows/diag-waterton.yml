@@ -1,18 +1,20 @@
-# Temporary diagnostics: wait for the live site to serve the NOAA build.
-name: diag live check
+# Temporary: one-off 48 h NOAA refill through the manual sync webhook.
+name: diag noaa refill
 on:
   push:
     branches: [diag/waterton]
     paths-ignore: ["diag-data/**"]
 jobs:
-  look:
+  refill:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
-      - run: |
-          for i in $(seq 1 40); do
-            n=$(curl -sS https://rockiesweatherdataexplorer.netlify.app/assets/feed-status.js | grep -c NOAA || true)
-            if [ "$n" != "0" ]; then echo "LIVE deployed after $i checks $(date -u +%H:%M:%SZ)"; exit 0; fi
-            sleep 10
-          done
-          echo "LIVE still old build $(date -u +%H:%M:%SZ)"
+      - env:
+          ADMIN_TOKEN: ${{ secrets.ARCHIVE_ADMIN_TOKEN }}
+        run: |
+          curl -sS -m 120 -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "https://rockiesweatherdataexplorer.netlify.app/api/fts-sync-manual?noaaHours=48" -o out.json -w "HTTP %{http_code}\n"
+          python3 -c "
+          import json; d=json.load(open('out.json'))
+          print('SUM', d.get('total'), d.get('succeeded'), d.get('failed'), d.get('durationMs'), json.dumps(d.get('noaa')))
+          for r in d.get('results', []): print('ST', r.get('stationId'), r.get('ok'), 'fts', r.get('fetched'), 'noaa', r.get('noaa'), 'bk', r.get('backup'), r.get('ftsError') or r.get('error') or '')
+          " || head -c 500 out.json
