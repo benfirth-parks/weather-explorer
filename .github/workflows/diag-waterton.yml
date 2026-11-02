@@ -1,0 +1,30 @@
+# Temporary: look up Waterton stations on Avalanche Canada and NOAA's PDT.
+name: diag waterton
+on:
+  push:
+    branches: [diag/waterton]
+jobs:
+  look:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -x
+          curl -sS -m 60 https://weather.prod.avalanche.ca/stations -o stations.json || true
+          python3 - <<'PY'
+          import json
+          d=json.load(open('stations.json'))
+          items=d if isinstance(d,list) else d.get('data') or d.get('items') or d.get('stations') or d
+          print('TYPE',type(d).__name__, (list(d.keys())[:10] if isinstance(d,dict) else len(d)))
+          print('SAMPLE',json.dumps(items[0] if isinstance(items,list) else items)[:1500])
+          for s in (items if isinstance(items,list) else []):
+              t=json.dumps(s)
+              lat=None
+              for k in ('latitude','lat'):
+                  if k in s: lat=s[k]
+              loc=s.get('location') or {}
+              if isinstance(loc,dict): lat=lat or loc.get('latitude')
+              if 'aterton' in t or 'Parks Canada' in t or (lat and 48.9<float(lat)<49.3):
+                  print('ST',t[:700])
+          PY
+          curl -sS -m 120 https://dcs1.noaa.gov/pdts_compressed.txt -o pdt.txt || true
+          wc -l pdt.txt; grep -i "waterton\|WLNP\|cameron\|PCGCCA" pdt.txt | cut -c1-200 | head -80
