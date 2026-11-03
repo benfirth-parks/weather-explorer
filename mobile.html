@@ -23,6 +23,7 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet-lasso/dist/leaflet-lasso.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="/assets/site-time.js"></script>
 <style>
 :root, [data-theme="light"] {
   --color-bg:#f2f4f4; --color-surface:#f8f9f9; --color-surface-2:#fbfcfc; --color-surface-offset:#eceef0; --color-surface-offset-2:#e2e5e7; --color-surface-dynamic:#d9dcdf;
@@ -777,7 +778,7 @@ function freshnessClass(rec){const age=ageMinutes(rec); if(age===null) return 'f
 function freshnessText(rec){
   const age=ageMinutes(rec);
   if(age===null) return 'No observation';
-  return new Date(rec.measurementDateTime).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  return siteTime.format(rec.measurementDateTime,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
 }
 /* No precip gauge, so their "new snow" and precip fields (the gauge increment) read a flat 0: their HN
    graphs and storm timing come from the snow depth sensor. Mirrors HN_FROM_DEPTH_IDS in assets/snow-stations.js. */
@@ -1430,7 +1431,7 @@ function hourlyBarConfig(id,hours,fontSize,enlarged){
   const tick={color:c.text,font:{family:"'Courier Prime', monospace",size:fontSize}};
   const label=isHN?'HN':'HW';
   const note=result.total===null?`No valid ${label} in this period`:`${label} ${result.total.toFixed(1)} ${unit} over the period`;
-  const tooltip=enlarged?{enabled:false}:{callbacks:{title:items=>{const p=items[0].raw; if(p.start==null) return new Date(p.x).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); return new Date(p.start).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+' to '+new Date(p.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});},label:item=>item.datasetIndex===0?`${label} ${item.raw.y.toFixed(1)} ${unit} this hour`:`${label} ${item.raw.y.toFixed(1)} ${unit} total`}};
+  const tooltip=enlarged?{enabled:false}:{callbacks:{title:items=>{const p=items[0].raw; if(p.start==null) return siteTime.format(p.x, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); return siteTime.format(p.start, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+' to '+siteTime.format(p.end, {hour:'2-digit',minute:'2-digit'});},label:item=>item.datasetIndex===0?`${label} ${item.raw.y.toFixed(1)} ${unit} this hour`:`${label} ${item.raw.y.toFixed(1)} ${unit} total`}};
   return {type:'bar',data:{datasets:[
       {type:'bar',label:`${label} per hour`,data:result.points,yAxisID:'y',backgroundColor:color+'b3',hoverBackgroundColor:color+'b3',borderColor:color,borderWidth:0,barPercentage:0.9,categoryPercentage:1,order:2},
       {type:'line',label:`${label} total`,data:result.cumulative,yAxisID:'y1',borderColor:color,backgroundColor:color,borderWidth:2.6,borderDash:[2,3],pointRadius:0,pointHoverRadius:enlarged?0:3,tension:0,spanGaps:false,order:1}]},
@@ -1721,7 +1722,9 @@ setTimeout(attachResizeHandles, 500);
     return Math.acos(cosH) * 180/Math.PI;
   }
   function civilDuskForDate(date){
-    const noonUtc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0));
+    /* The MT calendar date (UTC-6), not the viewer's. */
+    const mt = new Date(date.getTime() - 6*3600*1000);
+    const noonUtc = new Date(Date.UTC(mt.getUTCFullYear(), mt.getUTCMonth(), mt.getUTCDate(), 12, 0, 0));
     const { decl, eot } = solarParams(toJulian(noonUtc));
     const H = hourAngle(-6, BANFF_LAT, decl);
     if(H === null) return null;
@@ -1737,13 +1740,13 @@ setTimeout(attachResizeHandles, 500);
     const now = new Date();
     let target = civilDuskForDate(now);
     if(target && target.getTime() < now.getTime()){
-      const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
+      const tomorrow = new Date(now.getTime() + 86400000);
       target = civilDuskForDate(tomorrow);
       const lbl = el.parentElement.querySelector('.twilight-label');
       if(lbl) lbl.textContent = 'Civil dusk tmrw \u00b7 Banff';
     }
     if(!target){ el.textContent = '\u2014'; return; }
-    el.textContent = target.toLocaleTimeString('en-CA', { hour:'numeric', minute:'2-digit', timeZone:'America/Edmonton' });
+    el.textContent = target.toLocaleTimeString('en-CA', { hour:'numeric', minute:'2-digit', timeZone:'Etc/GMT+6' });
   }
   render();
   setInterval(render, 60 * 60 * 1000);

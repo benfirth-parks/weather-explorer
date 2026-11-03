@@ -23,11 +23,12 @@
   }
 
   function formatTime(ms) {
+    // Alberta clock time, UTC-6 year-round (not America/Edmonton, which older browsers show as MST).
     return new Date(ms).toLocaleString("en-CA", {
-      timeZone: "America/Edmonton",
+      timeZone: "Etc/GMT+6",
       weekday: "short", month: "short", day: "numeric",
-      hour: "numeric", minute: "2-digit", timeZoneName: "short"
-    });
+      hour: "numeric", minute: "2-digit"
+    }) + " MT";
   }
 
   function banner() {
