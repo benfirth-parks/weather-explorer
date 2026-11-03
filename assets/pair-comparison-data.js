@@ -285,7 +285,7 @@ function gaugeAt(trace, t) {
 }
 function gaugeBetween(trace, a, b) {
   const x = gaugeAt(trace, a), y = gaugeAt(trace, b);
-  return x === null || y === null ? null : Math.max(0, y - x);
+  return x === null || y === null ? null : Math.max(0, Math.round((y - x) * 100) / 100); // to 0.01 mm, so float error can't flip the 0.2 mm test
 }
 // Times the gauge is taken as stuck: [{start, end}] (end Infinity while still stuck at `to`).
 function stuckPeriods(trace, rows, to) {
