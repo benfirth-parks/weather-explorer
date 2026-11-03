@@ -1,0 +1,19 @@
+name: diag-sunshine
+on:
+  push:
+    branches: [diag/sunshine-hn]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p diag
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-sunshine&hours=720" -o diag/sunshine.json
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-boslo&hours=720" -o diag/boslo.json
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-bowsummit&hours=720" -o diag/bowsummit.json
+          ls -la diag
+          git config user.name diag-bot; git config user.email diag@example.com
+          git add diag && git commit -m "diag data [skip ci]" && git push
