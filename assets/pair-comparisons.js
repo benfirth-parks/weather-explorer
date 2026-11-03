@@ -1,4 +1,4 @@
-import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity} from './pair-comparison-data.js';
+import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_GAUGE_CHECK_IDS} from './pair-comparison-data.js';
 import {plotForPair, renderPlotProfile} from './plot-profile.js';
 
 /* Paired-station timing chart: temperature, wind and precipitation for both stations on one
@@ -15,7 +15,8 @@ const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days'], [336, '14 days'], [
    HN stations: new snow in cm, from a new-snow sensor where there is one, otherwise derived from HS. */
 const HN_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo']);
 /* Gauge stations that also draw HN from their snow depth (Ben, 30 Oct 2026). Sunshine's AB Env
-   new-snow field is not usable as HN, so it is dropped and HN comes from HS, as in its HN24. */
+   new-snow field is not usable as HN, so it is dropped and HN comes from HS, as in its HN24. Its HN is
+   gauge-checked (HN_GAUGE_CHECK_IDS, Ben 3 Nov 2026): a depth rise counts only when the gauge confirms it. */
 const HN_FROM_HS_IDS = new Set(['fts-sunshine']);
 /* Stations whose HS (snow depth) is drawn. */
 const HS_DEPTH_IDS = new Set([...HN_IDS, ...HN_FROM_HS_IDS]);
@@ -412,9 +413,9 @@ async function render(view) {
   const rankOf = elevationRanks([...ids, ...extras.map(e => e.id)]);
   const line = (kind, id, axis) => { const c = axisShade(axis, rankOf[id]); return {borderColor: c, backgroundColor: c, borderWidth: TYPE_WIDTH[kind], borderDash: TYPE_DASH[kind]}; };
   // HN (cm) or HW (mm): interval bars + running-total line on the same axis.
-  function addPrecip(id, data, kind, preferredSlot) {
+  function addPrecip(id, data, kind, preferredSlot, gaugeRecords = null) {
     const name = host.stations[id].name;
-    const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step);
+    const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step, {gaugeCheck: !!gaugeRecords, gaugeRecords});
     const label = result.method, unit = kind === 'hw' ? 'mm' : 'cm', axis = unit === 'mm' ? 'yMm' : 'yCm';
     if (result.total === null) { notes.push(`${name}: no valid ${label} in this period.`); return; }
     const slot = preferredSlot, color = axisShade(axis, rankOf[id]);
@@ -429,6 +430,8 @@ async function render(view) {
     if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
     facts.push(fact);
     if (result.partial) notes.push(`${name}: some ${label} intervals missing (gaps or rejected readings); total is for the intervals with data.`);
+    if (result.gauge === 'stuck') notes.push(`${name}: HW gauge looks stuck (flat while the depth rose), so HN is from depth only until it moves.`);
+    else if (result.gauge === 'missing') notes.push(`${name}: no HW gauge data, so HN is from depth only.`);
   }
   function addDepth(id, data, preferredSlot) {
     const name = host.stations[id].name, hs = hsDepthSeries(data, from, to);
@@ -465,7 +468,7 @@ async function render(view) {
     }
     if (HN_IDS.has(id)) addPrecip(id, data, 'hn', i);
     else if (!host.noPrecipGaugeIds.has(id)) addPrecip(id, data, 'hw', i);
-    if (HN_FROM_HS_IDS.has(id)) addPrecip(id, data.map(r => ({...r, newSnow: null})), 'hn', i);
+    if (HN_FROM_HS_IDS.has(id)) addPrecip(id, data.map(r => ({...r, newSnow: null})), 'hn', i, HN_GAUGE_CHECK_IDS.has(id) ? data : null);
     if (HS_DEPTH_IDS.has(id)) addDepth(id, data, i);
   });
 

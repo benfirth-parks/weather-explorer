@@ -4,7 +4,7 @@
    table, so HN24, HST and HS agree with it to within 0.5 cm (whole cm here,
    0.1 cm there). */
 
-import { HOUR } from "../../assets/pair-comparison-data.js";
+import { HOUR, HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
 import { stormSnow, newSnow24h, HST_LOOKBACK_H } from "../../assets/hst.js";
 import { SNOW_EXCLUDED_IDS, NO_SNOW_SENSOR_IDS, withoutFalseNewSnow } from "../../assets/snow-stations.js";
 
@@ -76,8 +76,9 @@ export function snowFigures(records, now, { hn = true, id = null } = {}) {
   const last24 = clean.filter((r) => time(r) >= now - 24 * HOUR);
   let hn24 = null, hst = null;
   if (hn) {
-    hn24 = newSnow24h(clean, now);
-    hst = hn24 === null ? null : stormSnow(clean, now)?.hst ?? null;
+    const gaugeCheck = HN_GAUGE_CHECK_IDS.has(id);
+    hn24 = newSnow24h(clean, now, { gaugeCheck });
+    hst = hn24 === null ? null : stormSnow(clean, now, { gaugeCheck })?.hst ?? null;
   }
   const hs = snowHeight24h(last24);
   return { hn24_cm: round1cm(hn24), hst_cm: round1cm(hst), hs_cm: round1cm(hs) };

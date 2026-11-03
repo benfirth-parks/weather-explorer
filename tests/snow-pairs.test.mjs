@@ -27,13 +27,14 @@ test('no precipitation in the last 24 h gives HST 0', () => {
   assert.equal(f.hst_cm, 0);
 });
 test("Sunshine: HN24 and HST from hourly HN off HS, not the gauge's 1 mm = 1 cm", () => {
-  // 0.5 mm an hour for the last 30 h, while HS rose 8 cm. The 2 cm rise credited just after
-  // 24 h ago began before it, so HN24 is 7 rather than the 6 cm HS change.
+  // 0.5 mm an hour for the last 30 h, while HS rose 8 cm. Sunshine's HN is gauge-checked (Ben,
+  // 3 Nov 2026); the gauge confirms every rise, and the ratchet starts 30 h back, so HN24 is the
+  // 6 cm HS change over the last 24 h.
   const rain = {};
   for (let h = 0; h < 30; h++) rain[h] = 0.5;
   const f = snowFigures(hourly(rain, h => (h >= 30 ? 50 : 58 - Math.round(h / 30 * 8))), now, {id: 'fts-sunshine'});
   assert.equal(f.hst_cm, 8);
-  assert.equal(f.hn24_cm, 7);
+  assert.equal(f.hn24_cm, 6);
   assert.equal(f.hs_cm, 58);
   assert.doesNotMatch(snowPairsMarkdown([{label: 'Lookout / Sunshine Village', hn: true, ...f}]), /precip gauge/);
 });

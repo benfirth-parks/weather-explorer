@@ -279,6 +279,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
   .map-toolbar .btn{padding:10px var(--space-3);}
 }
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+.hn-gauge-flag{display:block;font-size:10px;opacity:.75;white-space:nowrap;}
 </style>
 <link rel="stylesheet" href="/assets/legend-toggle.css">
 <script src="/assets/legend-toggle.js"></script>
@@ -335,6 +336,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
       <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">24h station summary</div><div class="panel-title-sub">Most recent rolling 24-hour window. How each value is calculated is below the table.</div></div></div><div style="overflow:auto;"><table class="hl-table"><colgroup><col style="width:18%"><col style="width:10%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:7%"><col style="width:9%"><col style="width:7%"><col style="width:7%"><col style="width:7%"></colgroup><thead><tr><th>Station</th><th class="hl-compact">Last updated</th><th class="hl-compact">Elev</th><th class="hl-focus">High</th><th class="hl-focus">Low</th><th class="hl-focus">Latest</th><th class="hl-focus">HW 24h</th><th class="hl-focus">HN24</th><th class="hl-focus" title="Height of storm snow: the peak rise in HS since the current storm began. A storm ends after 24 h with no new snow.">HST</th><th class="hl-focus">HS</th><th class="hl-focus">Avg wind</th><th class="hl-focus">Peak gust</th></tr></thead><tbody id="highLowBody"></tbody></table></div><details class="calc-legend"><summary><span class="calc-legend-caret" aria-hidden="true">›</span>How HW24, HN24, HST and HS are calculated</summary><p class="calc-legend-note">The calculations for HN24, HW24, HST match OGRS in spirit but not to the letter.</p><dl>
 <dt>HW24 (mm)</dt><dd>Precipitation from the station's gauge over the last 24 hours: the sum of the rises in the gauge's running total. Drops when the gauge is emptied are ignored, and a jump over 50 mm in one reading is treated as noise. Where a logger reports only per-interval amounts, those are added up. Stations with no gauge (Vulture Peak, Simpson Upper and Lower, Bow Summit) show —.</dd>
 <dt>HN24 (cm)</dt><dd>The sum of the hourly new snow over the last 24 hours. Hourly new snow comes from the snow depth sensor: the depth is smoothed with a 3 hour running median, and each rise of 2 cm or more above the last low point counts as new snow in the hour it happened. Settlement lowers the reference point but never subtracts snow, and a rise under 2 cm is not counted until it reaches 2 cm. The feeds' "new snow" columns are gauge readings, not snow, so they are not used.</dd>
+<dt>HN24 at Sunshine Village</dt><dd>Sunshine's depth sensor wanders a couple of cm between readings, so there a depth rise counts as new snow only if the precipitation gauge logged at least 0.2 mm in the 6 hours before it (or up to 2 hours after). A frozen or stuck gauge reads flat like a dry day, so the gauge is treated as stuck when it has not moved for 24 hours while the depth (6 hour running median) rose 5 cm or more within 6 hours. While it is stuck, or has no data, HN comes from the depth alone with a 6 hour running median, and the table marks HN24 "depth only". The gauge check comes back on once the gauge moves 0.2 mm. Light snow under 5 cm in 6 hours on a stuck gauge can be missed. Sunshine's HST, graphs and AI summary use the same hourly new snow.</dd>
 <dt>HST (cm)</dt><dd>Storm snow: the most HS has risen above its level when the current storm began, at any point in the storm. Settlement after that peak is not subtracted, and a falling depth does not take HST to 0. The storm's starting level is the lowest HS in the 12 hours before its first hour of new snow. The storm is the latest run of hourly new snow with no gap over 24 hours, looking back up to 10 days, so HST resets to 0 only after 24 hours with no new snow. Each HS is the median of the readings within 90 minutes. ≥ means some hours are missing or the storm began before the 10 days fetched. Hover a value for the storm's start.</dd>
 <dt>HS (cm)</dt><dd>The most recent valid snow depth in the last 24 hours. Readings outside 0 to 600 cm, or that jump more than 30 cm from the last good reading, are discarded.</dd>
 <dt>No snow figures</dt><dd>Ridge-top stations (Vulture Peak, Bosworth Upper, Lookout, Simpson Upper, Whymper) and stations without a working depth sensor (Skoki, Lake Louise, Boulder Creek, Castle, Vermillion Crossing) show — for HN24, HST and HS.</dd>
@@ -730,9 +732,10 @@ async function loadAndRender(){
   if(ids.length===0){renderAll(); return;}
   const need=requestHours();
   await Promise.all(ids.map(async id=>{
-    if(!cache[id] || (cacheHours[id]||0) < need){
-      cache[id]=await fetchStation(id, need);
-      cacheHours[id]=need;
+    const want=HN_GAUGE_CHECK_IDS.has(id)?Math.max(need,60):need; // the gauge check looks back up to 36 h before HN24's window
+    if(!cache[id] || (cacheHours[id]||0) < want){
+      cache[id]=await fetchStation(id, want);
+      cacheHours[id]=want;
     }
   }));
   renderStationList(); renderAll();
@@ -791,9 +794,31 @@ const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki','fts-lakelouise','fts-boulder','
    counted as new snow, and settlement lowering the reference (the feeds' "new snow" fields are gauge increments,
    not snow). Mirrors newSnow24h / hnIntervals in assets/hst.js and assets/pair-comparison-data.js.
    No HS, or an excluded HS trace, means no HN24 and no HST. */
+/* Gauge-checked HN (Ben, 3 Nov 2026): at these gauge stations a depth rise counts as new snow only when the
+   gauge logged 0.2 mm or more in the 6 h before it (up to 2 h after), with a depth-only fallback (6 h median)
+   while the gauge looks stuck or has no data. Mirrors HN_GAUGE_CHECK_IDS / gaugeCheckedCredits in
+   assets/pair-comparison-data.js, which does the work once that module has loaded. */
+const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine']);
+const hnGaugeState={};
+let hnGaugeRerender=false;
+function hnGaugeNote(id){
+  const g=HN_GAUGE_CHECK_IDS.has(id)?hnGaugeState[id]:null;
+  return g&&g!=='ok'?(g==='stuck'?'HW gauge looks stuck (flat while the depth rose)':'No HW gauge data')+', so HN is from depth only':'';
+}
 function newSnow24h(id){
   if(SNOW_GRAPH_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return null;
   const now=Date.now(), from=now-24*3600000;
+  if(HN_GAUGE_CHECK_IDS.has(id)){
+    if(!pairData){
+      if(!hnGaugeRerender){ hnGaugeRerender=true; pairDataReady.then(()=>{ const ids=Array.from(selected); if(ids.length){ renderKPIs(ids); renderHighLow(ids); } }); }
+      return null;
+    }
+    const all=cache[id]||[];
+    const depth=filterSnowSpikes(all.filter(d=>{const v=numOf(d.snowHeight), t=new Date(d.measurementDateTime).getTime(); return Number.isFinite(v)&&v>=0&&v<=600&&t>from-36*3600000&&t<=now;}),'snowHeight');
+    const r=pairData.hnIntervals(depth.map(d=>({...d,newSnow:null})),from,now,1,{gaugeCheck:true,gaugeRecords:all});
+    hnGaugeState[id]=r.gauge;
+    return r.total;
+  }
   const depth=filterSnowSpikes(windowedData(id,30).filter(d=>{const v=numOf(d.snowHeight); return Number.isFinite(v)&&v>=0&&v<=600;}),'snowHeight')
     .map(d=>({x:new Date(d.measurementDateTime).getTime(),y:Number(d.snowHeight)}))
     .filter(p=>Number.isFinite(p.x)&&p.x>from-6*3600000&&p.x<=now).sort((a,b)=>a.x-b.x);
@@ -1010,7 +1035,7 @@ function renderHighLow(ids){
       `<td class="hl-focus">${low!==null?low.toFixed(1)+'°C':'—'}</td>`+
       `<td class="hl-focus">${latestVal!==null?latestVal.toFixed(1)+'°C':'—'}</td>`+
       `<td class="hl-focus">${hw!==null?hw.toFixed(1)+' mm':'—'}</td>`+
-      `<td class="hl-focus">${hn!==null?hn.toFixed(1)+' cm':'—'}</td>`+
+      `<td class="hl-focus"${hnGaugeNote(id)?` title="${hnGaugeNote(id)}"`:''}>${hn!==null?hn.toFixed(1)+' cm':'—'}${hnGaugeNote(id)?'<span class="hn-gauge-flag">depth only</span>':''}</td>`+
       (hn!==null?`<td class="hl-focus" data-hst-id="${id}">…</td>`:`<td class="hl-focus">—</td>`)+
       `<td class="hl-focus">${hs!==null?hs.toFixed(1)+' cm':'—'}</td>`+
       `<td class="hl-focus">${wind!==null?wind.toFixed(1)+' km/h':'—'}</td>`+
@@ -1095,7 +1120,7 @@ function renderTrendHnCum(ids,bounds,windowHours){
     const s=STATIONS.find(x=>x.stationId===id);
     const depth=filterSnowSpikes((cache[id]||[]).filter(d=>{const t=new Date(d.measurementDateTime).getTime(), v=numOf(d.snowHeight); return t>from-6*3600000&&t<=to&&Number.isFinite(v)&&v>=0&&v<=600;}),'snowHeight');
     if(!depth.length) return;
-    const r=pairData.hnIntervals(depth.map(d=>({...d,newSnow:null})),from,to,step);
+    const r=pairData.hnIntervals(depth.map(d=>({...d,newSnow:null})),from,to,step,{gaugeCheck:HN_GAUGE_CHECK_IDS.has(id),gaugeRecords:cache[id]||[]});
     if(r.total===null) return;
     datasets.push({label:s.name,data:r.cumulative,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:0,fill:false,spanGaps:false});
     shown.push({id,s,total:r.total});
@@ -1426,7 +1451,7 @@ function hourlyBarConfig(id,hours,fontSize,enlarged){
   const metric=snowState[id].metric, isHN=metric==='hnHourly', unit=isHN?'cm':'mm';
   const s=STATIONS.find(x=>x.stationId===id);
   const to=Date.now(), from=to-hours*3600000, records=cache[id]||[];
-  const result=isHN ? pairData.hnIntervals(records.map(r=>({...r,newSnow:null})),from,to,1) : pairData.hwIntervals(records,from,to,1);
+  const result=isHN ? pairData.hnIntervals(records.map(r=>({...r,newSnow:null})),from,to,1,{gaugeCheck:HN_GAUGE_CHECK_IDS.has(id),gaugeRecords:records}) : pairData.hwIntervals(records,from,to,1);
   const color=hourlyBandColor(s.elevation), c=chartTextColors();
   const tick={color:c.text,font:{family:"'Courier Prime', monospace",size:fontSize}};
   const label=isHN?'HN':'HW';
