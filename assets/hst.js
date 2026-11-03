@@ -25,24 +25,26 @@ export function hsMedianAt(hs, t, now = Infinity) {
   return ys.length % 2 ? ys[m] : (ys[m - 1] + ys[m]) / 2;
 }
 
-/* Hourly HN (cm) from HS between from and to, ignoring any "new snow" field. */
-export function hourlyHn(records, from, to) {
-  return hnIntervals(records.map(r => ({...r, newSnow: null})), from, to, 1);
+/* Hourly HN (cm) from HS between from and to, ignoring any "new snow" field. gaugeCheck (stations in
+   HN_GAUGE_CHECK_IDS, pair-comparison-data.js) counts a depth rise only when the gauge confirms it, with a
+   depth-only fallback while the gauge is stuck or has no data (Ben, 3 Nov 2026). */
+export function hourlyHn(records, from, to, {gaugeCheck = false} = {}) {
+  return hnIntervals(records.map(r => ({...r, newSnow: null})), from, to, 1, {gaugeCheck, gaugeRecords: records});
 }
 /* HN24: the sum of the hourly HN over the last 24 h, null with no HS in that time. */
-export function newSnow24h(records, now = Date.now()) {
-  return hourlyHn(records, now - 24 * HOUR, now).total;
+export function newSnow24h(records, now = Date.now(), {gaugeCheck = false} = {}) {
+  return hourlyHn(records, now - 24 * HOUR, now, {gaugeCheck}).total;
 }
 
 /* The storm's base is the lowest HS in the STORM_BASE_H before its first hour of HN: hourly HN
    is credited once a 2 cm rise has built up, so the snow had begun before that hour. */
 export const STORM_BASE_H = 12;
-export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H} = {}) {
+export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H, gaugeCheck = false} = {}) {
   const past = records.filter(r => Date.parse(r.measurementDateTime) <= now);
   const hs = hsValues(past);
   if (!hs.length) return null;
   const hsAt = t => hsMedianAt(hs, t, now);
-  const storm = stormPeriod(past, now, lookbackHours);
+  const storm = stormPeriod(past, now, lookbackHours, {gaugeCheck});
   if (storm.start === null) return {hst: 0, start: null, partial: storm.partial};
   const levels = ts => ts.map(hsAt).filter(v => v !== null);
   const base = levels([storm.start, ...hs.filter(p => p.x < storm.start && p.x >= storm.start - STORM_BASE_H * HOUR).map(p => p.x)]);
@@ -54,9 +56,9 @@ export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBA
 
 /* Start of the current storm: walk back from now through the hourly HN, and stop at the first gap
    longer than STORM_GAP_H. start is null when no new snow fell in the last STORM_GAP_H hours. */
-export function stormPeriod(records, now, lookbackHours = HST_LOOKBACK_H) {
+export function stormPeriod(records, now, lookbackHours = HST_LOOKBACK_H, {gaugeCheck = false} = {}) {
   const from = now - lookbackHours * HOUR;
-  const hours = hourlyHn(records, from, now).points;
+  const hours = hourlyHn(records, from, now, {gaugeCheck}).points;
   if (!hours.some(h => h.y !== null)) return {start: null, partial: true};
   let start = null, gapFrom = now, partial = false;
   for (let i = hours.length - 1; i >= 0; i--) {

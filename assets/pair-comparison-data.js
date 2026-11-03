@@ -238,7 +238,94 @@ export function smoothedHs(records, windowMs = 3 * HOUR) {
   }
   return out;
 }
-export function hnIntervals(records, from, to, stepHours) {
+// HS ratchet: each rise of >= HN_FROM_HS_THRESHOLD_CM in the smoothed trace above the last reference
+// level is a credit {x, gain}; settlement lowers the reference and a gap over MAX_GAP resets it.
+function hsCredits(rows, windowMs, from) {
+  const credits = [], seen = [];
+  let ref = null, last = null, partial = false;
+  for (const p of smoothedHs(rows, windowMs)) {
+    if (last && p.x - last.x > MAX_GAP) { ref = null; if (p.x > from) partial = true; }
+    last = p;
+    seen.push(p.x);
+    if (ref === null || p.y < ref) { ref = p.y; }
+    else if (p.y - ref >= HN_FROM_HS_THRESHOLD_CM) {
+      const gain = p.y - ref;
+      ref = p.y;
+      if (gain <= 50) credits.push({x: p.x, gain});
+    }
+  }
+  return {credits, seen, partial};
+}
+
+/* Gauge check (Ben, 3 Nov 2026), for gauge stations in HN_GAUGE_CHECK_IDS. Their depth sensor jitters a
+   couple of cm every reading, which the HS ratchet was counting as new snow on dry days. A depth rise only
+   counts as HN when the gauge logged at least GAUGE_CONFIRM_MM in the GAUGE_BEFORE_H before it (up to
+   GAUGE_AFTER_H after). A frozen or stuck gauge reads flat like a dry day, so the gauge is taken as stuck
+   when it has not moved for STUCK_FLAT_H while the depth (STUCK_SMOOTH_H running median) rose a net
+   STUCK_RISE_CM or more within STUCK_RISE_WINDOW_H. While stuck, or while the gauge has no data, HN comes
+   from depth alone with the STUCK_SMOOTH_H median, until the gauge moves GAUGE_CONFIRM_MM again. */
+export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine']);
+export const GAUGE_CONFIRM_MM = 0.2;
+export const GAUGE_BEFORE_H = 6;
+export const GAUGE_AFTER_H = 2;
+export const STUCK_FLAT_H = 24;
+export const STUCK_RISE_CM = 5;
+export const STUCK_RISE_WINDOW_H = 6;
+export const STUCK_SMOOTH_H = 6;
+// The gauge's accumulated total over time (null-free), from precipitationSeries' reset/spike rules.
+function gaugeTrace(records, to) {
+  const rows = ordered(records).filter(r => r.x <= to);
+  if (!rows.length) return [];
+  return precipitationSeries(rows, rows[0].x, to).points.filter(p => p.y !== null);
+}
+function gaugeAt(trace, t) {
+  let lo = 0, hi = trace.length - 1, hit = null;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (trace[m].x <= t) { hit = trace[m]; lo = m + 1; } else hi = m - 1; }
+  return hit && t - hit.x <= 3 * HOUR ? hit.y : null;
+}
+function gaugeBetween(trace, a, b) {
+  const x = gaugeAt(trace, a), y = gaugeAt(trace, b);
+  return x === null || y === null ? null : Math.max(0, y - x);
+}
+// Times the gauge is taken as stuck: [{start, end}] (end Infinity while still stuck at `to`).
+function stuckPeriods(trace, rows, to) {
+  const s6 = smoothedHs(rows, STUCK_SMOOTH_H * HOUR), periods = [];
+  let lo = 0;
+  for (let i = 0; i < s6.length; i++) {
+    const p = s6[i];
+    if (periods.length && p.x <= periods.at(-1).end) continue;
+    while (s6[lo].x < p.x - STUCK_RISE_WINDOW_H * HOUR) lo++;
+    let base = Infinity;
+    for (let j = lo; j <= i; j++) base = Math.min(base, s6[j].y);
+    if (p.y - base < STUCK_RISE_CM) continue;
+    const flat = gaugeBetween(trace, p.x - STUCK_FLAT_H * HOUR, p.x);
+    if (flat === null || flat >= GAUGE_CONFIRM_MM) continue;
+    const at = gaugeAt(trace, p.x);
+    const moved = trace.find(g => g.x > p.x && g.x <= to && g.y - at >= GAUGE_CONFIRM_MM);
+    periods.push({start: p.x - STUCK_RISE_WINDOW_H * HOUR, end: moved ? moved.x : Infinity});
+  }
+  return periods;
+}
+/* HN credits for a gauge-checked station; the gauge records default to the depth records. */
+export function gaugeCheckedCredits(records, from, to, gaugeRecords = records) {
+  const rows = ordered(records).filter(r => r.x > from - 30 * HOUR && r.x <= to);
+  const trace = gaugeTrace((gaugeRecords || records).filter(r => { const x = Date.parse(r.measurementDateTime); return x > from - 60 * HOUR && x <= to; }), to);
+  const stuck = stuckPeriods(trace, rows, to);
+  const inStuck = t => stuck.some(s => t >= s.start && t <= s.end);
+  const gaugeHw = t => gaugeBetween(trace, t - GAUGE_BEFORE_H * HOUR, Math.min(t + GAUGE_AFTER_H * HOUR, to));
+  const depthOnly = t => inStuck(t) || gaugeHw(t) === null;
+  const r3 = hsCredits(rows, 3 * HOUR, from), r6 = hsCredits(rows, STUCK_SMOOTH_H * HOUR, from);
+  const credits = [
+    ...r3.credits.filter(c => !depthOnly(c.x) && gaugeHw(c.x) >= GAUGE_CONFIRM_MM),
+    ...r6.credits.filter(c => depthOnly(c.x))
+  ].sort((a, b) => a.x - b.x);
+  return {credits, seen: r3.seen, partial: r3.partial, stuck, gauge: trace.length ? (inStuck(to) ? 'stuck' : gaugeHw(to) === null ? 'missing' : 'ok') : 'missing'};
+}
+/* The gauge's state at `to` for a gauge-checked station: 'ok', 'stuck' or 'missing'. */
+export function gaugeState(records, to) {
+  return gaugeCheckedCredits(records, to - 24 * HOUR, to).gauge;
+}
+export function hnIntervals(records, from, to, stepHours, {gaugeCheck = false, gaugeRecords = null} = {}) {
   const binList = bins(from, to, stepHours);
   const rows = ordered(records).filter(r => r.x > from - 6 * HOUR && r.x <= to);
   const direct = rows.map(r => ({x: r.x, v: numeric(r.newSnow)})).filter(r => r.v !== null && r.v >= 0 && r.v <= 50);
@@ -249,24 +336,15 @@ export function hnIntervals(records, from, to, stepHours) {
     });
     return intervalResult(binList, values, 'HN', 'new-snow sensor', false);
   }
-  const smooth = smoothedHs(rows);
-  const credit = binList.map(() => 0), seen = binList.map(() => false);
-  let ref = null, last = null, partial = false;
-  for (const p of smooth) {
-    if (last && p.x - last.x > MAX_GAP) { ref = null; if (p.x > from) partial = true; } // a gap resets the reference
-    last = p;
-    if (ref === null || p.y < ref) { ref = p.y; }
-    else if (p.y - ref >= HN_FROM_HS_THRESHOLD_CM) {
-      const gain = p.y - ref;
-      ref = p.y;
-      const i = binList.findIndex(b => p.x > b.start && p.x <= b.end);
-      if (i >= 0 && gain <= 50) credit[i] += gain;
-    }
-    const i = binList.findIndex(b => p.x > b.start && p.x <= b.end);
-    if (i >= 0) seen[i] = true;
-  }
-  const values = credit.map((c, i) => (seen[i] ? Math.round(c * 10) / 10 : null));
-  return intervalResult(binList, values, 'HN', 'HS', partial);
+  const {credits: all, seen, partial, gauge} = gaugeCheck ? gaugeCheckedCredits(records, from, to, gaugeRecords || records) : hsCredits(rows, 3 * HOUR, from);
+  const credit = binList.map(() => 0), seenBin = binList.map(() => false);
+  const binOf = x => binList.findIndex(b => x > b.start && x <= b.end);
+  for (const c of all) { const i = binOf(c.x); if (i >= 0) credit[i] += c.gain; }
+  for (const x of seen) { if (x > from) { const i = binOf(x); if (i >= 0) seenBin[i] = true; } }
+  const values = credit.map((c, i) => (seenBin[i] ? Math.round(c * 10) / 10 : null));
+  const result = intervalResult(binList, values, 'HN', 'HS', partial);
+  if (gaugeCheck) result.gauge = gauge;
+  return result;
 }
 // HW per interval from the gauge (mm), using the same reset/spike rules as precipitationSeries.
 export function hwIntervals(records, from, to, stepHours) {

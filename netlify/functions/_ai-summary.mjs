@@ -122,7 +122,7 @@ function hw24(meta, observations) {
    `station_id` (opaque) replaces the station name in the LLM payload so
    the model has no proper noun to name-drop — it can only report by
    elevation band and N/S + E/W region. */
-function summarizeStation(meta, observations, lastSyncedAt) {
+function summarizeStation(meta, observations, lastSyncedAt, snowObservations = observations) {
   const base = {
     station_id: meta.stationId,
     name: meta.name,
@@ -205,7 +205,7 @@ function summarizeStation(meta, observations, lastSyncedAt) {
 
   /* HN24 and HS as the 24h table reports them; none for stations with no usable snow trace. */
   const snowExcluded = SNOW_EXCLUDED_IDS.has(meta.stationId) || NO_SNOW_SENSOR_IDS.has(meta.stationId);
-  const snow = snowFigures(observations, Date.now(), { id: meta.stationId });
+  const snow = snowFigures(snowObservations, Date.now(), { id: meta.stationId });
   const snowStart = snowExcluded ? null : observations.find((o) => num(o.snowHeight) !== null);
   const snowEndVal = snowExcluded ? null : latest(observations, "snowHeight");
   const snowDelta = (snowStart && snowEndVal !== null)
@@ -301,7 +301,8 @@ export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS } = {}
         archive = await readArchive(meta.stationId);
       }
       const observations = selectHours(archive, hours);
-      return summarizeStation(meta, observations, archive.lastSyncedAt);
+      /* HN24's gauge check (assets/pair-comparison-data.js) looks back up to 36 h before the 24 h window. */
+      return summarizeStation(meta, observations, archive.lastSyncedAt, selectHours(archive, Math.max(hours, 60)));
     } catch (error) {
       return { station: meta.name, park: meta.park, elevation_m: meta.elevation, status: "error", error: error.message };
     }

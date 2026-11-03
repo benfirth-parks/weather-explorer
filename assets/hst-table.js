@@ -1,4 +1,5 @@
 import {stormSnow, HST_LOOKBACK_H, STORM_GAP_H} from './hst.js';
+import {HN_GAUGE_CHECK_IDS} from './pair-comparison-data.js';
 
 /* Fills the HST cells of the 24 h station summary. HST needs more history than the table's 24 h
    window, so each station's last HST_LOOKBACK_H hours are fetched once and reused for 30 min. */
@@ -30,7 +31,7 @@ function fill() {
     if (cell.dataset.hstDone === '1') continue;
     cell.dataset.hstDone = '1';
     cell.textContent = '…';
-    records(id).then(data => { if (cell.isConnected) show(cell, stormSnow(data, Date.now())); })
+    records(id).then(data => { if (cell.isConnected) show(cell, stormSnow(data, Date.now(), {gaugeCheck: HN_GAUGE_CHECK_IDS.has(id)})); })
       .catch(() => { if (cell.isConnected) { cell.textContent = '—'; cell.title = 'Archive unavailable'; } });
   }
 }

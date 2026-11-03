@@ -87,3 +87,44 @@ test('a depth that falls below the storm start keeps the peak rise', () => {
   const r = stormSnow(station({}, h => (h > 10 ? 80 : h > 8 ? 86 : 86 - (8 - h))), NOW);
   assert.equal(r.hst, 6);
 });
+
+/* Gauge check (Sunshine, Ben 3 Nov 2026). 15-min readings; `jitter` adds the sensor's +/-2 cm wander. */
+import {gaugeState} from '../assets/pair-comparison-data.js';
+import {readFileSync} from 'node:fs';
+function quarterHourly(hs, gauge, hours = 72) {
+  const out = [], wobble = [0, -1, 1, -2, 2, 0, -1, 1];
+  for (let q = hours * 4 - 1; q >= 0; q--) {
+    const h = q / 4;
+    out.push({measurementDateTime: new Date(NOW - q * HOUR / 4).toISOString(), snowHeight: hs(h) + wobble[q % 8], precipTotal: gauge(h)});
+  }
+  return out;
+}
+test('gauge check: Sunshine depth jitter with a flat gauge is not new snow (Nov 2-3 2026 data)', () => {
+  // Real Sunshine readings, 07:00 MT Oct 31 to Nov 3: gauge flat at 240.5 mm, depth wandering 18 to 22 cm.
+  const recs = JSON.parse(readFileSync(new URL('./sunshine-dry-fixture.json', import.meta.url)));
+  const now = Date.parse('2026-11-03T13:00:00Z');
+  assert.equal(newSnow24h(recs, now), 4, 'the plain depth rule counts the jitter');
+  assert.equal(newSnow24h(recs, now, {gaugeCheck: true}), 0);
+  assert.equal(stormSnow(recs, now, {gaugeCheck: true}).hst, 0);
+  assert.equal(gaugeState(recs, now), 'ok');
+});
+test('gauge check: a depth rise the gauge confirms is counted', () => {
+  // 8 cm of snow 12 to 6 h ago, 6 mm on the gauge over the same hours.
+  const hs = h => (h > 12 ? 20 : h > 6 ? 20 + (12 - h) * 8 / 6 : 28);
+  const gauge = h => (h > 12 ? 240 : h > 6 ? 240 + (12 - h) : 246);
+  const hn = newSnow24h(quarterHourly(hs, gauge), NOW, {gaugeCheck: true});
+  assert.ok(hn >= 6 && hn <= 10, `HN24 ${hn}`);
+});
+test('gauge check: a stuck gauge falls back to depth only and says so', () => {
+  const hs = h => (h > 12 ? 20 : h > 6 ? 20 + (12 - h) * 8 / 6 : 28);
+  const recs = quarterHourly(hs, () => 200);
+  const hn = newSnow24h(recs, NOW, {gaugeCheck: true});
+  assert.ok(hn >= 5 && hn <= 10, `HN24 ${hn}`);
+  assert.equal(gaugeState(recs, NOW), 'stuck');
+});
+test('gauge check: no gauge data falls back to depth only', () => {
+  const hs = h => (h > 12 ? 20 : h > 6 ? 20 + (12 - h) * 8 / 6 : 28);
+  const recs = quarterHourly(hs, () => null);
+  assert.ok(newSnow24h(recs, NOW, {gaugeCheck: true}) >= 5);
+  assert.equal(gaugeState(recs, NOW), 'missing');
+});
