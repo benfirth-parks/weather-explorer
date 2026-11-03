@@ -59,13 +59,16 @@ function mtNow() {
 async function collectProblems() {
   const problems = [];
 
+  // The pages themselves answer "Not found" outside Canada (parks-access edge
+  // function) and GitHub's runners are in the US, so check a static file the
+  // access check leaves open: if Netlify serves it, the site is up.
   try {
-    await fetchRetry(`${SITE}/`);
+    await fetchRetry(`${SITE}/data/lrgs/latest.json`);
   } catch (err) {
     problems.push({
       key: "site-down",
       title: "Site is not loading",
-      detail: `${SITE}/ did not load after 3 tries over about a minute (${err?.message || err}). Check Netlify for an outage or a failed deploy.`
+      detail: `${SITE} did not answer after 3 tries over about a minute (${err?.message || err}). Check Netlify for an outage or a failed deploy.`
     });
     return problems; // nothing else can be checked
   }
