@@ -28,3 +28,13 @@ test('markdown table, dash where a band has no gauge', () => {
     '| Treeline (1800–2200 m) | **2 °C** / **-5 °C** | – | **8 km/h** S | **30 km/h** |'
   ].join('\n'));
 });
+
+test('summary leaves out the four valley fire stations but keeps Skoki and Pika Run', async () => {
+  const {STATION_META, DEFAULT_GROUPS, SUMMARY_EXCLUDED_IDS} = await import('../netlify/functions/_ai-summary.mjs');
+  const used = STATION_META.filter(m => DEFAULT_GROUPS.includes(m.group) && !SUMMARY_EXCLUDED_IDS.has(m.stationId));
+  assert.equal(used.length, 13);
+  assert.ok(used.every(m => !/- Fire$/.test(m.name)));
+  assert.ok(used.some(m => m.stationId === 'fts-skoki'));
+  assert.ok(used.some(m => m.stationId === 'fts-pikarun'));
+  assert.ok(used.every(m => m.elevation >= 1800));
+});

@@ -16,11 +16,11 @@
 import { getStore } from "@netlify/blobs";
 import { fetchRdps } from "./_rdps.mjs";
 import { HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
-import { bandRows, bandTableMarkdown, buildSnapshot, SYSTEM_PROMPT } from "./_ai-summary.mjs";
+import { bandRows, bandTableMarkdown, buildSnapshot, SUMMARY_EXCLUDED_IDS, SYSTEM_PROMPT } from "./_ai-summary.mjs";
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v10"; /* v10: HST is the peak HS rise over the storm */
+const CACHE_STORE = "rockies-weather-ai-summary-v11"; /* v11: fire stations left out */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
@@ -85,7 +85,7 @@ export default async (request) => {
       return json({ error: "Missing PPLX_API_KEY env var" }, { status: 500 });
     }
 
-    const snapshot = await buildSnapshot({ hours: 24 });
+    const snapshot = await buildSnapshot({ hours: 24, exclude: SUMMARY_EXCLUDED_IDS });
     const model = process.env.PPLX_MODEL || DEFAULT_MODEL;
 
     const userContent = `Write the one-sentence headline for the last 24 hours of weather actuals across all stations below. Follow every rule in your system prompt.\n\nSnapshot JSON:\n\`\`\`json\n${JSON.stringify(snapshot, null, 2)}\n\`\`\``;
