@@ -11,9 +11,11 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           mkdir -p diag
-          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-sunshine&hours=720" -o diag/sunshine.json
-          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-boslo&hours=720" -o diag/boslo.json
-          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-bowsummit&hours=720" -o diag/bowsummit.json
-          ls -la diag
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-sunshine&hours=840" -o diag/sunshine.json
+          B="latitude=51.078358&longitude=-115.782455&elevation=2200&hourly=precipitation,snowfall,temperature_2m&timezone=UTC"
+          curl -sS -m 120 "https://api.open-meteo.com/v1/gem?$B&models=gem_regional&past_days=35&forecast_days=2" -o diag/rdps.json
+          curl -sS -m 120 "https://api.open-meteo.com/v1/gem?$B&models=gem_hrdps_continental&past_days=35&forecast_days=2" -o diag/hrdps.json
+          curl -sS -m 120 "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=51.078358&longitude=-115.782455&elevation=2200&hourly=precipitation,precipitation_previous_day1&models=gem_regional&past_days=35&forecast_days=1&timezone=UTC" -o diag/rdps-prev.json
+          ls -la diag; head -c 300 diag/rdps.json; echo; head -c 300 diag/rdps-prev.json
           git config user.name diag-bot; git config user.email diag@example.com
-          git add diag && git commit -m "diag data [skip ci]" && git push
+          git add diag && git commit -m "diag data rdps [skip ci]" && git push
