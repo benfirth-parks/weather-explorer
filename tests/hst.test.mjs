@@ -128,3 +128,23 @@ test('gauge check: no gauge data falls back to depth only', () => {
   assert.ok(newSnow24h(recs, NOW, {gaugeCheck: true}) >= 5);
   assert.equal(gaugeState(recs, NOW), 'missing');
 });
+
+/* RDPS back check (Ben, 4 Nov 2026). */
+const wetForecast = (fromH, toH, mmPerH) => Array.from({length: 96}, (_, k) => ({x: NOW - (95 - k) * HOUR + 2 * HOUR, y: (95 - k) - 2 <= fromH && (95 - k) - 2 >= toH ? mmPerH : 0}));
+test('RDPS back check: a rise the flat gauge missed counts when RDPS expected precipitation', () => {
+  // 4 cm of snow 12 to 9 h ago (under the 5 cm stuck test); the gauge is flat; RDPS had 1 mm/h then.
+  const hs = h => (h > 12 ? 20 : h > 9 ? 20 + (12 - h) * 4 / 3 : 24);
+  const recs = quarterHourly(hs, () => 240.5, 30);
+  assert.equal(newSnow24h(recs, NOW, {gaugeCheck: true}), 0, 'without RDPS the gauge check drops it');
+  const forecast = wetForecast(13, 8, 1);
+  const hn = newSnow24h(recs, NOW, {gaugeCheck: true, forecast});
+  assert.ok(hn >= 2 && hn <= 5, `HN24 ${hn}`);
+  assert.equal(gaugeState(recs, NOW, forecast), 'rdps');
+});
+test('RDPS back check: a dry forecast does not turn depth jitter into snow', () => {
+  const recs = JSON.parse(readFileSync(new URL('./sunshine-dry-fixture.json', import.meta.url)));
+  const now = Date.parse('2026-11-03T13:00:00Z');
+  const dry = Array.from({length: 72}, (_, k) => ({x: now - k * HOUR, y: k % 9 === 0 ? 0.1 : 0}));
+  assert.equal(newSnow24h(recs, now, {gaugeCheck: true, forecast: dry}), 0);
+  assert.equal(gaugeState(recs, now, dry), 'ok');
+});
