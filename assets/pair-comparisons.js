@@ -1,4 +1,5 @@
 import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_GAUGE_CHECK_IDS} from './pair-comparison-data.js';
+import {rdpsFor} from './rdps.js';
 import {plotForPair, renderPlotProfile} from './plot-profile.js';
 
 /* Paired-station timing chart: temperature, wind and precipitation for both stations on one
@@ -395,10 +396,11 @@ async function render(view) {
   view.chartBox.hidden = true;
   view.retry.hidden = true;
   const extras = (EXTRA_PRECIP[ids.join(',')] || []).filter(e => host.stations[e.id]);
-  const [results, extraResults, cleanoutList] = await Promise.all([
+  const [results, extraResults, cleanoutList, forecasts] = await Promise.all([
     Promise.allSettled(ids.map(id => records(id, hours))),
     Promise.allSettled(extras.map(e => records(e.id, hours))),
-    cleanouts(ids)
+    cleanouts(ids),
+    Promise.all(ids.map(id => (HN_GAUGE_CHECK_IDS.has(id) ? rdpsFor(id) : Promise.resolve(null))))
   ]);
   const cleanoutMarks = cleanoutList.filter(m => m.t >= from && m.t <= to);
   if (version !== view.version || !view.card.isConnected || !view.state.open) return;
@@ -413,9 +415,9 @@ async function render(view) {
   const rankOf = elevationRanks([...ids, ...extras.map(e => e.id)]);
   const line = (kind, id, axis) => { const c = axisShade(axis, rankOf[id]); return {borderColor: c, backgroundColor: c, borderWidth: TYPE_WIDTH[kind], borderDash: TYPE_DASH[kind]}; };
   // HN (cm) or HW (mm): interval bars + running-total line on the same axis.
-  function addPrecip(id, data, kind, preferredSlot, gaugeRecords = null) {
+  function addPrecip(id, data, kind, preferredSlot, gaugeRecords = null, forecast = null) {
     const name = host.stations[id].name;
-    const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step, {gaugeCheck: !!gaugeRecords, gaugeRecords});
+    const result = kind === 'hw' ? hwIntervals(data, from, to, step) : hnIntervals(data, from, to, step, {gaugeCheck: !!gaugeRecords, gaugeRecords, forecast});
     const label = result.method, unit = kind === 'hw' ? 'mm' : 'cm', axis = unit === 'mm' ? 'yMm' : 'yCm';
     if (result.total === null) { notes.push(`${name}: no valid ${label} in this period.`); return; }
     const slot = preferredSlot, color = axisShade(axis, rankOf[id]);
@@ -432,6 +434,7 @@ async function render(view) {
     if (result.partial) notes.push(`${name}: some ${label} intervals missing (gaps or rejected readings); total is for the intervals with data.`);
     if (result.gauge === 'stuck') notes.push(`${name}: HW gauge looks stuck (flat while the depth rose), so HN is from depth only until it moves.`);
     else if (result.gauge === 'missing') notes.push(`${name}: no HW gauge data, so HN is from depth only.`);
+    else if (result.gauge === 'rdps') notes.push(`${name}: some HN counted because RDPS forecast precipitation the gauge did not record.`);
   }
   function addDepth(id, data, preferredSlot) {
     const name = host.stations[id].name, hs = hsDepthSeries(data, from, to);
@@ -468,7 +471,7 @@ async function render(view) {
     }
     if (HN_IDS.has(id)) addPrecip(id, data, 'hn', i);
     else if (!host.noPrecipGaugeIds.has(id)) addPrecip(id, data, 'hw', i);
-    if (HN_FROM_HS_IDS.has(id)) addPrecip(id, data.map(r => ({...r, newSnow: null})), 'hn', i, HN_GAUGE_CHECK_IDS.has(id) ? data : null);
+    if (HN_FROM_HS_IDS.has(id)) addPrecip(id, data.map(r => ({...r, newSnow: null})), 'hn', i, HN_GAUGE_CHECK_IDS.has(id) ? data : null, forecasts[i]);
     if (HS_DEPTH_IDS.has(id)) addDepth(id, data, i);
   });
 

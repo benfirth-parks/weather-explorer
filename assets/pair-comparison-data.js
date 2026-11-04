@@ -262,8 +262,13 @@ function hsCredits(rows, windowMs, from) {
    counts as HN when the gauge logged at least GAUGE_CONFIRM_MM in the GAUGE_BEFORE_H before it (up to
    GAUGE_AFTER_H after). A frozen or stuck gauge reads flat like a dry day, so the gauge is taken as stuck
    when it has not moved for STUCK_FLAT_H while the depth (STUCK_SMOOTH_H running median) rose a net
-   STUCK_RISE_CM or more within STUCK_RISE_WINDOW_H. While stuck, or while the gauge has no data, HN comes
-   from depth alone with the STUCK_SMOOTH_H median, until the gauge moves GAUGE_CONFIRM_MM again. */
+   STUCK_RISE_CM or more within STUCK_RISE_WINDOW_H; it stays stuck until it moves GAUGE_CONFIRM_MM again.
+   RDPS back check (Ben, 4 Nov 2026): the RDPS forecast (GEM Regional hourly precipitation, assets/rdps.js)
+   says whether precipitation was expected. A depth rise the gauge did not confirm still counts when RDPS
+   expected RDPS_EXPECT_MM or more over the same window, since precipitation that was forecast but not
+   received points at the gauge, not the sky. While the gauge is stuck, a rise counts unless RDPS was dry
+   (under RDPS_DRY_MM over the window); with no gauge and no RDPS data, HN comes from depth alone. All HN uses the 3 h running median (Ben, 4 Nov 2026); the
+   STUCK_SMOOTH_H median only drives the stuck test. */
 export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine']);
 export const GAUGE_CONFIRM_MM = 0.2;
 export const GAUGE_BEFORE_H = 6;
@@ -272,6 +277,15 @@ export const STUCK_FLAT_H = 24;
 export const STUCK_RISE_CM = 5;
 export const STUCK_RISE_WINDOW_H = 6;
 export const STUCK_SMOOTH_H = 6;
+export const RDPS_EXPECT_MM = 1;
+export const RDPS_DRY_MM = 0.2;
+// Forecast precipitation (mm) for hours ending in (a, b]; null with no forecast hours there.
+function forecastBetween(forecast, a, b) {
+  if (!forecast || !forecast.length) return null;
+  let sum = 0, n = 0;
+  for (const p of forecast) if (p.x > a && p.x <= b && Number.isFinite(p.y)) { sum += p.y; n++; }
+  return n ? Math.round(sum * 100) / 100 : null;
+}
 // The gauge's accumulated total over time (null-free), from precipitationSeries' reset/spike rules.
 function gaugeTrace(records, to) {
   const rows = ordered(records).filter(r => r.x <= to);
@@ -306,26 +320,34 @@ function stuckPeriods(trace, rows, to) {
   }
   return periods;
 }
-/* HN credits for a gauge-checked station; the gauge records default to the depth records. */
-export function gaugeCheckedCredits(records, from, to, gaugeRecords = records) {
+/* HN credits for a gauge-checked station; the gauge records default to the depth records. forecast is the
+   RDPS hourly precipitation [{x: hour end (ms), y: mm}], or null when it is not available.
+   gauge: 'stuck' or 'missing' (at `to`), 'rdps' when a rise in the window counted on the RDPS forecast
+   alone, else 'ok'. */
+export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, forecast = null) {
   const rows = ordered(records).filter(r => r.x > from - 30 * HOUR && r.x <= to);
   const trace = gaugeTrace((gaugeRecords || records).filter(r => { const x = Date.parse(r.measurementDateTime); return x > from - 60 * HOUR && x <= to; }), to);
   const stuck = stuckPeriods(trace, rows, to);
   const inStuck = t => stuck.some(s => t >= s.start && t <= s.end);
   const gaugeHw = t => gaugeBetween(trace, t - GAUGE_BEFORE_H * HOUR, Math.min(t + GAUGE_AFTER_H * HOUR, to));
-  const depthOnly = t => inStuck(t) || gaugeHw(t) === null;
-  const r3 = hsCredits(rows, 3 * HOUR, from), r6 = hsCredits(rows, STUCK_SMOOTH_H * HOUR, from);
-  const credits = [
-    ...r3.credits.filter(c => !depthOnly(c.x) && gaugeHw(c.x) >= GAUGE_CONFIRM_MM),
-    ...r6.credits.filter(c => depthOnly(c.x))
-  ].sort((a, b) => a.x - b.x);
-  return {credits, seen: r3.seen, partial: r3.partial, stuck, gauge: trace.length ? (inStuck(to) ? 'stuck' : gaugeHw(to) === null ? 'missing' : 'ok') : 'missing'};
+  const expected = t => forecastBetween(forecast, t - GAUGE_BEFORE_H * HOUR, t + GAUGE_AFTER_H * HOUR);
+  const r3 = hsCredits(rows, 3 * HOUR, from);
+  let onForecast = false;
+  const credits = r3.credits.filter(c => {
+    const g = gaugeHw(c.x), f = expected(c.x);
+    if (inStuck(c.x)) return f === null || f >= RDPS_DRY_MM;
+    if (g !== null && g >= GAUGE_CONFIRM_MM) return true;
+    if (f !== null && f >= RDPS_EXPECT_MM) { if (c.x > from && c.x <= to) onForecast = true; return true; }
+    return g === null && f === null;
+  });
+  const gauge = !trace.length || (!inStuck(to) && gaugeHw(to) === null) ? 'missing' : inStuck(to) ? 'stuck' : onForecast ? 'rdps' : 'ok';
+  return {credits, seen: r3.seen, partial: r3.partial, stuck, gauge};
 }
-/* The gauge's state at `to` for a gauge-checked station: 'ok', 'stuck' or 'missing'. */
-export function gaugeState(records, to) {
-  return gaugeCheckedCredits(records, to - 24 * HOUR, to).gauge;
+/* The gauge's state at `to` for a gauge-checked station: 'ok', 'stuck', 'missing' or 'rdps'. */
+export function gaugeState(records, to, forecast = null) {
+  return gaugeCheckedCredits(records, to - 24 * HOUR, to, records, forecast).gauge;
 }
-export function hnIntervals(records, from, to, stepHours, {gaugeCheck = false, gaugeRecords = null} = {}) {
+export function hnIntervals(records, from, to, stepHours, {gaugeCheck = false, gaugeRecords = null, forecast = null} = {}) {
   const binList = bins(from, to, stepHours);
   const rows = ordered(records).filter(r => r.x > from - 6 * HOUR && r.x <= to);
   const direct = rows.map(r => ({x: r.x, v: numeric(r.newSnow)})).filter(r => r.v !== null && r.v >= 0 && r.v <= 50);
@@ -336,7 +358,7 @@ export function hnIntervals(records, from, to, stepHours, {gaugeCheck = false, g
     });
     return intervalResult(binList, values, 'HN', 'new-snow sensor', false);
   }
-  const {credits: all, seen, partial, gauge} = gaugeCheck ? gaugeCheckedCredits(records, from, to, gaugeRecords || records) : hsCredits(rows, 3 * HOUR, from);
+  const {credits: all, seen, partial, gauge} = gaugeCheck ? gaugeCheckedCredits(records, from, to, gaugeRecords || records, forecast) : hsCredits(rows, 3 * HOUR, from);
   const credit = binList.map(() => 0), seenBin = binList.map(() => false);
   const binOf = x => binList.findIndex(b => x > b.start && x <= b.end);
   for (const c of all) { const i = binOf(c.x); if (i >= 0) credit[i] += c.gain; }

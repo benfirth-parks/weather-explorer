@@ -69,16 +69,16 @@ function snowHeight24h(recs) {
    HN24 and HST: as the 24 h table (assets/hst.js): HN24 the sum of the hourly HN over the
    last 24 h, HST the peak HS rise over the current storm (same 10-day lookback).
    HS: the latest spike-filtered depth. `id` applies the per-station rules in
-   assets/snow-stations.js. */
-export function snowFigures(records, now, { hn = true, id = null } = {}) {
+   assets/snow-stations.js. `forecast`: the RDPS points for a gauge-checked station (_rdps.mjs fetchRdps). */
+export function snowFigures(records, now, { hn = true, id = null, forecast = null } = {}) {
   if (SNOW_EXCLUDED_IDS.has(id) || NO_SNOW_SENSOR_IDS.has(id)) return { hn24_cm: null, hst_cm: null, hs_cm: null };
   const clean = withoutFalseNewSnow(id, sanitizeRecords(records)).filter((r) => time(r) <= now);
   const last24 = clean.filter((r) => time(r) >= now - 24 * HOUR);
   let hn24 = null, hst = null;
   if (hn) {
     const gaugeCheck = HN_GAUGE_CHECK_IDS.has(id);
-    hn24 = newSnow24h(clean, now, { gaugeCheck });
-    hst = hn24 === null ? null : stormSnow(clean, now, { gaugeCheck })?.hst ?? null;
+    hn24 = newSnow24h(clean, now, { gaugeCheck, forecast });
+    hst = hn24 === null ? null : stormSnow(clean, now, { gaugeCheck, forecast })?.hst ?? null;
   }
   const hs = snowHeight24h(last24);
   return { hn24_cm: round1cm(hn24), hst_cm: round1cm(hst), hs_cm: round1cm(hs) };
