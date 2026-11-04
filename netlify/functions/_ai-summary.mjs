@@ -259,6 +259,11 @@ function summarizeStation(meta, observations, lastSyncedAt, snowObservations = o
    buildSnapshot({ groups: [1, 2, 3, 4] }) for everything. */
 export const DEFAULT_GROUPS = [1, 2];
 
+/* Valley fire weather stations (all below 1800 m) left out of the 24 h
+   summary so they don't set the headline or a valley-only band row. Skoki
+   and Pika Run stay: they are AB Env snow sites at treeline and alpine. */
+export const SUMMARY_EXCLUDED_IDS = new Set(["fts-boulder", "fts-vermillion", "fts-lakelouise", "fts-castle"]);
+
 /* Which station(s) set each network-wide extreme. Ties list every tied station.
    Names are the verbatim dashboard labels. */
 function networkExtremes(stations) {
@@ -289,9 +294,9 @@ function networkExtremes(stations) {
 /* Build the snapshot for stations in the selected groups, in parallel.
    Stations with an empty archive are auto-seeded (same behaviour as
    fts.mjs) so a first-ever call still returns something useful. */
-export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS } = {}) {
+export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS, exclude = new Set() } = {}) {
   const groupSet = new Set(groups);
-  const included = STATION_META.filter((meta) => groupSet.has(meta.group));
+  const included = STATION_META.filter((meta) => groupSet.has(meta.group) && !exclude.has(meta.stationId));
   const results = await Promise.all(included.map(async (meta) => {
     if (!STATION_IDS[meta.stationId]) {
       return { ...meta, status: "unknown-station" };
