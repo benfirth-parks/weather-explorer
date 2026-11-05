@@ -6,6 +6,7 @@
    The HS Sheet sync (benfirth-parks/banff-winter-meeting scripts/sync_snow_sheet.py) makes the same call. */
 export const RDPS_POINTS = {
   "fts-sunshine": { latitude: 51.078358, longitude: -115.782455, elevation: 2200 },
+  "fts-simplo": { latitude: 50.98507, longitude: -115.984215, elevation: 2115 },
 };
 export const RDPS_PAST_DAYS = 92;
 const KEEP_MS = 20 * 60000;

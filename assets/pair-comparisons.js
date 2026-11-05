@@ -1,4 +1,4 @@
-import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_GAUGE_CHECK_IDS} from './pair-comparison-data.js';
+import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_GAUGE_CHECK_IDS, HN_NO_GAUGE_IDS} from './pair-comparison-data.js';
 import {rdpsFor} from './rdps.js';
 import {plotForPair, renderPlotProfile} from './plot-profile.js';
 
@@ -433,7 +433,8 @@ async function render(view) {
     facts.push(fact);
     if (result.partial) notes.push(`${name}: some ${label} intervals missing (gaps or rejected readings); total is for the intervals with data.`);
     if (result.gauge === 'stuck') notes.push(`${name}: HW gauge looks stuck (flat while the depth rose), so HN is from depth only until it moves.`);
-    else if (result.gauge === 'missing') notes.push(`${name}: no HW gauge data, so HN is from depth only.`);
+    else if (result.gauge === 'missing') notes.push(HN_NO_GAUGE_IDS.has(id) ? `${name}: no RDPS forecast, so HN is from depth only.` : `${name}: no HW gauge data, so HN is from depth only.`);
+    else if (result.gauge === 'forecast' && !HN_NO_GAUGE_IDS.has(id)) notes.push(`${name}: no HW gauge data, so a depth rise counts as HN only when RDPS forecast precipitation.`);
     else if (result.gauge === 'rdps') notes.push(`${name}: some HN counted because RDPS forecast precipitation the gauge did not record.`);
   }
   function addDepth(id, data, preferredSlot) {

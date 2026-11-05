@@ -148,3 +148,22 @@ test('RDPS back check: a dry forecast does not turn depth jitter into snow', () 
   assert.equal(newSnow24h(recs, now, {gaugeCheck: true, forecast: dry}), 0);
   assert.equal(gaugeState(recs, now, dry), 'ok');
 });
+
+/* Simpson Lower RDPS-only check (Ben, 5 Nov 2026): no gauge, and the depth dips each afternoon and recovers. */
+test('Simpson Lower: the afternoon dip and recovery is not new snow when RDPS was dry', () => {
+  const fx = JSON.parse(readFileSync(new URL('./simpson-lower-fixture.json', import.meta.url)));
+  const forecast = fx.rdps.map(p => ({x: Date.parse(`${p.time}Z`), y: p.mm}));
+  const now = Date.parse('2026-11-05T10:00:00Z');
+  assert.equal(newSnow24h(fx.records, now), 2, 'the plain depth rule counts the evening recovery');
+  assert.equal(newSnow24h(fx.records, now, {gaugeCheck: true, forecast}), 0);
+  assert.equal(stormSnow(fx.records, now, {gaugeCheck: true, forecast}).hst, 0);
+  assert.equal(gaugeState(fx.records, now, forecast), 'forecast');
+  assert.equal(gaugeState(fx.records, now, null), 'missing');
+});
+test('Simpson Lower: the 28-29 Oct snowfall RDPS forecast still counts', () => {
+  const fx = JSON.parse(readFileSync(new URL('./simpson-lower-fixture.json', import.meta.url)));
+  const forecast = fx.rdps.map(p => ({x: Date.parse(`${p.time}Z`), y: p.mm}));
+  const now = Date.parse('2026-10-29T14:00:00Z');
+  const hn = newSnow24h(fx.records, now, {gaugeCheck: true, forecast});
+  assert.ok(hn >= 9 && hn <= 14, `HN24 ${hn}`);
+});
