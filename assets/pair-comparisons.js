@@ -17,7 +17,8 @@ const ranges = [[24, '24 h'], [72, '72 h'], [168, '7 days'], [336, '14 days'], [
 const HN_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo']);
 /* Gauge stations that also draw HN from their snow depth (Ben, 30 Oct 2026). Sunshine's AB Env
    new-snow field is not usable as HN, so it is dropped and HN comes from HS, as in its HN24. Its HN is
-   gauge-checked (HN_GAUGE_CHECK_IDS, Ben 3 Nov 2026): a depth rise counts only when the gauge confirms it. */
+   gauge-checked (HN_GAUGE_CHECK_IDS, Ben 3 Nov 2026): a depth rise counts only when the gauge confirms it.
+   HN_IDS stations are checked too (Ben, 5 Nov 2026), against RDPS alone where there is no gauge. */
 const HN_FROM_HS_IDS = new Set(['fts-sunshine']);
 /* Stations whose HS (snow depth) is drawn. */
 const HS_DEPTH_IDS = new Set([...HN_IDS, ...HN_FROM_HS_IDS]);
@@ -470,7 +471,7 @@ async function render(view) {
         winds.push({name, points: wind.points});
       }
     }
-    if (HN_IDS.has(id)) addPrecip(id, data, 'hn', i);
+    if (HN_IDS.has(id)) addPrecip(id, data, 'hn', i, HN_GAUGE_CHECK_IDS.has(id) ? data : null, forecasts[i]);
     else if (!host.noPrecipGaugeIds.has(id)) addPrecip(id, data, 'hw', i);
     if (HN_FROM_HS_IDS.has(id)) addPrecip(id, data.map(r => ({...r, newSnow: null})), 'hn', i, HN_GAUGE_CHECK_IDS.has(id) ? data : null, forecasts[i]);
     if (HS_DEPTH_IDS.has(id)) addDepth(id, data, i);

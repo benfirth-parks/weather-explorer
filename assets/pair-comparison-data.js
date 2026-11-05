@@ -257,7 +257,7 @@ function hsCredits(rows, windowMs, from) {
   return {credits, seen, partial};
 }
 
-/* Gauge check (Ben, 3 Nov 2026), for gauge stations in HN_GAUGE_CHECK_IDS. Their depth sensor jitters a
+/* Gauge check (Ben, 3 Nov 2026), for the stations in HN_GAUGE_CHECK_IDS. Sunshine's depth sensor jitters a
    couple of cm every reading, which the HS ratchet was counting as new snow on dry days. A depth rise only
    counts as HN when the gauge logged at least GAUGE_CONFIRM_MM in the GAUGE_BEFORE_H before it (up to
    GAUGE_AFTER_H after). A frozen or stuck gauge reads flat like a dry day, so the gauge is taken as stuck
@@ -270,12 +270,14 @@ function hsCredits(rows, windowMs, from) {
    (under RDPS_DRY_MM over the window); with no gauge and no RDPS data, HN comes from depth alone. All HN uses the 3 h running median (Ben, 4 Nov 2026); the
    STUCK_SMOOTH_H median only drives the stuck test.
    Simpson Lower (Ben, 5 Nov 2026) has no gauge, and its depth dips a couple of cm each afternoon and
-   recovers by evening, which the ratchet counted as new snow. It is in HN_GAUGE_CHECK_IDS with no gauge
-   data (HN_NO_GAUGE_IDS), so a depth rise counts only when RDPS expected RDPS_EXPECT_MM or more over the
-   window. gauge is then 'forecast' (no gauge, rises checked against RDPS alone), or 'missing' with no RDPS
-   data, when HN comes from depth alone. */
-export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine', 'fts-simplo']);
-export const HN_NO_GAUGE_IDS = new Set(['fts-simplo']);
+   recovers by evening, which the ratchet counted as new snow. Stations with no gauge (HN_NO_GAUGE_IDS) count
+   a depth rise only when RDPS expected RDPS_EXPECT_MM or more over the window. gauge is then 'forecast' (no
+   gauge, rises checked against RDPS alone), or 'missing' with no RDPS data, when HN comes from depth alone.
+   Every station whose HN comes from its depth sensor is checked this way (Ben, 5 Nov 2026): gauge stations
+   by the gauge and RDPS as at Sunshine, gauge-less ones by RDPS alone. Each needs an RDPS point in
+   netlify/functions/_rdps.mjs. index.html and mobile.html keep inline copies of both sets. */
+export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine', 'fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley', 'fts-bowprecip', 'fts-pikarun', 'fts-coleman', 'fts-bigbend', 'fts-maligne', 'fts-summitlake', 'fts-akamina']);
+export const HN_NO_GAUGE_IDS = new Set(['fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley']);
 export const GAUGE_CONFIRM_MM = 0.2;
 export const GAUGE_BEFORE_H = 6;
 export const GAUGE_AFTER_H = 2;

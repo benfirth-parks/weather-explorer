@@ -1,4 +1,4 @@
-/* RDPS (GEM Regional, 10 km) hourly precipitation forecast at gauge-checked stations, for the HN back check
+/* RDPS (GEM Regional, 10 km) hourly precipitation forecast at the HN-checked stations (HN_GAUGE_CHECK_IDS), for the HN back check
    (Ben, 4 Nov 2026; assets/pair-comparison-data.js gaugeCheckedCredits). Fetched from Open-Meteo's GEM API
    (models=gem_regional), which serves Environment Canada's RDPS runs: past hours come from the most recent
    runs that covered them, so "past_days" gives the short-lead forecast for each hour. Open-Meteo's hourly
@@ -7,6 +7,16 @@
 export const RDPS_POINTS = {
   "fts-sunshine": { latitude: 51.078358, longitude: -115.782455, elevation: 2200 },
   "fts-simplo": { latitude: 50.98507, longitude: -115.984215, elevation: 2115 },
+  "fts-boslo": { latitude: 51.45722, longitude: -116.357834, elevation: 2210 },
+  "fts-bowsummit": { latitude: 51.709373, longitude: -116.47904, elevation: 2040 },
+  "fts-stanley": { latitude: 51.184673, longitude: -116.0892, elevation: 1930 },
+  "fts-bowprecip": { latitude: 51.712, longitude: -116.481, elevation: 2040 },
+  "fts-pikarun": { latitude: 51.442, longitude: -116.217, elevation: 2200 },
+  "fts-coleman": { latitude: 52.09691, longitude: -116.92602, elevation: 2176 },
+  "fts-bigbend": { latitude: 52.193, longitude: -117.156, elevation: 2125 },
+  "fts-maligne": { latitude: 52.7244, longitude: -117.6494, elevation: 1712 },
+  "fts-summitlake": { latitude: 49.006447, longitude: -114.03637, elevation: 2056 },
+  "fts-akamina": { latitude: 49.0333, longitude: -114.05, elevation: 1676 },
 };
 export const RDPS_PAST_DAYS = 92;
 const KEEP_MS = 20 * 60000;
