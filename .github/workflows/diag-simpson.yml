@@ -15,6 +15,7 @@ jobs:
           for s in fts-simplo fts-simpup fts-boslo; do
             curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=336" -o diag/$s.json || true
           done
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=50.98507&longitude=-115.984215&elevation=2115&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/rdps-simplo.json || true
           ls -la diag
           git config user.name diag-bot; git config user.email diag@example.com
           git add diag; git commit -m "diag data"; git push
