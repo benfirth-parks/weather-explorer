@@ -725,8 +725,6 @@ const METRIC_META = {
 };
 /* ---- Only Group 1 (Banff VS) is selected on load; enable the rest from the group chips. */
 let groupFilter = new Set([1]);
-/* Banff Fire valley stations (all under 1800 m): not ticked when the Banff Fire chip turns on. */
-const VALLEY_FIRE_IDS = new Set(['fts-boulder','fts-vermillion','fts-lakelouise','fts-castle']);
 let selected = new Set(STATIONS_GROUP1.map(s=>s.stationId));
 /* "All" on the main range control requests the station's full archived history. There's
    no fixed upper bound on how far back FTS360 archives go, so this is a generous sentinel
@@ -901,9 +899,7 @@ document.querySelectorAll('.group-chip').forEach(chip=>chip.addEventListener('cl
     groupFilter.add(g);
     chip.classList.add('active');
     // Turning a group on selects its stations (within the elevation filter); turning it off removes them.
-    // The four valley fire stations are left unticked so they stay out of the Selected-Station
-    // Averages (and other charts) unless picked one by one; Skoki and Pika Run are ticked as usual.
-    STATIONS.filter(s=>s.group===g && inElevBand(s) && !VALLEY_FIRE_IDS.has(s.stationId)).forEach(s=>selected.add(s.stationId));
+    STATIONS.filter(s=>s.group===g && inElevBand(s)).forEach(s=>selected.add(s.stationId));
   }
   renderStationList();
   refreshMarkers();
