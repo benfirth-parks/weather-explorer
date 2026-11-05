@@ -11,11 +11,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p diag
-          for s in fts-simplo fts-simpup fts-boslo; do
-            curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=336" -o diag/$s.json || true
-          done
-          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=50.98507&longitude=-115.984215&elevation=2115&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/rdps-simplo.json || true
-          ls -la diag
+          mkdir -p diag/all
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-boslo&hours=336" -o diag/all/fts-boslo.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.45722&longitude=-116.357834&elevation=2210&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-boslo.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-bosup&hours=336" -o diag/all/fts-bosup.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.46954&longitude=-116.34969&elevation=2745&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-bosup.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-bowsummit&hours=336" -o diag/all/fts-bowsummit.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.709373&longitude=-116.47904&elevation=2040&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-bowsummit.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-bowprecip&hours=336" -o diag/all/fts-bowprecip.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.712&longitude=-116.481&elevation=2040&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-bowprecip.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-lookout&hours=336" -o diag/all/fts-lookout.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.07417&longitude=-115.754295&elevation=2640&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-lookout.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-simplo&hours=336" -o diag/all/fts-simplo.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=50.98507&longitude=-115.984215&elevation=2115&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-simplo.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-simpup&hours=336" -o diag/all/fts-simpup.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=50.990124&longitude=-115.991165&elevation=2320&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-simpup.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-stanley&hours=336" -o diag/all/fts-stanley.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.184673&longitude=-116.0892&elevation=1930&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-stanley.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-sunshine&hours=336" -o diag/all/fts-sunshine.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.078358&longitude=-115.782455&elevation=2200&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-sunshine.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-vulture&hours=336" -o diag/all/fts-vulture.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.6244&longitude=-116.47188&elevation=2930&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-vulture.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-whymper&hours=336" -o diag/all/fts-whymper.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.2126&longitude=-116.11409&elevation=2600&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-whymper.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-boulder&hours=336" -o diag/all/fts-boulder.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.3665&longitude=-116.5264&elevation=1650&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-boulder.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-pikarun&hours=336" -o diag/all/fts-pikarun.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.442&longitude=-116.217&elevation=2200&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-pikarun.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-vermillion&hours=336" -o diag/all/fts-vermillion.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.0194&longitude=-115.9766&elevation=1310&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-vermillion.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-lakelouise&hours=336" -o diag/all/fts-lakelouise.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.4281&longitude=-116.2093&elevation=1730&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-lakelouise.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-castle&hours=336" -o diag/all/fts-castle.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.2796&longitude=-115.9562&elevation=1450&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-castle.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-skoki&hours=336" -o diag/all/fts-skoki.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.482&longitude=-116.217&elevation=2160&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-skoki.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-tangleridge&hours=336" -o diag/all/fts-tangleridge.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=52.226&longitude=-117.257&elevation=3009&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-tangleridge.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-coleman&hours=336" -o diag/all/fts-coleman.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=52.09691&longitude=-116.92602&elevation=2176&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-coleman.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-bigbend&hours=336" -o diag/all/fts-bigbend.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=52.193&longitude=-117.156&elevation=2125&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-bigbend.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-maligne&hours=336" -o diag/all/fts-maligne.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=52.7244&longitude=-117.6494&elevation=1712&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-maligne.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-saskcrossing&hours=336" -o diag/all/fts-saskcrossing.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=51.9681&longitude=-116.7145&elevation=1392&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-saskcrossing.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-jasperqd1&hours=336" -o diag/all/fts-jasperqd1.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=52.6648&longitude=-116.8767&elevation=1585&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-jasperqd1.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-dorothy&hours=336" -o diag/all/fts-dorothy.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=52.9008&longitude=-118.2786&elevation=1528&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-dorothy.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-devona&hours=336" -o diag/all/fts-devona.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=53.1718&longitude=-118.0292&elevation=1402&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-devona.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-rangercreek&hours=336" -o diag/all/fts-rangercreek.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=52.5768&longitude=-117.7208&elevation=1289&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-rangercreek.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-summitlake&hours=336" -o diag/all/fts-summitlake.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=49.006447&longitude=-114.03637&elevation=2056&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-summitlake.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-akamina&hours=336" -o diag/all/fts-akamina.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=49.0333&longitude=-114.05&elevation=1676&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-akamina.json || true; sleep 1
+          curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=fts-waterton&hours=336" -o diag/all/fts-waterton.json || true
+          curl -sS -m 60 "https://api.open-meteo.com/v1/gem?latitude=49.06468&longitude=-113.903&elevation=1294&hourly=precipitation&models=gem_regional&past_days=15&forecast_days=1&timezone=UTC" -o diag/all/rdps-fts-waterton.json || true; sleep 1
+          ls -la diag/all
           git config user.name diag-bot; git config user.email diag@example.com
-          git add diag; git commit -m "diag data"; git push
+          git add diag; git commit -m "diag data all"; git push
