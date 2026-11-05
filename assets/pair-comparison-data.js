@@ -268,8 +268,14 @@ function hsCredits(rows, windowMs, from) {
    expected RDPS_EXPECT_MM or more over the same window, since precipitation that was forecast but not
    received points at the gauge, not the sky. While the gauge is stuck, a rise counts unless RDPS was dry
    (under RDPS_DRY_MM over the window); with no gauge and no RDPS data, HN comes from depth alone. All HN uses the 3 h running median (Ben, 4 Nov 2026); the
-   STUCK_SMOOTH_H median only drives the stuck test. */
-export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine']);
+   STUCK_SMOOTH_H median only drives the stuck test.
+   Simpson Lower (Ben, 5 Nov 2026) has no gauge, and its depth dips a couple of cm each afternoon and
+   recovers by evening, which the ratchet counted as new snow. It is in HN_GAUGE_CHECK_IDS with no gauge
+   data (HN_NO_GAUGE_IDS), so a depth rise counts only when RDPS expected RDPS_EXPECT_MM or more over the
+   window. gauge is then 'forecast' (no gauge, rises checked against RDPS alone), or 'missing' with no RDPS
+   data, when HN comes from depth alone. */
+export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine', 'fts-simplo']);
+export const HN_NO_GAUGE_IDS = new Set(['fts-simplo']);
 export const GAUGE_CONFIRM_MM = 0.2;
 export const GAUGE_BEFORE_H = 6;
 export const GAUGE_AFTER_H = 2;
@@ -322,8 +328,8 @@ function stuckPeriods(trace, rows, to) {
 }
 /* HN credits for a gauge-checked station; the gauge records default to the depth records. forecast is the
    RDPS hourly precipitation [{x: hour end (ms), y: mm}], or null when it is not available.
-   gauge: 'stuck' or 'missing' (at `to`), 'rdps' when a rise in the window counted on the RDPS forecast
-   alone, else 'ok'. */
+   gauge: 'stuck' or 'missing' (at `to`), 'forecast' when there is no gauge data at all but RDPS is there (rises
+   then count on RDPS alone), 'rdps' when a rise in the window counted on the RDPS forecast alone, else 'ok'. */
 export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, forecast = null) {
   const rows = ordered(records).filter(r => r.x > from - 30 * HOUR && r.x <= to);
   const trace = gaugeTrace((gaugeRecords || records).filter(r => { const x = Date.parse(r.measurementDateTime); return x > from - 60 * HOUR && x <= to; }), to);
@@ -340,10 +346,11 @@ export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, f
     if (f !== null && f >= RDPS_EXPECT_MM) { if (c.x > from && c.x <= to) onForecast = true; return true; }
     return g === null && f === null;
   });
-  const gauge = !trace.length || (!inStuck(to) && gaugeHw(to) === null) ? 'missing' : inStuck(to) ? 'stuck' : onForecast ? 'rdps' : 'ok';
+  const gauge = !trace.length ? (forecast && forecast.length ? 'forecast' : 'missing')
+    : !inStuck(to) && gaugeHw(to) === null ? 'missing' : inStuck(to) ? 'stuck' : onForecast ? 'rdps' : 'ok';
   return {credits, seen: r3.seen, partial: r3.partial, stuck, gauge};
 }
-/* The gauge's state at `to` for a gauge-checked station: 'ok', 'stuck', 'missing' or 'rdps'. */
+/* The gauge's state at `to` for a gauge-checked station: 'ok', 'stuck', 'missing', 'forecast' or 'rdps'. */
 export function gaugeState(records, to, forecast = null) {
   return gaugeCheckedCredits(records, to - 24 * HOUR, to, records, forecast).gauge;
 }
