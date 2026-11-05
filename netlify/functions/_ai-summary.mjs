@@ -259,10 +259,19 @@ function summarizeStation(meta, observations, lastSyncedAt, snowObservations = o
    buildSnapshot({ groups: [1, 2, 3, 4] }) for everything. */
 export const DEFAULT_GROUPS = [1, 2];
 
-/* Valley fire weather stations (all below 1800 m) left out of the 24 h
-   summary so they don't set the headline or a valley-only band row. Skoki
-   and Pika Run stay: they are AB Env snow sites at treeline and alpine. */
+/* Valley fire weather stations (all below 1800 m). They are left out of
+   what the AI headline sees so they don't set it, but they are the only
+   stations under 1800 m, so they still feed the Below treeline row of the
+   band table. Skoki and Pika Run are AB Env snow sites and always count. */
 export const SUMMARY_EXCLUDED_IDS = new Set(["fts-boulder", "fts-vermillion", "fts-lakelouise", "fts-castle"]);
+
+/* The snapshot the AI headline sees: the full snapshot minus the excluded
+   stations, with network extremes and the station count recomputed. */
+export function headlineSnapshot(snapshot, exclude = SUMMARY_EXCLUDED_IDS) {
+  const names = new Set(STATION_META.filter((m) => exclude.has(m.stationId)).map((m) => m.name));
+  const stations = snapshot.stations.filter((s) => !names.has(s.name ?? s.station));
+  return { ...snapshot, network_extremes: networkExtremes(stations), station_count: stations.length, stations };
+}
 
 /* Which station(s) set each network-wide extreme. Ties list every tied station.
    Names are the verbatim dashboard labels. */
