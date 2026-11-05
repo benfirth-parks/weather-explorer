@@ -16,11 +16,11 @@
 import { getStore } from "@netlify/blobs";
 import { fetchRdps } from "./_rdps.mjs";
 import { HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
-import { bandRows, bandTableMarkdown, buildSnapshot, SUMMARY_EXCLUDED_IDS, SYSTEM_PROMPT } from "./_ai-summary.mjs";
+import { bandRows, bandTableMarkdown, buildSnapshot, headlineSnapshot, SYSTEM_PROMPT } from "./_ai-summary.mjs";
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v11"; /* v11: fire stations left out */
+const CACHE_STORE = "rockies-weather-ai-summary-v12"; /* v12: Below treeline row back from the fire stations */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
@@ -85,10 +85,13 @@ export default async (request) => {
       return json({ error: "Missing PPLX_API_KEY env var" }, { status: 500 });
     }
 
-    const snapshot = await buildSnapshot({ hours: 24, exclude: SUMMARY_EXCLUDED_IDS });
+    /* All Banff stations feed the band table; the valley fire stations are
+       kept out of what the AI headline sees (see SUMMARY_EXCLUDED_IDS). */
+    const snapshot = await buildSnapshot({ hours: 24 });
+    const headline = headlineSnapshot(snapshot);
     const model = process.env.PPLX_MODEL || DEFAULT_MODEL;
 
-    const userContent = `Write the one-sentence headline for the last 24 hours of weather actuals across all stations below. Follow every rule in your system prompt.\n\nSnapshot JSON:\n\`\`\`json\n${JSON.stringify(snapshot, null, 2)}\n\`\`\``;
+    const userContent = `Write the one-sentence headline for the last 24 hours of weather actuals across all stations below. Follow every rule in your system prompt.\n\nSnapshot JSON:\n\`\`\`json\n${JSON.stringify(headline, null, 2)}\n\`\`\``;
 
     const pplxResponse = await fetch(PPLX_ENDPOINT, {
       method: "POST",
