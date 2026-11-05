@@ -1,0 +1,20 @@
+name: diag simpson
+on:
+  push:
+    branches: [diag/simpson-data]
+permissions:
+  contents: write
+jobs:
+  pull:
+    if: "!contains(github.event.head_commit.message, 'diag data')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p diag
+          for s in fts-simplo fts-simpup fts-boslo; do
+            curl -sS -m 120 "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=336" -o diag/$s.json || true
+          done
+          ls -la diag
+          git config user.name diag-bot; git config user.email diag@example.com
+          git add diag; git commit -m "diag data"; git push
