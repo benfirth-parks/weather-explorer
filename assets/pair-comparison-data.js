@@ -240,7 +240,8 @@ export function smoothedHs(records, windowMs = 3 * HOUR) {
 }
 // HS ratchet: each rise of >= HN_FROM_HS_THRESHOLD_CM in the smoothed trace above the last reference
 // level is a credit {x, gain}; settlement lowers the reference and a gap over MAX_GAP resets it.
-function hsCredits(rows, windowMs, from) {
+// threshold(x) gives the step (cm) at time x; HN_FROM_HS_THRESHOLD_CM by default.
+function hsCredits(rows, windowMs, from, threshold = () => HN_FROM_HS_THRESHOLD_CM) {
   const credits = [], seen = [];
   let ref = null, last = null, partial = false;
   for (const p of smoothedHs(rows, windowMs)) {
@@ -248,7 +249,7 @@ function hsCredits(rows, windowMs, from) {
     last = p;
     seen.push(p.x);
     if (ref === null || p.y < ref) { ref = p.y; }
-    else if (p.y - ref >= HN_FROM_HS_THRESHOLD_CM) {
+    else if (p.y - ref >= threshold(p.x)) {
       const gain = p.y - ref;
       ref = p.y;
       if (gain <= 50) credits.push({x: p.x, gain});
@@ -287,6 +288,11 @@ export const STUCK_RISE_WINDOW_H = 6;
 export const STUCK_SMOOTH_H = 6;
 export const RDPS_EXPECT_MM = 1;
 export const RDPS_DRY_MM = 0.2;
+/* Step while precipitation is confirmed (Ben, 6 Nov 2026): during a storm, with the gauge or RDPS showing
+   precipitation, the ratchet credits each 1 cm rise, so slow snowfall (about 1 cm/h) is counted in full and
+   the last cm of a storm is not held back. Dry or unconfirmed periods keep the 2 cm step (and the checks
+   below still drop their rises), since a depth change then is sensor noise. */
+export const HN_CONFIRMED_THRESHOLD_CM = 1;
 // Forecast precipitation (mm) for hours ending in (a, b]; null with no forecast hours there.
 function forecastBetween(forecast, a, b) {
   if (!forecast || !forecast.length) return null;
@@ -339,7 +345,13 @@ export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, f
   const inStuck = t => stuck.some(s => t >= s.start && t <= s.end);
   const gaugeHw = t => gaugeBetween(trace, t - GAUGE_BEFORE_H * HOUR, Math.min(t + GAUGE_AFTER_H * HOUR, to));
   const expected = t => forecastBetween(forecast, t - GAUGE_BEFORE_H * HOUR, t + GAUGE_AFTER_H * HOUR);
-  const r3 = hsCredits(rows, 3 * HOUR, from);
+  // Precipitation positively confirmed around t: the gauge, RDPS, or (gauge stuck) RDPS not dry.
+  const confirmed = t => {
+    const g = gaugeHw(t), f = expected(t);
+    if (inStuck(t)) return f !== null && f >= RDPS_DRY_MM;
+    return (g !== null && g >= GAUGE_CONFIRM_MM) || (f !== null && f >= RDPS_EXPECT_MM);
+  };
+  const r3 = hsCredits(rows, 3 * HOUR, from, t => (confirmed(t) ? HN_CONFIRMED_THRESHOLD_CM : HN_FROM_HS_THRESHOLD_CM));
   let onForecast = false;
   const credits = r3.credits.filter(c => {
     const g = gaugeHw(c.x), f = expected(c.x);

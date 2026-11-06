@@ -167,3 +167,26 @@ test('Simpson Lower: the 28-29 Oct snowfall RDPS forecast still counts', () => {
   const hn = newSnow24h(fx.records, now, {gaugeCheck: true, forecast});
   assert.ok(hn >= 9 && hn <= 14, `HN24 ${hn}`);
 });
+
+/* Slow snowfall (Ben, 6 Nov 2026): with precipitation confirmed, 1 cm rises count, so 5 cm at 1 cm/h is all counted;
+   a 1 cm depth wobble on a dry day still is not. 15 min readings, whole-cm depth, gauge 1 mm per cm of snow. */
+function slow(rateCmH, hours, wet = true, after = 6) {
+  const out = [], start = NOW - (hours + after) * HOUR, end = NOW - after * HOUR;
+  let p = 100;
+  for (let t = NOW - 72 * HOUR; t <= NOW; t += 15 * 60000) {
+    const fell = t <= start ? 0 : t >= end ? rateCmH * hours : rateCmH * (t - start) / HOUR;
+    if (wet && t > start && t <= end) p += rateCmH * 0.25;
+    out.push({measurementDateTime: new Date(t).toISOString(), snowHeight: Math.round(50 + fell), precipTotal: Math.round(p * 10) / 10});
+  }
+  return out;
+}
+test('slow snowfall with the gauge confirming is counted in full', () => {
+  for (const [rate, hours] of [[1, 5], [0.5, 10], [1, 3]]) {
+    const r = slow(rate, hours);
+    assert.equal(newSnow24h(r, NOW, {gaugeCheck: true}), rate * hours);
+    assert.equal(stormSnow(r, NOW, {gaugeCheck: true}).hst, rate * hours);
+  }
+});
+test('a 1 cm depth rise with a dry gauge is not new snow', () => {
+  assert.equal(newSnow24h(slow(1, 1, false), NOW, {gaugeCheck: true}), 0);
+});
