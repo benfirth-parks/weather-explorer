@@ -1,0 +1,22 @@
+name: diag noaa health (temporary)
+on:
+  push:
+    branches: [diag/noaa-health]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    if: "!contains(github.event.head_commit.message, 'diag data')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p diag-out
+          S=https://rockiesweatherdataexplorer.netlify.app
+          curl -sS -m 60 "$S/api/site-health" -o diag-out/site-health.json || true
+          for st in fts-boslo fts-stanley fts-bosup fts-whymper fts-lookout fts-vulture fts-simpup fts-simplo fts-bowsummit fts-boulder fts-lakelouise fts-vermillion fts-devona fts-rangercreek fts-saskcrossing fts-castle fts-dorothy fts-maligne fts-waterton fts-summitlake fts-coleman fts-bigbend fts-tangleridge fts-sunshine fts-bowprecip fts-pikarun fts-skoki fts-akamina fts-jasperqd1; do
+            curl -sS -m 90 "$S/api/fts?station=$st&hours=132" -o diag-out/$st.json || true
+          done
+          git config user.name diag-bot; git config user.email diag@example.invalid
+          git add diag-out; git commit -m "diag data"; git push
