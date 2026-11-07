@@ -3,7 +3,7 @@ import {HOUR, hnIntervals, hsValues} from './pair-comparison-data.js';
 /* HN24 and HST, Ben's rules of 30 Oct 2026. HN24 is the sum of the hourly HN over the last 24 h.
    HST is the most HS (snow depth) rose above its level at the start of the current storm at any
    point in the storm, so settlement after that peak is not subtracted and a falling depth does not
-   take HST to 0 (Ben, 30 Oct 2026). HST can be less than HN24.
+   take HST to 0 (Ben, 30 Oct 2026). HST is never less than HN24 (Ben, 7 Nov 2026).
    Hourly HN comes from the HS trace, as in the paired panes' HN bars: a 3 h running median of HS,
    with each rise of 2 cm or more above the last reference level credited to the hour it happened
    in (pair-comparison-data.js hnIntervals). The feeds' "new snow" fields are gauge increments
@@ -57,7 +57,10 @@ export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBA
   const base = levels([storm.start, ...hs.filter(p => p.x < storm.start && p.x >= storm.start - STORM_BASE_H * HOUR).map(p => p.x)]);
   const during = levels([now, ...hs.filter(p => p.x >= storm.start).map(p => p.x)]);
   if (!base.length || !during.length) return {hst: 0, start: storm.start, partial: true};
-  const rise = Math.min(Math.max(...during) - Math.min(...base), storm.hn);
+  // Never below HN24 (Ben, 7 Nov 2026): settling between snowfalls can leave the peak rise under the new snow
+  // counted in the last 24 h (Bosworth Lower, 7 Nov: HN24 6, peak rise 4).
+  const hn24 = newSnow24h(past, now, {gaugeCheck, forecast}) ?? 0;
+  const rise = Math.max(Math.min(Math.max(...during) - Math.min(...base), storm.hn), hn24);
   return {hst: Math.max(0, Math.round(rise * 10) / 10), start: storm.start, partial: storm.partial};
 }
 

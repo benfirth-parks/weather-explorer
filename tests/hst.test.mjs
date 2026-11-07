@@ -225,3 +225,12 @@ test('Simpson Lower: a nearby gauge confirms a depth rise RDPS fell just short o
   const dry = Object.assign([...forecast], {neighbourGauge: hourlyGauge(verm.map(r => ({...r, precipTotal: 12.44})), NOW - 72 * HOUR, NOW)});
   assert.equal(newSnow24h(recs, NOW, {gaugeCheck: true, forecast: dry}), 0);
 });
+test('HST is never less than HN24', () => {
+  // Bosworth Lower, 7 Nov 2026: three snowfalls with settling between, so the ratchet counts 6 cm in the last 24 h
+  // while the depth only peaks 4 cm above the pre-storm level.
+  const hs = h => (h > 20 ? 30 : h > 16 ? 33 : h > 12 ? 31 : h > 8 ? 33.5 : h > 4 ? 32 : 34);
+  const recs = station({20: 1, 19: 1, 12: 1, 11: 1, 4: 1, 3: 1}, hs);
+  const hn24 = newSnow24h(recs, NOW);
+  assert.ok(hn24 > 4, `hn24 ${hn24}`);
+  assert.equal(stormSnow(recs, NOW).hst, hn24);
+});
