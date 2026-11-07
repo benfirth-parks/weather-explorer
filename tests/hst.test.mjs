@@ -190,3 +190,19 @@ test('slow snowfall with the gauge confirming is counted in full', () => {
 test('a 1 cm depth rise with a dry gauge is not new snow', () => {
   assert.equal(newSnow24h(slow(1, 1, false), NOW, {gaugeCheck: true}), 0);
 });
+test('a depth sag that bounces back before the storm does not count toward HST', () => {
+  // Sunshine, 5 Nov 2026: HS 20 cm, sags to 16 on a dry, warm afternoon, is back to 21 by evening, then 1 cm of
+  // real snow with the gauge moving. The 12 h low (16) used to make HST 22 - 16 = 6 from 1 cm of HN.
+  const recs = [];
+  let total = 100;
+  const hs = h => (h > 16 ? 20 : h > 12 ? 16 : h > 4 ? 21 : 22);
+  for (let m = 240 * 4; m >= 0; m--) {
+    const h = m / 4;
+    if (h === 3 || h === 2) total += 0.5;
+    recs.push({measurementDateTime: new Date(NOW - h * HOUR).toISOString(), precipTotal: Math.round(total * 10) / 10, snowHeight: hs(h)});
+  }
+  const forecast = [];
+  for (let h = 240; h >= 0; h--) forecast.push({x: NOW - h * HOUR, y: h <= 4 ? 1 : 0});
+  assert.equal(newSnow24h(recs, NOW, {gaugeCheck: true, forecast}), 1);
+  assert.equal(stormSnow(recs, NOW, {gaugeCheck: true, forecast}).hst, 1);
+});

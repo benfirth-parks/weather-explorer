@@ -38,7 +38,13 @@ export function newSnow24h(records, now = Date.now(), {gaugeCheck = false, forec
 }
 
 /* The storm's base is the lowest HS in the STORM_BASE_H before its first hour of HN: hourly HN
-   is credited once a 2 cm rise has built up, so the snow had begun before that hour. */
+   is credited once a 2 cm rise has built up, so the snow had begun before that hour.
+   HST is capped at the storm's counted hourly HN (Ben, 7 Nov 2026). A depth sensor can sag a few cm on a warm
+   afternoon and bounce back (Sunshine, 5 Nov 2026: 20 cm, down to 16, back to 21 by midnight); the 12 h low
+   then sat at the bottom of the sag and the bounce-back read as storm snow (HST 6 cm from 2 cm of HN). The
+   HN ratchet and the gauge/RDPS check already drop such rises, so a rise HN did not count does not count
+   toward HST either. In a real storm the hourly HN adds up to at least the peak rise, so the cap leaves it
+   alone. */
 export const STORM_BASE_H = 12;
 export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBACK_H, gaugeCheck = false, forecast = null} = {}) {
   const past = records.filter(r => Date.parse(r.measurementDateTime) <= now);
@@ -51,16 +57,17 @@ export function stormSnow(records, now = Date.now(), {lookbackHours = HST_LOOKBA
   const base = levels([storm.start, ...hs.filter(p => p.x < storm.start && p.x >= storm.start - STORM_BASE_H * HOUR).map(p => p.x)]);
   const during = levels([now, ...hs.filter(p => p.x >= storm.start).map(p => p.x)]);
   if (!base.length || !during.length) return {hst: 0, start: storm.start, partial: true};
-  const rise = Math.max(...during) - Math.min(...base);
+  const rise = Math.min(Math.max(...during) - Math.min(...base), storm.hn);
   return {hst: Math.max(0, Math.round(rise * 10) / 10), start: storm.start, partial: storm.partial};
 }
 
 /* Start of the current storm: walk back from now through the hourly HN, and stop at the first gap
-   longer than STORM_GAP_H. start is null when no new snow fell in the last STORM_GAP_H hours. */
+   longer than STORM_GAP_H. start is null when no new snow fell in the last STORM_GAP_H hours. hn is the hourly
+   HN counted from start to now (cm). */
 export function stormPeriod(records, now, lookbackHours = HST_LOOKBACK_H, {gaugeCheck = false, forecast = null} = {}) {
   const from = now - lookbackHours * HOUR;
   const hours = hourlyHn(records, from, now, {gaugeCheck, forecast}).points;
-  if (!hours.some(h => h.y !== null)) return {start: null, partial: true};
+  if (!hours.some(h => h.y !== null)) return {start: null, partial: true, hn: 0};
   let start = null, gapFrom = now, partial = false;
   for (let i = hours.length - 1; i >= 0; i--) {
     const h = hours[i];
@@ -72,5 +79,6 @@ export function stormPeriod(records, now, lookbackHours = HST_LOOKBACK_H, {gauge
   }
   // The storm may have begun before the hours fetched.
   if (start !== null && start - from <= STORM_GAP_H * HOUR) partial = true;
-  return {start, partial: start !== null && partial};
+  const hn = start === null ? 0 : hours.filter(h => h.start >= start && h.y > 0).reduce((s, h) => s + h.y, 0);
+  return {start, partial: start !== null && partial, hn};
 }
