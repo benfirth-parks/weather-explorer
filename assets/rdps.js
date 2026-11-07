@@ -10,7 +10,7 @@ export function rdpsFor(id) {
   if (hit && Date.now() - hit.at < KEEP_MS) return hit.promise;
   const item = {at: Date.now(), done: false, points: null};
   item.promise = fetch(`/api/rdps?station=${encodeURIComponent(id)}`)
-    .then(r => (r.ok ? r.json() : null)).then(j => (Array.isArray(j?.points) ? j.points : null)).catch(() => null)
+    .then(r => (r.ok ? r.json() : null)).then(j => (Array.isArray(j?.points) ? Object.assign(j.points, Array.isArray(j.neighbourGauge) ? {neighbourGauge: j.neighbourGauge, neighbourId: j.neighbourId} : {}) : null)).catch(() => null)
     .then(points => { item.points = points; item.done = true; return points; });
   cache.set(id, item);
   return item.promise;
