@@ -14,7 +14,7 @@
    station snapshot — no retrieval needed. */
 
 import { getStore } from "@netlify/blobs";
-import { fetchRdps } from "./_rdps.mjs";
+import { fetchBackCheck } from "./_rdps.mjs";
 import { HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
 import { bandRows, bandTableMarkdown, buildSnapshot, headlineSnapshot, SYSTEM_PROMPT } from "./_ai-summary.mjs";
 import { readArchive, selectHours } from "./_weather-archive.mjs";
@@ -135,7 +135,7 @@ export default async (request) => {
       const now = Date.now();
       const rows = await Promise.all(SNOW_PAIRS.map(async (pair) => {
         const archive = await readArchive(pair.snow);
-        const forecast = HN_GAUGE_CHECK_IDS.has(pair.snow) ? await fetchRdps(pair.snow) : null;
+        const forecast = HN_GAUGE_CHECK_IDS.has(pair.snow) ? await fetchBackCheck(pair.snow) : null;
         return { ...pair, ...snowFigures(selectHours(archive, SNOW_PAIR_HOURS), now, { hn: pair.hn, id: pair.snow, forecast }) };
       }));
       snowBlock = snowPairsMarkdown(rows);

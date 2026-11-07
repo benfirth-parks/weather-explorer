@@ -279,6 +279,27 @@ function hsCredits(rows, windowMs, from, threshold = () => HN_FROM_HS_THRESHOLD_
    netlify/functions/_rdps.mjs. index.html and mobile.html keep inline copies of both sets. */
 export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine', 'fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley', 'fts-bowprecip', 'fts-pikarun', 'fts-coleman', 'fts-bigbend', 'fts-maligne', 'fts-summitlake', 'fts-akamina']);
 export const HN_NO_GAUGE_IDS = new Set(['fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley']);
+/* Nearby gauge (Ben, 7 Nov 2026): Simpson Lower has no gauge, and RDPS can fall just short of RDPS_EXPECT_MM in
+   a real light snowfall (6 Nov: 2 cm of depth, RDPS 0.9 mm, Vermillion's gauge 0.33 mm). For a station listed
+   here, a depth rise also counts when that neighbour's gauge logged GAUGE_CONFIRM_MM or more over the same
+   window. The neighbour's hourly HW rides on the RDPS points as `forecast.neighbourGauge` ([{x: hour end, y: mm}],
+   from /api/rdps and _rdps.mjs fetchBackCheck), so every caller that passes the RDPS forecast gets it. */
+export const NEIGHBOUR_GAUGE_IDS = {'fts-simplo': 'fts-vermillion'};
+/* Hourly gauge increments [{x: hour end (ms), y: mm}] from a station's records, by precipitationSeries' rules. */
+export function hourlyGauge(records, from, to) {
+  const pts = precipitationSeries(records, from, to).points;
+  const byHour = new Map();
+  let prev = null;
+  for (const p of pts) {
+    if (p.y === null) { prev = null; continue; }
+    if (prev !== null) {
+      const end = Math.ceil(p.x / HOUR) * HOUR;
+      byHour.set(end, Math.round(((byHour.get(end) || 0) + Math.max(0, p.y - prev)) * 100) / 100);
+    }
+    prev = p.y;
+  }
+  return [...byHour].map(([x, y]) => ({x, y})).sort((a, b) => a.x - b.x);
+}
 export const GAUGE_CONFIRM_MM = 0.2;
 export const GAUGE_BEFORE_H = 6;
 export const GAUGE_AFTER_H = 2;
@@ -345,9 +366,12 @@ export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, f
   const inStuck = t => stuck.some(s => t >= s.start && t <= s.end);
   const gaugeHw = t => gaugeBetween(trace, t - GAUGE_BEFORE_H * HOUR, Math.min(t + GAUGE_AFTER_H * HOUR, to));
   const expected = t => forecastBetween(forecast, t - GAUGE_BEFORE_H * HOUR, t + GAUGE_AFTER_H * HOUR);
+  const nearbyGauge = forecast && Array.isArray(forecast.neighbourGauge) ? forecast.neighbourGauge : null;
+  const nearby = t => { const n = forecastBetween(nearbyGauge, t - GAUGE_BEFORE_H * HOUR, t + GAUGE_AFTER_H * HOUR); return n !== null && n >= GAUGE_CONFIRM_MM; };
   // Precipitation positively confirmed around t: the gauge, RDPS, or (gauge stuck) RDPS not dry.
   const confirmed = t => {
     const g = gaugeHw(t), f = expected(t);
+    if (nearby(t)) return true;
     if (inStuck(t)) return f !== null && f >= RDPS_DRY_MM;
     return (g !== null && g >= GAUGE_CONFIRM_MM) || (f !== null && f >= RDPS_EXPECT_MM);
   };
@@ -355,6 +379,7 @@ export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, f
   let onForecast = false;
   const credits = r3.credits.filter(c => {
     const g = gaugeHw(c.x), f = expected(c.x);
+    if (nearby(c.x)) return true;
     if (inStuck(c.x)) return f === null || f >= RDPS_DRY_MM;
     if (g !== null && g >= GAUGE_CONFIRM_MM) return true;
     if (f !== null && f >= RDPS_EXPECT_MM) { if (c.x > from && c.x <= to) onForecast = true; return true; }

@@ -206,3 +206,22 @@ test('a depth sag that bounces back before the storm does not count toward HST',
   assert.equal(newSnow24h(recs, NOW, {gaugeCheck: true, forecast}), 1);
   assert.equal(stormSnow(recs, NOW, {gaugeCheck: true, forecast}).hst, 1);
 });
+test('Simpson Lower: a nearby gauge confirms a depth rise RDPS fell just short on', async () => {
+  // 6 Nov 2026: no gauge at the station, depth up 2 cm on the afternoon, RDPS 0.9 mm in the window (under 1 mm),
+  // Vermillion's gauge 0.33 mm.
+  const {hourlyGauge} = await import('../assets/pair-comparison-data.js');
+  const recs = [];
+  for (let h = 72; h >= 0; h--) recs.push({measurementDateTime: new Date(NOW - h * HOUR).toISOString(), snowHeight: h > 10 ? 14.4 : 16.5});
+  const forecast = [];
+  for (let h = 72; h >= 0; h--) forecast.push({x: NOW - h * HOUR, y: h >= 9 && h <= 17 ? 0.1 : 0});
+  const opts = {gaugeCheck: true, forecast};
+  assert.equal(newSnow24h(recs, NOW, opts), 0);
+  const verm = [];
+  let total = 12.44;
+  for (let h = 72; h >= 0; h--) { if (h >= 10 && h <= 12) total += 0.11; verm.push({measurementDateTime: new Date(NOW - h * HOUR).toISOString(), precipTotal: Math.round(total * 100) / 100}); }
+  const withNeighbour = Object.assign([...forecast], {neighbourGauge: hourlyGauge(verm, NOW - 72 * HOUR, NOW)});
+  assert.equal(newSnow24h(recs, NOW, {gaugeCheck: true, forecast: withNeighbour}), 2.1);
+  // A dry neighbour leaves the dip-recovery rule alone.
+  const dry = Object.assign([...forecast], {neighbourGauge: hourlyGauge(verm.map(r => ({...r, precipTotal: 12.44})), NOW - 72 * HOUR, NOW)});
+  assert.equal(newSnow24h(recs, NOW, {gaugeCheck: true, forecast: dry}), 0);
+});

@@ -5,7 +5,7 @@
    without swallowing thousands of raw hourly rows. */
 
 import { readArchive, syncStation, selectHours, STATIONS as STATION_IDS } from "./_weather-archive.mjs";
-import { fetchRdps } from "./_rdps.mjs";
+import { fetchBackCheck } from "./_rdps.mjs";
 import { HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
 import { snowFigures } from "./_snow-pairs.mjs";
 import { NO_PRECIP_GAUGE_IDS, hw24FromObservations } from "./_hw24.mjs";
@@ -318,7 +318,7 @@ export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS, exclu
       }
       const observations = selectHours(archive, hours);
       /* HN24's gauge check (assets/pair-comparison-data.js) looks back up to 36 h before the 24 h window. */
-      const forecast = HN_GAUGE_CHECK_IDS.has(meta.stationId) ? await fetchRdps(meta.stationId) : null;
+      const forecast = HN_GAUGE_CHECK_IDS.has(meta.stationId) ? await fetchBackCheck(meta.stationId) : null;
       return summarizeStation(meta, observations, archive.lastSyncedAt, selectHours(archive, Math.max(hours, 60)), forecast);
     } catch (error) {
       return { station: meta.name, park: meta.park, elevation_m: meta.elevation, status: "error", error: error.message };

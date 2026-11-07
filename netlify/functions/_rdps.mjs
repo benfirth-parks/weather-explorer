@@ -19,6 +19,7 @@ export const RDPS_POINTS = {
   "fts-akamina": { latitude: 49.0333, longitude: -114.05, elevation: 1676 },
 };
 export const RDPS_PAST_DAYS = 92;
+import { NEIGHBOUR_GAUGE_IDS, hourlyGauge } from "../../assets/pair-comparison-data.js";
 const KEEP_MS = 20 * 60000;
 const cache = new Map();
 
@@ -55,4 +56,24 @@ export async function fetchRdps(id, { fetchImpl = fetch } = {}) {
     console.warn(JSON.stringify({ event: "rdps-fetch-failed", id, error: e.message }));
     return hit ? hit.points : null;
   }
+}
+
+/* RDPS points plus, for a station in NEIGHBOUR_GAUGE_IDS (Simpson Lower: Vermillion), the neighbour's hourly
+   gauge increments as `neighbourGauge` on the returned array (assets/pair-comparison-data.js
+   gaugeCheckedCredits). null when there is no RDPS forecast. */
+export async function fetchBackCheck(id, { fetchImpl = fetch, readArchiveImpl = null } = {}) {
+  const points = await fetchRdps(id, { fetchImpl });
+  const neighbour = NEIGHBOUR_GAUGE_IDS[id];
+  if (!points || !neighbour) return points;
+  const out = [...points];
+  try {
+    const read = readArchiveImpl || (await import("./_weather-archive.mjs")).readArchive;
+    const archive = await read(neighbour);
+    const now = Date.now();
+    out.neighbourGauge = hourlyGauge(archive.observations || [], now - RDPS_PAST_DAYS * 24 * 3600000, now);
+    out.neighbourId = neighbour;
+  } catch (e) {
+    console.warn(JSON.stringify({ event: "neighbour-gauge-failed", id, neighbour, error: e.message }));
+  }
+  return out;
 }
