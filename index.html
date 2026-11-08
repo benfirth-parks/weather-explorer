@@ -1115,6 +1115,14 @@ async function loadAndRender(){
       cacheHours[id]=want;
     }
   }));
+  /* Neighbour gauges for pair cards (only when the whole pair is selected). */
+  await Promise.all(ids.filter(id=>PAIR_NEIGHBOUR_HW[id] && PAIR_BY_ID[id] && PAIR_BY_ID[id].ids.every(p=>selected.has(p))).map(async id=>{
+    const nid=PAIR_NEIGHBOUR_HW[id].id;
+    if(!cache[nid] || (cacheHours[nid]||0) < 24){
+      cache[nid]=await fetchStation(nid, 24);
+      cacheHours[nid]=24;
+    }
+  }));
   renderStationList(); renderAll();
 }
 function timeUnitFor(h){return h<=48?'hour':h<=720?'day':h<=2160?'week':'month';}
@@ -1361,6 +1369,9 @@ const STATION_PAIRS = [
 /* Stations whose 24h new-snow or 24h average-wind figure is not meaningful and is hidden. */
 const HIDE_SNOW_IDS = new Set(['fts-vulture','fts-bosup','fts-lookout','fts-whymper','fts-simpup']);
 const HIDE_WIND_IDS = new Set(['fts-bowsummit','fts-boslo','fts-sunshine','fts-simplo','fts-stanley']);
+/* Neighbour gauges shown in a pair card (Ben, 8 Nov 2026): Simpson has no precip gauge, so the
+   Simpson card shows Vermillion Crossing's HW24 beside Simpson Lower's HN24. Fetched with the pair. */
+const PAIR_NEIGHBOUR_HW = {'fts-simplo':{id:'fts-vermillion', label:'HW24 · Vermillion'}};
 const PAIR_BY_ID = (()=>{const m={}; STATION_PAIRS.forEach(p=>p.ids.forEach(id=>{m[id]=p;})); return m;})();
 function stationSummary(id){
   const s=STATIONS.find(x=>x.stationId===id);
@@ -1375,13 +1386,19 @@ function stationSummary(id){
     wind:avgWind24h(id)
   };
 }
-function kpiBodyHTML(sum){
+function kpiBodyHTML(sum,inPair){
   const id=sum.station.stationId;
   const stats=[];
   if(usesHW24(id)){
     stats.push(`<span class="kpi-stat"><span class="kpi-stat-label">HW24</span><span class="kpi-stat-value">${sum.hw!==null?sum.hw.toFixed(1)+' mm':'—'}</span></span>`);
   } else if(!HIDE_SNOW_IDS.has(id)){
     stats.push(`<span class="kpi-stat"><span class="kpi-stat-label">New snow 24h</span><span class="kpi-stat-value">${sum.snow!==null?sum.snow.toFixed(1)+' cm':'—'}</span></span>`);
+  }
+  const neighbour=inPair?PAIR_NEIGHBOUR_HW[id]:null;
+  if(neighbour){
+    const nhw=hw24(neighbour.id);
+    const ns=STATION_BY_ID[neighbour.id];
+    stats.push(`<span class="kpi-stat"${ns?` title="${ns.name} precip gauge, ${ns.elevation} m"`:''}><span class="kpi-stat-label">${neighbour.label}</span><span class="kpi-stat-value">${nhw!==null?nhw.toFixed(1)+' mm':'—'}</span></span>`);
   }
   if(!HIDE_WIND_IDS.has(id)){
     stats.push(`<span class="kpi-stat"><span class="kpi-stat-label">Avg wind 24h</span><span class="kpi-stat-value">${sum.wind!==null?sum.wind.toFixed(1)+' km/h':'—'}</span></span>`);
@@ -1419,7 +1436,7 @@ function renderKPIs(ids){
         summaries.map(sum=>
           `<div class="kpi-pair-item" style="border-left:3px solid ${sum.station.color};">`+
             `<div class="kpi-label">${sum.station.name} · ${sum.station.elevation} m</div>`+
-            kpiBodyHTML(sum)+
+            kpiBodyHTML(sum,true)+
           `</div>`
         ).join('')+
         `</div>`;
