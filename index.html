@@ -1580,11 +1580,29 @@ function renderTrendHnCum(ids,bounds,windowHours){
 }
 /* Opening choice (Ben, 31 Oct 2026): the averages, unless the selected stations' mean HN24 (the 24 h
    summary's figure) is over 3 cm, when the menu opens on New snow HN, accumulated. Made once, on the
-   first render with data; picking from the menu ends it. */
+   first render with data; picking from the menu ends it.
+   Gauge-checked stations (HN_GAUGE_CHECK_IDS) have no HN24 until the pair-data module and the RDPS
+   back check have loaded, so the choice waits for them (8 Nov 2026: it was being made with those HN24
+   still null, so the pane never opened on HN). */
 const OPEN_ON_HN_CM=3;
-let metricChosen=false;
+let metricChosen=false, openingWait=false;
+function hnOpeningPending(id){
+  if(!hnCumAvailable(id)||!HN_GAUGE_CHECK_IDS.has(id)) return false;
+  return !pairData||!rdpsMod||rdpsMod.rdpsNow(id)===undefined;
+}
 function chooseOpeningMetric(ids){
   if(metricChosen||!ids.some(id=>(cache[id]||[]).length)) return;
+  const pending=ids.filter(hnOpeningPending);
+  if(pending.length){
+    if(!openingWait){
+      openingWait=true;
+      Promise.all([pairDataReady,rdpsReady]).then(()=>Promise.all(pending.map(id=>rdpsMod.rdpsFor(id)))).catch(()=>{}).then(()=>{
+        openingWait=false;
+        if(!metricChosen&&selected.size) renderTrend(Array.from(selected));
+      });
+    }
+    return;
+  }
   metricChosen=true;
   const hn=ids.map(newSnow24h).filter(v=>v!==null);
   const mean=hn.length?hn.reduce((p,q)=>p+q,0)/hn.length:0;
