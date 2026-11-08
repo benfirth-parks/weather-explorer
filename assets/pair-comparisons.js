@@ -22,9 +22,11 @@ const HN_IDS = new Set(['fts-bowsummit', 'fts-boslo', 'fts-stanley', 'fts-simplo
 const HN_FROM_HS_IDS = new Set(['fts-sunshine']);
 /* Stations whose HS (snow depth) is drawn. */
 const HS_DEPTH_IDS = new Set([...HN_IDS, ...HN_FROM_HS_IDS]);
-/* Extra gauges drawn with a pair: the Bow Summit AB Env gauge's HW alongside Bow Summit's HN. */
+/* Extra gauges drawn with a pair: the Bow Summit AB Env gauge's HW alongside Bow Summit's HN, and
+   Vermillion Crossing's HW alongside Simpson Lower's HN (Ben, 8 Nov 2026: Simpson has no gauge). */
 const EXTRA_PRECIP = {
-  'fts-vulture,fts-bowsummit': [{id: 'fts-bowprecip', kind: 'hw'}]
+  'fts-vulture,fts-bowsummit': [{id: 'fts-bowprecip', kind: 'hw'}],
+  'fts-simpup,fts-simplo': [{id: 'fts-vermillion', kind: 'hw'}]
 };
 /* Co-located HN (cm) and HW (mm) sources, used for storm density. */
 const DENSITY_PAIRS = [['fts-bowsummit', 'fts-bowprecip'], ['fts-sunshine', 'fts-sunshine']];
