@@ -51,7 +51,7 @@ export const STATION_META = [
   { stationId: "fts-rangercreek", name: "Ranger Creek",                       elevation: 1289, park: "Jasper",   group: 4, ns: "North", ew: "West" },
   // Group 5 · Waterton  (excluded from default summary scope)
   { stationId: "fts-summitlake",  name: "Summit Lake",                        elevation: 2056, park: "Waterton", group: 5, ns: "South", ew: "East" },
-  { stationId: "fts-akamina",     name: "Akamina Pass",                       elevation: 1676, park: "Waterton", group: 5, ns: "South", ew: "East" },
+  { stationId: "fts-akamina",     name: "Akamina Pass (AEP)",                 elevation: 1676, park: "Waterton", group: 5, ns: "South", ew: "East" },
   { stationId: "fts-waterton",    name: "Waterton Townsite",                  elevation: 1294, park: "Waterton", group: 5, ns: "South", ew: "East" }
 ];
 
