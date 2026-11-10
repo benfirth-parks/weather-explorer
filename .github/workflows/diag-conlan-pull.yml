@@ -1,0 +1,39 @@
+# Temporary data pull for the Conlan (ISSW 2026) HN-from-HS shadow comparison.
+# Runs only on pushes to diag/conlan-shadow. Delete the branch when done.
+name: Diag - Conlan shadow data pull
+on:
+  push:
+    branches: [diag/conlan-shadow]
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch archive and RDPS history
+        run: |
+          set -u
+          mkdir -p out/fts out/rdps
+          SITE=https://rockiesweatherdataexplorer.netlify.app
+          for s in fts-sunshine fts-simplo fts-boslo fts-bowsummit fts-stanley fts-bowprecip fts-pikarun fts-coleman fts-bigbend fts-maligne fts-summitlake fts-akamina fts-vermillion; do
+            curl -sS --retry 3 --max-time 300 -o out/fts/$s.json -D out/fts/$s.headers "$SITE/api/fts?station=$s&hours=26000" || echo "fail $s"
+            ls -l out/fts/$s.json
+          done
+          pts="fts-sunshine:51.078358:-115.782455:2200 fts-simplo:50.98507:-115.984215:2115 fts-boslo:51.45722:-116.357834:2210 fts-bowsummit:51.709373:-116.47904:2040 fts-stanley:51.184673:-116.0892:1930 fts-pikarun:51.442:-116.217:2200 fts-coleman:52.09691:-116.92602:2176 fts-bigbend:52.193:-117.156:2125 fts-maligne:52.7244:-117.6494:1712 fts-summitlake:49.006447:-114.03637:2056 fts-akamina:49.0333:-114.05:1676"
+          end=$(date -u +%F)
+          for p in $pts; do
+            IFS=: read id lat lon el <<< "$p"
+            for y in 2023 2024 2025 2026; do
+              s="$y-09-01"; e="$((y+1))-06-30"
+              [[ "$e" > "$end" ]] && e=$end
+              [[ "$s" > "$end" ]] && continue
+              curl -sS --retry 3 --max-time 120 -o out/rdps/$id-$y.json "https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&elevation=$el&hourly=precipitation&models=gem_regional&start_date=$s&end_date=$e&timezone=UTC" || echo "fail rdps $id $y"
+              sleep 1
+            done
+          done
+          ls -l out/rdps | head -60
+          tar czf conlan-data.tgz out
+          ls -l conlan-data.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: conlan-data
+          path: conlan-data.tgz
+          retention-days: 7
