@@ -24,6 +24,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="/assets/site-time.js"></script>
+<script src="/assets/default-groups.js"></script>
 <style>
 :root, [data-theme="light"] {
   --color-bg:#f2f4f4; --color-surface:#f8f9f9; --color-surface-2:#fbfcfc; --color-surface-offset:#eceef0; --color-surface-offset-2:#e2e5e7; --color-surface-dynamic:#d9dcdf;
@@ -119,6 +120,9 @@ button,input,select{font:inherit;color:inherit} button{cursor:pointer;background
 .range-chip-row{display:flex;gap:var(--space-2);flex-wrap:wrap;}
 .chip{font-size:var(--text-xs);padding:var(--space-1) var(--space-3);border-radius:var(--radius-full);background:var(--color-surface-offset);color:var(--color-text-muted);transition:all var(--transition-interactive);}
 .chip.active{background:var(--color-primary);color:var(--color-text-inverse);}
+.default-groups-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);margin:calc(-1 * var(--space-2)) 0 var(--space-3);font-size:var(--text-xs);color:var(--color-text-muted);min-height:1.6em;}
+.default-groups-btn{font-size:var(--text-xs);color:var(--color-primary);background:none;border:none;padding:2px 0;text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.default-groups-btn:hover{color:var(--color-text);}
 .slider-wrap{padding:var(--space-3) var(--space-1) 0;}
 input[type=range]{width:100%;accent-color:var(--color-primary);}
 .range-label{display:flex;justify-content:space-between;font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--space-1);}
@@ -325,8 +329,8 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
     <div class="map-hint" id="mapHint">Draw a shape around stations to select them</div>
   </div>
   <div class="sidebar-section"><h2>Main time range</h2><div class="range-controls"><div class="range-chip-row"><button class="chip" data-hours="6">6h</button><button class="chip" data-hours="24">1d</button><button class="chip" data-hours="36">36h</button><button class="chip" data-hours="48">48h</button><button class="chip active" data-hours="72">72h</button><button class="chip" data-hours="96">96h</button><button class="chip" data-hours="168">7d</button><button class="chip" data-hours="240">10d</button><button class="chip" data-hours="480">20d</button><button class="chip" data-hours="720">30d</button></div><div class="slider-wrap"><input type="range" id="hoursSlider" min="6" max="720" value="72" step="6"><div class="range-label"><span id="hoursLabel">Last 72 hours</span><span class="mono">6h to 30d</span></div></div></div></div>
-  <div class="sidebar-section"><h2>Stations (<span id="stationCountLabel">16</span>)</h2><div class="range-chip-row" style="margin-bottom:var(--space-3);"><button class="chip group-chip active" data-group="1">Group 1 · Banff VS</button><button class="chip group-chip" data-group="2">Group 2 · Banff Fire</button><button class="chip group-chip" data-group="3">Group 3 · Jasper VS</button><button class="chip group-chip" data-group="4">Group 4 · Jasper Fire</button><button class="chip group-chip" data-group="5">Group 5 · Waterton</button></div><div class="elev-filter"><div class="elev-head"><span>Elevation band</span><span class="mono" id="elevRangeLabel">1289–2930 m</span></div><div class="dual-range" id="elevDualRange"><div class="track"></div><div class="track-fill" id="elevTrackFill"></div><input type="range" id="elevMin" aria-label="Minimum station elevation"><input type="range" id="elevMax" aria-label="Maximum station elevation"></div><div class="elev-band-row" id="elevBandRow"></div></div><div class="station-list" id="stationList"></div><div class="btn-row"><button class="btn btn-ghost" id="selectAllBtn">Select all</button><button class="btn btn-ghost" id="clearBtn">Clear</button></div></div>
-  <div class="sidebar-section" style="border-bottom:none;flex:1;"><h2>About</h2><p style="font-size:var(--text-xs);color:var(--color-text-muted);line-height:1.6;">Select stations from the list, click map markers, or lasso-select multiple stations. The main trend and wind diagnostics use the main time slider. Snow depth cards below have their own per-station controls and default to 24 hours. Drag any panel's bottom-right corner to resize it. All stations in this app are FTS360 stations. Group 1 is Banff Visitor Safety, Group 2 Banff Fire, Group 3 Jasper Visitor Safety and Group 4 Jasper Fire; only Group 1 is selected on load. A green dot means live FTS360 data loaded successfully, and an amber dot means FTS360 was unreachable so the app fell back to the last known snapshot. Stations above 2200 m are emphasized in wind views by default. See the <a href="https://playground.dx.dev.avalanche.ca/meteograms" target="_blank" rel="noopener noreferrer" style="color:var(--color-primary);">Avid forecast meteograms</a> for the official forecast.</p></div>
+  <div class="sidebar-section"><h2>Stations (<span id="stationCountLabel">16</span>)</h2><div class="range-chip-row" style="margin-bottom:var(--space-3);"><button class="chip group-chip active" data-group="1">Group 1 · Banff VS</button><button class="chip group-chip" data-group="2">Group 2 · Banff Fire</button><button class="chip group-chip" data-group="3">Group 3 · Jasper VS</button><button class="chip group-chip" data-group="4">Group 4 · Jasper Fire</button><button class="chip group-chip" data-group="5">Group 5 · Waterton</button></div><div class="default-groups-row" id="defaultGroupsRow"></div><div class="elev-filter"><div class="elev-head"><span>Elevation band</span><span class="mono" id="elevRangeLabel">1289–2930 m</span></div><div class="dual-range" id="elevDualRange"><div class="track"></div><div class="track-fill" id="elevTrackFill"></div><input type="range" id="elevMin" aria-label="Minimum station elevation"><input type="range" id="elevMax" aria-label="Maximum station elevation"></div><div class="elev-band-row" id="elevBandRow"></div></div><div class="station-list" id="stationList"></div><div class="btn-row"><button class="btn btn-ghost" id="selectAllBtn">Select all</button><button class="btn btn-ghost" id="clearBtn">Clear</button></div></div>
+  <div class="sidebar-section" style="border-bottom:none;flex:1;"><h2>About</h2><p style="font-size:var(--text-xs);color:var(--color-text-muted);line-height:1.6;">Select stations from the list, click map markers, or lasso-select multiple stations. The main trend and wind diagnostics use the main time slider. Snow depth cards below have their own per-station controls and default to 24 hours. Drag any panel's bottom-right corner to resize it. All stations in this app are FTS360 stations. Group 1 is Banff Visitor Safety, Group 2 Banff Fire, Group 3 Jasper Visitor Safety and Group 4 Jasper Fire; only Group 1 is selected on load unless you turn on other groups and tap "Make these groups my default" (remembered on this device). A green dot means live FTS360 data loaded successfully, and an amber dot means FTS360 was unreachable so the app fell back to the last known snapshot. Stations above 2200 m are emphasized in wind views by default. See the <a href="https://playground.dx.dev.avalanche.ca/meteograms" target="_blank" rel="noopener noreferrer" style="color:var(--color-primary);">Avid forecast meteograms</a> for the official forecast.</p></div>
 </aside>
 <main class="main">
   <div class="charts-pane">
@@ -423,9 +427,11 @@ const METRIC_META = {
   selectedAvg: {label:'Selected-Station Averages', unit:''},
   hnCum: {label:'New Snow HN, Accumulated', unit:'cm'}
 };
-/* ---- Only Group 1 (Banff VS) is selected on load; enable the rest from the group chips. */
-let groupFilter = new Set([1]);
-let selected = new Set(STATIONS_GROUP1.map(s=>s.stationId));
+/* ---- Groups on at load: a ?groups= link, else this device's saved default, else Group 1 (Banff VS).
+   See assets/default-groups.js. Enable the rest from the group chips. */
+const ALL_GROUPS = Object.keys(GROUP_LABELS).map(Number);
+let groupFilter = new Set(WxDefaultGroups.initial(ALL_GROUPS));
+let selected = new Set(STATIONS.filter(s=>groupFilter.has(s.group)).map(s=>s.stationId));
 let hours = 72;
 let metric = 'selectedAvg';
 let lassoActive = false;
@@ -577,6 +583,8 @@ map.on('lasso.finished',event=>{
   loadAndRender();
 });
 
+document.querySelectorAll('.group-chip').forEach(chip=>chip.classList.toggle('active',groupFilter.has(Number(chip.dataset.group))));
+const renderDefaultGroups=WxDefaultGroups.bindControl(document.getElementById('defaultGroupsRow'),ALL_GROUPS,()=>groupFilter,g=>GROUP_LABELS[g]);
 document.querySelectorAll('.group-chip').forEach(chip=>chip.addEventListener('click',()=>{
   const g=Number(chip.dataset.group);
   if(groupFilter.has(g)){
@@ -590,6 +598,7 @@ document.querySelectorAll('.group-chip').forEach(chip=>chip.addEventListener('cl
     // Turning a group on selects its stations (within the elevation filter); turning it off removes them.
     STATIONS.filter(s=>s.group===g && inElevBand(s)).forEach(s=>selected.add(s.stationId));
   }
+  renderDefaultGroups();
   renderStationList();
   refreshMarkers();
   loadAndRender();
