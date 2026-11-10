@@ -37,7 +37,7 @@ function themeKey() {
   const t = document.documentElement.dataset.theme;
   return t === 'light' ? 'light' : t === 'dark' || matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
-const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum', 'delta']);
+const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum']); // HSΔ starts hidden (Ben, 10 Nov 2026); click it on in the legend.
 const TYPE_DASH = {temp: [], wind: [7, 4], cum: [1, 5], hsdepth: [14, 4, 3, 4], delta: [8, 3]};
 // HN/HW running totals are the boldest series so they stand out (Ben, 2026-10-31): thick round dots.
 const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 3.6, hsdepth: 2, delta: 2.2};
