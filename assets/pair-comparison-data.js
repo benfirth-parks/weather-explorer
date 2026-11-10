@@ -440,6 +440,32 @@ export function hsDepthSeries(records, from, to) {
   const first = points[0] || null, latest = points.at(-1) || null;
   return {points: withGaps(points), latest, change: first && latest ? Math.round((latest.y - first.y) * 10) / 10 : null, method: 'HS'};
 }
+/* HSΔ, the HS change since the start of the range (Ben, 10 Nov 2026; "Delta" in Conlan, ISSW 2026): at each step's
+   end, the median HS of the readings within 90 min (none later), minus the same median at the range start, and 0 when
+   it is lower. Drawn beside the HN running total as a check, never used to change HN. It reads low when the pack
+   settles, so in a storm it usually runs under HN; it still includes snow that fell while the depth sensor was not
+   reporting, which HN misses because its ratchet restarts after a gap over 90 min. When the range start has no
+   reading, the first median after it is the base and the series is partial. */
+export function hsDeltaSeries(records, from, to, stepHours) {
+  const hs = hsValues(records).filter(p => p.x <= to);
+  const median = t => {
+    const ys = hs.filter(p => Math.abs(p.x - t) <= 1.5 * HOUR && p.x <= t).map(p => p.y).sort((a, b) => a - b);
+    if (!ys.length) return null;
+    const m = ys.length >> 1;
+    return ys.length % 2 ? ys[m] : (ys[m - 1] + ys[m]) / 2;
+  };
+  const ends = bins(from, to, stepHours).map(b => b.end);
+  let base = median(from), partial = base === null;
+  const points = [{x: from, y: base === null ? null : 0}];
+  for (const t of ends) {
+    const m = median(t);
+    if (base === null && m !== null) base = m;
+    points.push({x: t, y: m === null || base === null ? null : Math.round(Math.max(0, m - base) * 10) / 10});
+  }
+  if (points.some(p => p.y === null)) partial = true;
+  const valid = points.filter(p => p.y !== null);
+  return {points, total: valid.length > 1 ? valid.at(-1).y : null, partial, method: 'HSΔ'};
+}
 // Storm density from co-located HN (cm) and HW (mm): 1 mm of water in 1 cm of snow = 100 kg/m³.
 export function stormDensity(hnTotal, hwTotal, minHn = 2) {
   if (hnTotal === null || hwTotal === null || hnTotal < minHn || hwTotal <= 0) return null;

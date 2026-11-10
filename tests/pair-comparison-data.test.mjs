@@ -115,3 +115,17 @@ test('an empty edge sliver is not reported as a missing interval', async () => {
   assert.equal(hw.partial, false);
   assert.equal(hw.total, 6); // 101 mm at 07:00 (baseline before the window) to 107 mm at 13:00
 });
+
+test('HSΔ is the median HS change since the range start, floored at 0, and sees snow during a depth dropout', async () => {
+  const {hsDeltaSeries, hnIntervals} = await import('../assets/pair-comparison-data.js');
+  // 40 cm, blank from hour 6 to 12 while snow fell, then 50 cm: HN restarts after the gap and misses it, HSΔ does not.
+  const rows = Array.from({length: 25}, (_, h) => record(h, {snowHeight: h >= 6 && h <= 12 ? null : h < 6 ? 40 : 50}));
+  const d = hsDeltaSeries(rows, 0, 24 * HOUR, 1);
+  assert.equal(d.total, 10);
+  assert.equal(d.partial, true);
+  assert.equal(hnIntervals(rows, 0, 24 * HOUR, 1).total, 0);
+  // A settling pack: 50 down to 46 gives 0, not -4.
+  const settle = Array.from({length: 25}, (_, h) => record(h, {snowHeight: 50 - h / 6}));
+  assert.equal(hsDeltaSeries(settle, 0, 24 * HOUR, 1).total, 0);
+  assert.equal(hsDeltaSeries([], 0, 24 * HOUR, 1).total, null);
+});

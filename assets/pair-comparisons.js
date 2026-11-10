@@ -1,4 +1,4 @@
-import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, stormDensity, HN_GAUGE_CHECK_IDS, HN_NO_GAUGE_IDS} from './pair-comparison-data.js';
+import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, hsDeltaSeries, stormDensity, HN_GAUGE_CHECK_IDS, HN_NO_GAUGE_IDS} from './pair-comparison-data.js';
 import {rdpsFor} from './rdps.js';
 import {plotForPair, renderPlotProfile} from './plot-profile.js';
 
@@ -37,10 +37,10 @@ function themeKey() {
   const t = document.documentElement.dataset.theme;
   return t === 'light' ? 'light' : t === 'dark' || matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
-const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum']);
-const TYPE_DASH = {temp: [], wind: [7, 4], cum: [1, 5], hsdepth: [14, 4, 3, 4]};
+const DEFAULT_SHOWN_KINDS = new Set(['wind', 'cum', 'delta']);
+const TYPE_DASH = {temp: [], wind: [7, 4], cum: [1, 5], hsdepth: [14, 4, 3, 4], delta: [8, 3]};
 // HN/HW running totals are the boldest series so they stand out (Ben, 2026-10-31): thick round dots.
-const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 3.6, hsdepth: 2};
+const TYPE_WIDTH = {temp: 2.4, wind: 1.6, cum: 3.6, hsdepth: 2, delta: 2.2};
 /* Y-axis colour = input type (Ben, 2026-10-31): axis line, ticks and title. Kept clear of red. */
 const AXIS_COLORS = {
   light: {yWind: '#7b4fd6', yCm: '#0a8ca0', yMm: '#b0369c', yTemp: '#7a5230', yHs: '#5f6b7a'},
@@ -440,6 +440,14 @@ async function render(view) {
     else if (result.gauge === 'forecast' && !HN_NO_GAUGE_IDS.has(id)) notes.push(`${name}: no HW gauge data, so a depth rise counts as HN only when RDPS forecast precipitation.`);
     else if (result.gauge === 'rdps') notes.push(`${name}: some HN counted because RDPS forecast precipitation the gauge did not record.`);
   }
+  // HSΔ since the range start beside the HN running total (Ben, 10 Nov 2026), same HN axis and colour, dashed.
+  function addDelta(id, data, preferredSlot) {
+    const name = host.stations[id].name, d = hsDeltaSeries(data, from, to, step);
+    if (d.total === null) return;
+    datasets.push({station: id, label: `${name} HSΔ since start`, short: 'HSΔ since start', unit: 'cm', kind: 'delta', slot: preferredSlot, data: d.points, yAxisID: 'yCm', order: 0,
+      ...line('delta', id, 'yCm'), tension: 0, spanGaps: true});
+    facts.push(`${name} HSΔ **${d.total.toFixed(1)} cm** since the start`);
+  }
   function addDepth(id, data, preferredSlot) {
     const name = host.stations[id].name, hs = hsDepthSeries(data, from, to);
     if (!hs.latest) { notes.push(`${name}: no valid HS in this period.`); return; }
@@ -476,7 +484,7 @@ async function render(view) {
     if (HN_IDS.has(id)) addPrecip(id, data, 'hn', i, HN_GAUGE_CHECK_IDS.has(id) ? data : null, forecasts[i]);
     else if (!host.noPrecipGaugeIds.has(id)) addPrecip(id, data, 'hw', i);
     if (HN_FROM_HS_IDS.has(id)) addPrecip(id, data.map(r => ({...r, newSnow: null})), 'hn', i, HN_GAUGE_CHECK_IDS.has(id) ? data : null, forecasts[i]);
-    if (HS_DEPTH_IDS.has(id)) addDepth(id, data, i);
+    if (HS_DEPTH_IDS.has(id)) { addDelta(id, data, i); addDepth(id, data, i); }
   });
 
   extraResults.forEach((result, i) => {
@@ -540,7 +548,7 @@ async function render(view) {
   const hasWind = datasets.some(d => d.kind === 'wind');
   view.chart = new window.Chart(view.canvas, {
     type: 'line',
-    data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 10, spanGaps: false, fill: d.fill || false}))},
+    data: {datasets: datasets.map(d => ({...d, parsing: false, pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 10, spanGaps: d.spanGaps ?? false, fill: d.fill || false}))},
     plugins: [arrowPlugin, cleanoutPlugin],
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
