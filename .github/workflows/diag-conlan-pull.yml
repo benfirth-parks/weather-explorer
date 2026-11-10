@@ -7,11 +7,15 @@ on:
 jobs:
   pull:
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[data]')"
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@v4
       - name: Fetch archive and RDPS history
         run: |
           set -u
-          mkdir -p out/fts out/rdps
+          rm -rf out && mkdir -p out/fts out/rdps
           SITE=https://rockiesweatherdataexplorer.netlify.app
           for s in fts-sunshine fts-simplo fts-boslo fts-bowsummit fts-stanley fts-bowprecip fts-pikarun fts-coleman fts-bigbend fts-maligne fts-summitlake fts-akamina fts-vermillion; do
             curl -sS --retry 3 --max-time 300 -o out/fts/$s.json -D out/fts/$s.headers "$SITE/api/fts?station=$s&hours=26000" || echo "fail $s"
@@ -32,8 +36,11 @@ jobs:
           ls -l out/rdps | head -60
           tar czf conlan-data.tgz out
           ls -l conlan-data.tgz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: conlan-data
-          path: conlan-data.tgz
-          retention-days: 7
+      - name: Commit the data back to this branch
+        run: |
+          mkdir -p diag && mv conlan-data.tgz diag/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add diag/conlan-data.tgz
+          git commit -m "[data] Conlan shadow archive pull"
+          git push
