@@ -16,7 +16,7 @@ export const RDPS_POINTS = {
   "fts-bigbend": { latitude: 52.193, longitude: -117.156, elevation: 2125 },
   "fts-maligne": { latitude: 52.7244, longitude: -117.6494, elevation: 1712 },
   "fts-summitlake": { latitude: 49.006447, longitude: -114.03637, elevation: 2056 },
-  "fts-akamina": { latitude: 49.0333, longitude: -114.05, elevation: 1676 },
+  "fts-akamina": { latitude: 49.0346, longitude: -114.05459, elevation: 1676 },
 };
 export const RDPS_PAST_DAYS = 92;
 import { NEIGHBOUR_GAUGE_IDS, hourlyGauge } from "../../assets/pair-comparison-data.js";
