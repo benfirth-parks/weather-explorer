@@ -4,6 +4,7 @@ name: Diag - Conlan shadow data pull
 on:
   push:
     branches: [diag/conlan-shadow]
+    paths: [.github/workflows/diag-conlan-pull.yml]
 jobs:
   pull:
     runs-on: ubuntu-latest

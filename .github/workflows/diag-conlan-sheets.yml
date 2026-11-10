@@ -1,0 +1,24 @@
+# Temporary: fetch the 2024-25 and 2025-26 manual HN24 sheets as CSV for the Conlan shadow comparison.
+name: Diag - Conlan manual sheets
+on:
+  push:
+    branches: [diag/conlan-shadow]
+    paths: [.github/workflows/diag-conlan-sheets.yml]
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch tabs
+        run: |
+          mkdir -p diag/sheets
+          get() { curl -sSL --max-time 60 -o "diag/sheets/$1-$3.csv" "https://docs.google.com/spreadsheets/d/$2/gviz/tq?tqx=out:csv&headers=0&range=A1:AV40&sheet=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$4")"; head -c 200 "diag/sheets/$1-$3.csv"; echo; }
+          A=1U7x0fw94-OuPLAQBgPBAdwyKtAisdOofk1exgU2GroY
+          B=1yu0d7CSJtrGalhsV8Bo44qae0oqOcweDADxISH2faI0
+          get 2024-25 $A simpson "Simpson"; get 2024-25 $A sunshine "Sunshine"; get 2024-25 $A stanley "Stanley Lower"; get 2024-25 $A boslo "Bosworth Lower"; get 2024-25 $A bowsummit "Bow Summit"
+          get 2025-26 $B simpson "Simpson/Vermillion"; get 2025-26 $B sunshine "Sunshine"; get 2025-26 $B stanley "Stanley Lower"; get 2025-26 $B boslo "Bosworth Lower"; get 2025-26 $B bowsummit "Bow Summit"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add diag/sheets && git commit -m "[data] manual sheets" && git push
