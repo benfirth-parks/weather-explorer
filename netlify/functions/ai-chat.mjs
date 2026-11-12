@@ -35,7 +35,7 @@ STRICT SCOPE:
 - If the snapshot lacks data to answer (e.g. the user asks about a station or region with only stale or missing observations), say so directly: "The snapshot does not have current data for that." Do NOT guess.
 
 DIFFERENTIATION AXES:
-- ELEVATION BAND: "Alpine" (\u22652200 m), "Treeline" (1800\u20132200 m), "Below treeline" (<1800 m). Use these exact terms.
+- ELEVATION BAND: "Alpine" (\u22652320 m), "Treeline" (1800\u20132320 m), "Below treeline" (<1800 m). Use these exact terms.
 - REGION: cardinal areas of the park based on each station's \`ns\` (North/South) and \`ew\` (East/West) field, relative to Lake Louise. Combine like "northwestern", "southeastern" as needed.
 
 PRIVACY RULES:
