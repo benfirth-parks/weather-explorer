@@ -526,7 +526,8 @@ async function render(view) {
       else { const [on, off] = d.kind === 'cum' ? [4, 3] : d.borderDash; swatch.style.borderImage = d.borderDash.length ? `repeating-linear-gradient(90deg, ${d.borderColor} 0 ${on}px, transparent ${on}px ${on + off}px) 1` : ''; }
       swatch.setAttribute('aria-hidden', 'true');
       item.append(swatch, document.createTextNode(`${d.short} (${d.unit})`));
-      item.append(dataKindTag(seriesDataKind(d), true));
+      const dataKind = seriesDataKind(d);
+      if (dataKind) item.append(dataKindTag(dataKind, true));
       group.append(item);
       entries[datasets.indexOf(d)] = item;
     }
