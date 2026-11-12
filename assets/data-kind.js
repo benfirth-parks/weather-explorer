@@ -14,8 +14,10 @@ export function dataKindTag(kind, mini = false) {
   return tag;
 }
 
-/* Pair-pane series: HN bars/totals and HSΔ come from the HN rules; temp, wind, HS depth and gauge HW are readings. */
+/* Pair-pane series: HN bars/totals and HSΔ come from the HN rules; HS depth and gauge HW are readings.
+   Temperature and wind get no tag (Ben, 2026-11-12: tags on snow and precip values only), so this returns null. */
 export function seriesDataKind(series) {
+  if (series.kind === 'temp' || series.kind === 'wind') return null;
   if (series.kind === 'delta') return 'interp';
   if ((series.kind === 'bar' || series.kind === 'cum') && series.unit === 'cm') return 'interp';
   return 'raw';
