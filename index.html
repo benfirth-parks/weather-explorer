@@ -765,7 +765,22 @@ const ELEV_BANDS = [
   {label:'Treeline 1800\u20132200 m', min:1800, max:2200},
   {label:'Alpine \u2265 2200 m', min:2200, max:ELEV_MAX_ALL}
 ];
-function inElevBand(s){return s.elevation>=elevMin && s.elevation<=elevMax;}
+/* Elevation band of a station: alpine >= 2200 m, treeline 1800-2200 m, valley below.
+   BAND_OVERRIDES pins stations whose site sits in a different band than the raw
+   elevation says (Bosworth Lower, 2210 m, is a treeline site: feedback #15). */
+const BAND_OVERRIDES = {'fts-boslo':1};
+function bandIndexOf(s){
+  if(s.stationId in BAND_OVERRIDES) return BAND_OVERRIDES[s.stationId];
+  return s.elevation>=2200?0:s.elevation>=1800?1:2;
+}
+/* Band chip in use (index into ELEV_BANDS), or null once the slider is dragged.
+   A band chip filters by bandIndexOf so overridden stations land in their band. */
+let elevBandSel = 0;
+const BAND_CHIP_TO_INDEX = {1:2, 2:1, 3:0};
+function inElevBand(s){
+  if(elevBandSel in BAND_CHIP_TO_INDEX) return bandIndexOf(s)===BAND_CHIP_TO_INDEX[elevBandSel];
+  return s.elevation>=elevMin && s.elevation<=elevMax;
+}
 function visibleStations(){return STATIONS.filter(s=>groupFilter.has(s.group) && inElevBand(s));}
 function elevPct(v){return ((v-ELEV_MIN_ALL)/(ELEV_MAX_ALL-ELEV_MIN_ALL))*100;}
 function renderElevControls(){
@@ -777,7 +792,7 @@ function renderElevControls(){
   fill.style.width=Math.max(0,elevPct(elevMax)-elevPct(elevMin))+'%';
   document.querySelectorAll('#elevBandRow .chip').forEach(c=>{
     const b=ELEV_BANDS[Number(c.dataset.band)];
-    c.classList.toggle('active', b.min===elevMin && b.max===elevMax);
+    c.classList.toggle('active', elevBandSel!==null ? Number(c.dataset.band)===elevBandSel : (b.min===elevMin && b.max===elevMax));
   });
 }
 function applyElevFilter(){
@@ -794,15 +809,15 @@ function initElevControls(){
   ELEV_BANDS.forEach((b,i)=>{
     const btn=document.createElement('button');
     btn.className='chip'; btn.textContent=b.label; btn.dataset.band=i;
-    btn.addEventListener('click',()=>{elevMin=b.min; elevMax=b.max; applyElevFilter();});
+    btn.addEventListener('click',()=>{elevBandSel=i; elevMin=b.min; elevMax=b.max; applyElevFilter();});
     row.appendChild(btn);
   });
   lo.addEventListener('input',()=>{
-    elevMin=Math.min(Number(lo.value), elevMax-10);
+    elevBandSel=null; elevMin=Math.min(Number(lo.value), elevMax-10);
     renderElevControls(); renderStationList(); refreshMarkers();
   });
   hi.addEventListener('input',()=>{
-    elevMax=Math.max(Number(hi.value), elevMin+10);
+    elevBandSel=null; elevMax=Math.max(Number(hi.value), elevMin+10);
     renderElevControls(); renderStationList(); refreshMarkers();
   });
   [lo,hi].forEach(el=>el.addEventListener('change',applyElevFilter));
@@ -1885,10 +1900,10 @@ const pairDataReady=import('/assets/pair-comparison-data.js').then(m=>(pairData=
 let rdpsMod=null;
 const rdpsReady=import('/assets/rdps.js').then(m=>(rdpsMod=m));
 const HOURLY_BAND_COLORS={light:['#2a78d6','#d39000','#008300'],dark:['#3987e5','#c98500','#008300']};
-function hourlyBandColor(elevation){
+function hourlyBandColor(s){
   const t=document.documentElement.dataset.theme;
   const key=t==='light'?'light':(t==='dark'||matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';
-  return HOURLY_BAND_COLORS[key][elevation>=2200?0:elevation>=1800?1:2];
+  return HOURLY_BAND_COLORS[key][bandIndexOf(s)];
 }
 function hourlyAvailable(id,metric,records){
   if(metric==='hnHourly') return !NO_SNOW_SENSOR_IDS.has(id)&&!SNOW_GRAPH_EXCLUDED_IDS.has(id)&&records.some(d=>{const v=numOf(d.snowHeight); return Number.isFinite(v)&&v>=0&&v<=600;});
@@ -1926,7 +1941,7 @@ function hourlyBarConfig(id,hours,fontSize,enlarged){
   const to=Date.now(), from=to-hours*3600000, records=cache[id]||[];
   const forecast=isHN?rdpsInline(id,()=>drawSnowChart(id)):null;
   const result=isHN ? pairData.hnIntervals(records.map(r=>({...r,newSnow:null})),from,to,1,{gaugeCheck:HN_GAUGE_CHECK_IDS.has(id),gaugeRecords:records,forecast:forecast||null}) : pairData.hwIntervals(records,from,to,1);
-  const color=hourlyBandColor(s.elevation), c=chartTextColors();
+  const color=hourlyBandColor(s), c=chartTextColors();
   const tick={color:c.text,font:{family:"'Courier Prime', monospace",size:fontSize}};
   const label=isHN?'HN':'HW';
   /* HSΔ since the range start beside the HN total (Ben, 10 Nov 2026; Conlan ISSW 2026 "Delta"): HS now minus HS at

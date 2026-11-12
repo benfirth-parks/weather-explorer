@@ -76,8 +76,11 @@ function latest(observations, key) {
 }
 
 /* Elevation band mirrors the dashboard's own band filter:
-   valley < 1800 m, treeline 1800–2200 m, alpine ≥ 2200 m. */
-function elevationBand(elev) {
+   valley < 1800 m, treeline 1800–2200 m, alpine ≥ 2200 m, except stations
+   pinned to a band by site (Bosworth Lower, 2210 m, is treeline: feedback #15). */
+const BAND_OVERRIDES = { "fts-boslo": "Treeline" };
+function elevationBand(elev, stationId) {
+  if (stationId && BAND_OVERRIDES[stationId]) return BAND_OVERRIDES[stationId];
   if (elev < 1800) return "Below treeline";
   if (elev < 2200) return "Treeline";
   return "Alpine";
@@ -129,7 +132,7 @@ function summarizeStation(meta, observations, lastSyncedAt, snowObservations = o
     station_id: meta.stationId,
     name: meta.name,
     elevation_m: meta.elevation,
-    elevation_band: elevationBand(meta.elevation),
+    elevation_band: elevationBand(meta.elevation, meta.stationId),
     ns: meta.ns,
     ew: meta.ew
   };
