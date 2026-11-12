@@ -1,6 +1,7 @@
 import {HOUR, metricSeries, binStepHours, hnIntervals, hwIntervals, hsDepthSeries, hsDeltaSeries, stormDensity, HN_GAUGE_CHECK_IDS, HN_NO_GAUGE_IDS} from './pair-comparison-data.js';
 import {rdpsFor} from './rdps.js';
 import {plotForPair, renderPlotProfile} from './plot-profile.js';
+import {dataKindTag, seriesDataKind} from './data-kind.js';
 
 /* Paired-station timing chart: temperature, wind and precipitation for both stations on one
    time axis, plus a wind rose for each station that reports usable wind. The pair card itself
@@ -525,6 +526,7 @@ async function render(view) {
       else { const [on, off] = d.kind === 'cum' ? [4, 3] : d.borderDash; swatch.style.borderImage = d.borderDash.length ? `repeating-linear-gradient(90deg, ${d.borderColor} 0 ${on}px, transparent ${on}px ${on + off}px) 1` : ''; }
       swatch.setAttribute('aria-hidden', 'true');
       item.append(swatch, document.createTextNode(`${d.short} (${d.unit})`));
+      item.append(dataKindTag(seriesDataKind(d), true));
       group.append(item);
       entries[datasets.indexOf(d)] = item;
     }

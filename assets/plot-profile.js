@@ -1,3 +1,4 @@
+import {dataKindTag} from './data-kind.js';
 import {PAIR_PLOTS, PIT_MAX_AGE_DAYS, HARDNESS, simTemps, hardnessLabel, ageDays, pitIsCurrent} from './plot-profile-data.js';
 
 /* Study-plot snow profile panel inside an expanded pair card: the latest simulated profile from the
@@ -124,10 +125,10 @@ function drawProfile({layers, temps, tests, hsMax, aria, observed, bykFlags = fa
   return svg;
 }
 
-function figure(title, meta, svg) {
+function figure(title, meta, svg, kind) {
   const fig = element('figure', 'plot-profile-fig');
   const cap = element('figcaption');
-  cap.append(element('strong', '', title), document.createTextNode(` · ${meta}`));
+  cap.append(element('strong', '', title), dataKindTag(kind), document.createTextNode(` · ${meta}`));
   fig.append(cap, svg);
   return fig;
 }
@@ -151,7 +152,7 @@ function draw(box, data) {
     figs.append(figure('Modelled', `${clock.format(sim.t)} MT · HS ${Math.round(sim.hs ?? sim.layers[0][0])} cm`, drawProfile({
       layers: sim.layers, temps: simTemps(sim.layers), hsMax, observed: false, bykFlags: byk,
       aria: `Modelled snow profile at ${data.name}${byk ? '' : ' study plot'}, ${clock.format(sim.t)} MT: ${sim.layers.length} layers, ${Math.round(sim.hs ?? sim.layers[0][0])} cm deep.`
-    })));
+    }), 'interp'));
   } else {
     figs.append(element('p', 'plot-profile-empty', sim ? `Modelled: no snow on the ground at ${clock.format(sim.t)} MT.` : 'Modelled: no profile published yet this season.'));
   }
@@ -159,7 +160,7 @@ function draw(box, data) {
     figs.append(figure('Observed pit', `${clock.format(pit.t)} MT (${age(pit.t)})${pit.hs ? ` · HS ${pit.hs} cm` : ''}`, drawProfile({
       layers: pit.layers, temps: pit.temps, tests: pit.tests, hsMax, observed: true,
       aria: `Observed snow profile at ${data.name} study plot, ${clock.format(pit.t)} MT: ${pit.layers.length} layers.`
-    })));
+    }), 'raw'));
   }
   box.append(figs);
   const drawn = figs.querySelector('svg') !== null;

@@ -1,0 +1,11 @@
+/* Raw vs interpreted markers (Ben, 2026-11-12).
+   Raw = read straight from a station sensor or a field observation; bad readings filtered, and sums,
+   averages or peaks of those readings stay raw. Interpreted = a quantity the site's rules or a model
+   work out from the raw readings (HN, HST, HSΔ, modelled profiles, the AI headline). */
+.dk-tag{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid currentColor;border-radius:var(--radius-sm,4px);font-family:var(--font-body,inherit);font-size:10px;font-weight:600;line-height:16px;letter-spacing:.02em;text-transform:none;vertical-align:middle;white-space:nowrap;cursor:help;}
+.dk-raw{color:var(--color-success);}
+.dk-interp{color:var(--color-gold);border-style:dashed;}
+.dk-mini{margin-left:4px;padding:0 3px;min-width:14px;text-align:center;font-size:9px;line-height:13px;}
+.dk-key{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-top:4px;font-size:var(--text-xs);color:var(--color-text-muted);}
+.dk-key .dk-tag{margin-left:0;margin-right:4px;}
+.hl-table th:has(.dk-tag){white-space:nowrap;}
