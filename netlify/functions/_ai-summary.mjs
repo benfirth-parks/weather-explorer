@@ -76,10 +76,10 @@ function latest(observations, key) {
 }
 
 /* Elevation band mirrors the dashboard's own band filter:
-   valley < 1800 m, treeline 1800–2200 m, alpine ≥ 2200 m. */
+   valley < 1800 m, treeline 1800–2320 m, alpine ≥ 2320 m (Ben, 2026-11-12). */
 function elevationBand(elev) {
   if (elev < 1800) return "Below treeline";
-  if (elev < 2200) return "Treeline";
+  if (elev < 2320) return "Treeline";
   return "Alpine";
 }
 
@@ -354,7 +354,7 @@ Describe observations only: no forecasts, recommendations, safety claims, or any
    (never a sum), the band's mean wind with its prevailing direction, and the
    peak gust. All of it is observed station data, not a forecast. */
 const BANDS = ["Alpine", "Treeline", "Below treeline"];
-const BAND_RANGE = { Alpine: "≥2200 m", Treeline: "1800–2200 m", "Below treeline": "<1800 m" };
+const BAND_RANGE = { Alpine: "≥2320 m", Treeline: "1800–2320 m", "Below treeline": "<1800 m" };
 
 export function bandRows(stations) {
   return BANDS.map((band) => {

@@ -763,8 +763,8 @@ let elevMin = ELEV_MIN_ALL, elevMax = ELEV_MAX_ALL;
 const ELEV_BANDS = [
   {label:'All', min:ELEV_MIN_ALL, max:ELEV_MAX_ALL},
   {label:'Valley < 1800 m', min:ELEV_MIN_ALL, max:1800},
-  {label:'Treeline 1800\u20132200 m', min:1800, max:2200},
-  {label:'Alpine \u2265 2200 m', min:2200, max:ELEV_MAX_ALL}
+  {label:'Treeline 1800\u20132320 m', min:1800, max:2310},
+  {label:'Alpine \u2265 2320 m', min:2320, max:ELEV_MAX_ALL}
 ];
 function inElevBand(s){return s.elevation>=elevMin && s.elevation<=elevMax;}
 function visibleStations(){return STATIONS.filter(s=>groupFilter.has(s.group) && inElevBand(s));}
@@ -1895,7 +1895,7 @@ const HOURLY_BAND_COLORS={light:['#2a78d6','#d39000','#008300'],dark:['#3987e5',
 function hourlyBandColor(elevation){
   const t=document.documentElement.dataset.theme;
   const key=t==='light'?'light':(t==='dark'||matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';
-  return HOURLY_BAND_COLORS[key][elevation>=2200?0:elevation>=1800?1:2];
+  return HOURLY_BAND_COLORS[key][elevation>=2320?0:elevation>=1800?1:2];
 }
 function hourlyAvailable(id,metric,records){
   if(metric==='hnHourly') return !NO_SNOW_SENSOR_IDS.has(id)&&!SNOW_GRAPH_EXCLUDED_IDS.has(id)&&records.some(d=>{const v=numOf(d.snowHeight); return Number.isFinite(v)&&v>=0&&v<=600;});
