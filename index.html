@@ -409,6 +409,13 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
   margin: 0 0 var(--space-3);
 }
 .ai-summary-body p:last-child { margin-bottom: 0; }
+/* Temperature inversion warning that leads the summary. Amber, as the data delay banner. */
+.ai-summary-body p.ai-summary-warning {
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-warning);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+}
 .ai-summary-body strong {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -2368,7 +2375,7 @@ function renderSummaryMarkdown(md){
       return `<ul class="ai-summary-list">${items}</ul>`;
     }
     /* Otherwise → paragraph, line breaks inside become <br>. */
-    return `<p>${applyInline(trimmed).replace(/\n/g, '<br>')}</p>`;
+    return `<p${trimmed.startsWith('\u26a0') ? ' class="ai-summary-warning"' : ''}>${applyInline(trimmed).replace(/\n/g, '<br>')}</p>`;
   }).join('');
 
   function applyInline(s){
