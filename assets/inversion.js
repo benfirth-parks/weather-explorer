@@ -8,25 +8,12 @@ import {BANDS, elevationBand} from './elevation-bands.js';
    Rule: hour by hour, take each band's mean air temperature. A pair of bands is inverted in
    an hour when the higher band is at least INVERSION_MIN_C warmer than the lower one. The
    note shows when a pair was inverted for at least INVERSION_MIN_HOURS of the window, or is
-   inverted at the newest hour.
-
-   Degree: the note names how strong the inversion is, from the largest hourly difference
-   between the two bands, in the whole degrees the note shows: "slight inversion" under
-   INVERSION_PLAIN_C, "significant inversion" from INVERSION_SIGNIFICANT_C up, plain
-   "inversion" in between. */
+   inverted at the newest hour. The note does not grade the inversion (Ben, 2026-11-14:
+   "just note the inversion"). */
 export const INVERSION_MIN_C = 1;
 export const INVERSION_MIN_HOURS = 3;
-export const INVERSION_PLAIN_C = 3;
-export const INVERSION_SIGNIFICANT_C = 6;
 const HOUR_MS = 3_600_000;
 const SITE_UTC_OFFSET_HOURS = -6; /* Alberta clock time, labelled MT */
-
-export function inversionDegree(diffC) {
-  const shown = Math.round(diffC);
-  if (shown >= INVERSION_SIGNIFICANT_C) return 'significant inversion';
-  if (shown >= INVERSION_PLAIN_C) return 'inversion';
-  return 'slight inversion';
-}
 
 /* Mean air temperature per UTC hour: { "<hour start ms>": °C }. Readings that are not a
    plausible air temperature are left out. */
@@ -49,7 +36,7 @@ export function hourlyTemps(observations) {
 /* `series` = [{ elevation_band, hourly }] per station; only the newest `hours` hours that
    both bands report are compared. Returns null when no pair of bands meets the rule, else
    the strongest pair:
-   { upper, lower, degree, hours, hours_compared, max_diff_c, max_diff_hour_mt, current,
+   { upper, lower, hours, hours_compared, max_diff_c, max_diff_hour_mt, current,
      current_diff_c }. */
 export function detectInversion(series, {hours = 24} = {}) {
   const bandHours = {};
@@ -78,7 +65,6 @@ export function detectInversion(series, {hours = 24} = {}) {
       const found = {
         upper: BANDS[i],
         lower: BANDS[j],
-        degree: inversionDegree(diff(peakKey)),
         hours: inverted.length,
         hours_compared: keys.length,
         max_diff_c: Math.round(diff(peakKey) * 10) / 10,
@@ -101,13 +87,8 @@ export function inversionFromStations(stations, options) {
     .map((s) => ({elevation_band: elevationBand(s.elevation), hourly: hourlyTemps(s.observations)})), options);
 }
 
-/* The warning line. Starts with "⚠" so pages can style it as a warning, then names the
-   degree of inversion. Numbers are bold in Markdown. */
-const INVERSION_HEADINGS = {
-  'slight inversion': 'Slight temperature inversion',
-  'inversion': 'Temperature inversion',
-  'significant inversion': 'Significant temperature inversion'
-};
+/* The warning line. Starts with "⚠" so pages can style it as a warning. Numbers are bold
+   in Markdown. */
 
 export function inversionNoteMarkdown(inv) {
   if (!inv) return '';
@@ -116,6 +97,5 @@ export function inversionNoteMarkdown(inv) {
   const tail = inv.current
     ? ` and still are, by ${deg(inv.current_diff_c)} at the latest hour.`
     : `; no longer inverted at the latest hour.`;
-  const heading = INVERSION_HEADINGS[inv.degree ?? inversionDegree(inv.max_diff_c)];
-  return `⚠ **${heading}:** ${inv.upper} stations averaged warmer than ${inv.lower} stations for **${inv.hours} h** of the last ${inv.hours_compared}, by up to ${deg(inv.max_diff_c)} (around ${hh})${tail}`;
+  return `⚠ **Temperature inversion:** ${inv.upper} stations averaged warmer than ${inv.lower} stations for **${inv.hours} h** of the last ${inv.hours_compared}, by up to ${deg(inv.max_diff_c)} (around ${hh})${tail}`;
 }

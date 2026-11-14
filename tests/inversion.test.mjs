@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {detectInversion, hourlyTemps, inversionDegree, inversionFromStations, inversionNoteMarkdown} from '../assets/inversion.js';
+import {detectInversion, hourlyTemps, inversionFromStations, inversionNoteMarkdown} from '../assets/inversion.js';
 
 const H = 3_600_000;
 const T0 = Date.UTC(2026, 10, 14, 0); /* 18:00 MT Nov 13 */
@@ -26,16 +26,15 @@ test('alpine warmer than the valley overnight, cleared by the latest hour', () =
     series('Alpine', [-8, -4, -3, -4, -8]),
     series('Below treeline', [-5, -8, -9, -10, -4])
   ]);
-  assert.deepEqual(inv, {upper: 'Alpine', lower: 'Below treeline', degree: 'significant inversion', hours: 3, hours_compared: 5, max_diff_c: 7, max_diff_hour_mt: 21, current: false, current_diff_c: -4});
+  assert.deepEqual(inv, {upper: 'Alpine', lower: 'Below treeline', hours: 3, hours_compared: 5, max_diff_c: 7, max_diff_hour_mt: 21, current: false, current_diff_c: -4});
   assert.equal(inversionNoteMarkdown(inv),
-    '⚠ **Significant temperature inversion:** Alpine stations averaged warmer than Below treeline stations for **3 h** of the last 5, by up to **7 °C** (around 21:00 MT); no longer inverted at the latest hour.');
+    '⚠ **Temperature inversion:** Alpine stations averaged warmer than Below treeline stations for **3 h** of the last 5, by up to **7 °C** (around 21:00 MT); no longer inverted at the latest hour.');
 });
 
 test('a short inversion still counts while it is on at the latest hour', () => {
   const inv = detectInversion([series('Treeline', [-6, -6, -2]), series('Below treeline', [-3, -4, -5])]);
   assert.equal(inv.hours, 1);
   assert.equal(inv.current, true);
-  assert.equal(inv.degree, 'inversion');
   assert.match(inversionNoteMarkdown(inv), /^⚠ \*\*Temperature inversion:\*\* Treeline stations averaged warmer than Below treeline stations/);
   assert.match(inversionNoteMarkdown(inv), /and still are, by \*\*3 °C\*\* at the latest hour\.$/);
 });
@@ -45,20 +44,10 @@ test('under 1 °C, or under 3 h and over, is not flagged', () => {
   assert.equal(detectInversion([series('Alpine', [-2, -2, -9, -9]), series('Treeline', [-5, -5, -5, -5])]), null);
 });
 
-test('degree of inversion follows the whole degrees the note shows', () => {
-  assert.equal(inversionDegree(1), 'slight inversion');
-  assert.equal(inversionDegree(2.4), 'slight inversion');
-  assert.equal(inversionDegree(2.5), 'inversion'); /* shown as 3 °C */
-  assert.equal(inversionDegree(5.4), 'inversion');
-  assert.equal(inversionDegree(5.5), 'significant inversion'); /* shown as 6 °C */
-  assert.equal(inversionDegree(14), 'significant inversion');
-});
-
-test('each degree has its own heading in the note', () => {
+test('the note is not graded: the same heading whatever the difference', () => {
   const note = (alpine) => inversionNoteMarkdown(detectInversion([series('Alpine', [alpine, alpine, alpine]), series('Treeline', [-10, -10, -10])]));
-  assert.match(note(-8), /^⚠ \*\*Slight temperature inversion:\*\* .*by up to \*\*2 °C\*\*/);
-  assert.match(note(-6), /^⚠ \*\*Temperature inversion:\*\* .*by up to \*\*4 °C\*\*/);
-  assert.match(note(-1), /^⚠ \*\*Significant temperature inversion:\*\* .*by up to \*\*9 °C\*\*/);
+  assert.match(note(-8), /^⚠ \*\*Temperature inversion:\*\* .*by up to \*\*2 °C\*\*/);
+  assert.match(note(-1), /^⚠ \*\*Temperature inversion:\*\* .*by up to \*\*9 °C\*\*/);
 });
 
 test('only the newest 24 hours are compared, so the note never says "of the last 25"', () => {
@@ -84,7 +73,6 @@ test('inversionFromStations bands the stations by elevation and skips bad readin
   assert.equal(inv.lower, 'Below treeline');
   assert.equal(inv.hours, 4);
   assert.equal(inv.max_diff_c, 8); /* hour 3: alpine -4 alone against -12 */
-  assert.equal(inv.degree, 'significant inversion');
   assert.equal(inversionFromStations([{elevation: 2930, observations: obs([-4, -4, -4])}]), null);
 });
 
@@ -119,9 +107,9 @@ test('/api/inversion: group 1 alone still sees the valley stations of its region
   assert.ok(!asked.includes('fts-maligne'));
   assert.equal(out.inversion.upper, 'Alpine');
   assert.equal(out.inversion.lower, 'Below treeline');
-  assert.equal(out.inversion.degree, 'significant inversion');
+  assert.equal('degree' in out.inversion, false);
   assert.equal(out.inversion.hours, 12);
-  assert.match(out.note, /^⚠ \*\*Significant temperature inversion:\*\* Alpine stations averaged warmer than Below treeline stations for \*\*12 h\*\* of the last 12, by up to \*\*8 °C\*\*/);
+  assert.match(out.note, /^⚠ \*\*Temperature inversion:\*\* Alpine stations averaged warmer than Below treeline stations for \*\*12 h\*\* of the last 12, by up to \*\*8 °C\*\*/);
 
   const none = await inversionForGroups([5], async () => ({observations: []}));
   assert.deepEqual(none.groups, [5]);
