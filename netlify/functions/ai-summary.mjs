@@ -16,11 +16,11 @@
 import { getStore } from "@netlify/blobs";
 import { fetchBackCheck } from "./_rdps.mjs";
 import { HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
-import { bandRows, bandTableMarkdown, buildSnapshot, headlineSnapshot, SYSTEM_PROMPT } from "./_ai-summary.mjs";
+import { bandRows, bandTableMarkdown, buildSnapshot, headlineSnapshot, inversionNoteMarkdown, SYSTEM_PROMPT } from "./_ai-summary.mjs";
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v12"; /* v12: Below treeline row back from the fire stations */
+const CACHE_STORE = "rockies-weather-ai-summary-v13"; /* v13: temperature inversion warning note */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
@@ -147,10 +147,12 @@ export default async (request) => {
     const table = bandTableMarkdown(bandRows(snapshot.stations));
 
     const payload = {
-      summary: [summaryText, table, snowBlock].filter(Boolean).join("\n\n"),
+      /* The inversion warning, when there is one, leads the headline. */
+      summary: [inversionNoteMarkdown(snapshot.temperature_inversion), summaryText, table, snowBlock].filter(Boolean).join("\n\n"),
       generated_at: new Date().toISOString(),
       window_hours: snapshot.window_hours,
       station_count: snapshot.station_count,
+      temperature_inversion: snapshot.temperature_inversion,
       model,
       usage: data?.usage,
       cached: false
