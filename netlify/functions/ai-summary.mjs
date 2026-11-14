@@ -21,7 +21,7 @@ import { inversionNoteMarkdown } from "../../assets/inversion.js";
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v14"; /* v14: inversion note names its degree (slight / inversion / significant) */
+const CACHE_STORE = "rockies-weather-ai-summary-v15"; /* v15: inversion note no longer graded slight / significant */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";
