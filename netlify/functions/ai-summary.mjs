@@ -16,11 +16,12 @@
 import { getStore } from "@netlify/blobs";
 import { fetchBackCheck } from "./_rdps.mjs";
 import { HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
-import { bandRows, bandTableMarkdown, buildSnapshot, headlineSnapshot, inversionNoteMarkdown, SYSTEM_PROMPT } from "./_ai-summary.mjs";
+import { bandRows, bandTableMarkdown, buildSnapshot, headlineSnapshot, SYSTEM_PROMPT } from "./_ai-summary.mjs";
+import { inversionNoteMarkdown } from "../../assets/inversion.js";
 import { readArchive, selectHours } from "./_weather-archive.mjs";
 import { SNOW_PAIRS, SNOW_PAIR_HOURS, snowFigures, snowPairsMarkdown } from "./_snow-pairs.mjs";
 
-const CACHE_STORE = "rockies-weather-ai-summary-v13"; /* v13: temperature inversion warning note */
+const CACHE_STORE = "rockies-weather-ai-summary-v14"; /* v14: inversion note names its degree (slight / inversion / significant) */
 const CACHE_KEY = "latest.json";
 const DEFAULT_TTL_SEC = 30 * 60;
 const DEFAULT_MODEL = "sonar";

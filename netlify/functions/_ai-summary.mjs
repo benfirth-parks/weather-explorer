@@ -10,6 +10,8 @@ import { HN_GAUGE_CHECK_IDS } from "../../assets/pair-comparison-data.js";
 import { snowFigures } from "./_snow-pairs.mjs";
 import { NO_PRECIP_GAUGE_IDS, hw24FromObservations } from "./_hw24.mjs";
 import { SNOW_EXCLUDED_IDS, NO_SNOW_SENSOR_IDS } from "../../assets/snow-stations.js";
+import { BANDS, BAND_RANGE, elevationBand } from "../../assets/elevation-bands.js";
+import { inversionFromStations } from "../../assets/inversion.js";
 
 /* Station metadata mirrors the STATIONS_GROUP* arrays in index.html.
    Keep this file in sync when new stations are added.
@@ -75,13 +77,8 @@ function latest(observations, key) {
   return null;
 }
 
-/* Elevation band mirrors the dashboard's own band filter:
-   valley < 1800 m, treeline 1800–2320 m, alpine ≥ 2320 m (Ben, 2026-11-12). */
-function elevationBand(elev) {
-  if (elev < 1800) return "Below treeline";
-  if (elev < 2320) return "Treeline";
-  return "Alpine";
-}
+/* Elevation bands (valley < 1800 m, treeline 1800–2320 m, alpine ≥ 2320 m) come from
+   assets/elevation-bands.js, which mirrors the dashboard's own band filter. */
 
 /* Vector-mean wind bearing weighted by speed, from an array of
    observations. Returns { deg, compass } or { deg: null, compass: null }
@@ -259,6 +256,17 @@ function summarizeStation(meta, observations, lastSyncedAt, snowObservations = o
    buildSnapshot({ groups: [1, 2, 3, 4] }) for everything. */
 export const DEFAULT_GROUPS = [1, 2];
 
+/* Station groups by forecast region. The fire weather stations (groups 2 and 4) are the
+   valley stations of the same region as the Visitor Safety stations (groups 1 and 3), so a
+   comparison across elevation bands takes a region's groups together. Returns every group in
+   the regions the given groups touch; the default groups when it touches none. */
+export const REGION_GROUPS = [[1, 2], [3, 4], [5]];
+export function regionGroups(groups) {
+  const asked = new Set(groups);
+  const out = REGION_GROUPS.filter((region) => region.some((g) => asked.has(g))).flat();
+  return out.length ? out : [...DEFAULT_GROUPS];
+}
+
 /* Valley fire weather stations (all below 1800 m). They are left out of
    what the AI headline sees so they don't set it, but they are the only
    stations under 1800 m, so they still feed the Below treeline row of the
@@ -300,93 +308,8 @@ function networkExtremes(stations) {
   };
 }
 
-const BANDS = ["Alpine", "Treeline", "Below treeline"]; /* highest first */
-
-/* ---- Temperature inversion (Ben, 2026-11-14) ----
-   Normally it gets colder with height. When a higher elevation band averages
-   warmer than a lower one, the summary carries a warning note written here in
-   code, so it always appears when the condition holds.
-
-   Rule: hour by hour, take each band's mean air temperature. A pair of bands
-   is inverted in an hour when the higher band is at least INVERSION_MIN_C
-   warmer than the lower one. The note shows when a pair was inverted for at
-   least INVERSION_MIN_HOURS of the window, or is inverted at the newest hour. */
-export const INVERSION_MIN_C = 1;
-export const INVERSION_MIN_HOURS = 3;
-const SITE_UTC_OFFSET_HOURS = -6; /* Alberta clock time, labelled MT */
-
-/* Mean air temperature per UTC hour: { "<hour start ms>": °C }. */
-export function hourlyTemps(observations) {
-  const sums = new Map();
-  for (const o of observations) {
-    const v = num(o.airTempAvg);
-    const t = new Date(o.measurementDateTime).getTime();
-    if (v === null || !Number.isFinite(t)) continue;
-    const key = Math.floor(t / 3_600_000) * 3_600_000;
-    const cur = sums.get(key) || { sum: 0, n: 0 };
-    cur.sum += v; cur.n += 1;
-    sums.set(key, cur);
-  }
-  const out = {};
-  for (const [key, { sum, n }] of sums) out[key] = sum / n;
-  return out;
-}
-
-/* `series` = [{ elevation_band, hourly }] per station. Returns null when no
-   pair of bands meets the rule, else the strongest pair:
-   { upper, lower, hours, hours_compared, max_diff_c, max_diff_hour_mt,
-     current, current_diff_c }. */
-export function detectInversion(series) {
-  const bandHours = {};
-  for (const s of series) {
-    if (!s || !s.hourly || !BANDS.includes(s.elevation_band)) continue;
-    const byHour = (bandHours[s.elevation_band] ||= new Map());
-    for (const [key, v] of Object.entries(s.hourly)) {
-      const cur = byHour.get(key) || { sum: 0, n: 0 };
-      cur.sum += v; cur.n += 1;
-      byHour.set(key, cur);
-    }
-  }
-  let best = null;
-  for (let i = 0; i < BANDS.length; i += 1) {
-    for (let j = i + 1; j < BANDS.length; j += 1) {
-      const up = bandHours[BANDS[i]], low = bandHours[BANDS[j]];
-      if (!up || !low) continue;
-      const keys = [...up.keys()].filter((k) => low.has(k)).sort((a, b) => Number(a) - Number(b));
-      if (!keys.length) continue;
-      const diff = (k) => up.get(k).sum / up.get(k).n - low.get(k).sum / low.get(k).n;
-      const inverted = keys.filter((k) => diff(k) >= INVERSION_MIN_C);
-      const lastDiff = diff(keys[keys.length - 1]);
-      const current = lastDiff >= INVERSION_MIN_C;
-      if (inverted.length < INVERSION_MIN_HOURS && !current) continue;
-      const peakKey = inverted.reduce((a, b) => (diff(b) > diff(a) ? b : a), inverted[0]);
-      const found = {
-        upper: BANDS[i],
-        lower: BANDS[j],
-        hours: inverted.length,
-        hours_compared: keys.length,
-        max_diff_c: Math.round(diff(peakKey) * 10) / 10,
-        max_diff_hour_mt: (new Date(Number(peakKey)).getUTCHours() + SITE_UTC_OFFSET_HOURS + 24) % 24,
-        current,
-        current_diff_c: Math.round(lastDiff * 10) / 10
-      };
-      if (!best || found.max_diff_c > best.max_diff_c) best = found;
-    }
-  }
-  return best;
-}
-
-/* The warning line that leads the summary. Starts with "⚠" so the page can
-   style it as a warning. */
-export function inversionNoteMarkdown(inv) {
-  if (!inv) return "";
-  const hh = `${String(inv.max_diff_hour_mt).padStart(2, "0")}:00 MT`;
-  const deg = (v) => `**${Math.round(v)} °C**`;
-  const tail = inv.current
-    ? ` and still are, by ${deg(inv.current_diff_c)} at the latest hour.`
-    : `; no longer inverted at the latest hour.`;
-  return `⚠ **Temperature inversion:** ${inv.upper} stations averaged warmer than ${inv.lower} stations for **${inv.hours} h** of the last ${inv.hours_compared}, by up to ${deg(inv.max_diff_c)} (around ${hh})${tail}`;
-}
+/* The temperature inversion rule and its warning note live in assets/inversion.js, shared
+   with the 24 h station summary on the page. */
 
 /* Build the snapshot for stations in the selected groups, in parallel.
    Stations with an empty archive are auto-seeded (same behaviour as
@@ -394,7 +317,7 @@ export function inversionNoteMarkdown(inv) {
 export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS, exclude = new Set() } = {}) {
   const groupSet = new Set(groups);
   const included = STATION_META.filter((meta) => groupSet.has(meta.group) && !exclude.has(meta.stationId));
-  const hourly = [];
+  const tempSeries = [];
   const results = await Promise.all(included.map(async (meta) => {
     if (!STATION_IDS[meta.stationId]) {
       return { ...meta, status: "unknown-station" };
@@ -406,9 +329,9 @@ export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS, exclu
         archive = await readArchive(meta.stationId);
       }
       const observations = selectHours(archive, hours);
+      tempSeries.push({ elevation: meta.elevation, observations });
       /* HN24's gauge check (assets/pair-comparison-data.js) looks back up to 36 h before the 24 h window. */
       const forecast = HN_GAUGE_CHECK_IDS.has(meta.stationId) ? await fetchBackCheck(meta.stationId) : null;
-      hourly.push({ elevation_band: elevationBand(meta.elevation), hourly: hourlyTemps(observations) });
       return summarizeStation(meta, observations, archive.lastSyncedAt, selectHours(archive, Math.max(hours, 60)), forecast);
     } catch (error) {
       return { station: meta.name, park: meta.park, elevation_m: meta.elevation, status: "error", error: error.message };
@@ -419,8 +342,8 @@ export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS, exclu
     generated_at: new Date().toISOString(),
     window_hours: hours,
     network_extremes: networkExtremes(results),
-    /* null unless higher bands ran warmer than lower ones (see detectInversion). */
-    temperature_inversion: detectInversion(hourly),
+    /* null unless higher bands ran warmer than lower ones (assets/inversion.js). */
+    temperature_inversion: inversionFromStations(tempSeries, { hours }),
     groups_included: groups,
     group_labels_included: groups.map((g) => GROUP_LABELS[g]).filter(Boolean),
     station_count: results.length,
@@ -432,7 +355,7 @@ export async function buildSnapshot({ hours = 24, groups = DEFAULT_GROUPS, exclu
    without touching the caller. */
 export const SYSTEM_PROMPT = `Write ONE short headline sentence (at most 25 words) about the last 24 hours of observed weather across the supplied remote weather stations in Banff National Park, using only the supplied station observations and calculated values.
 
-A table of high/low temperature, precipitation, wind and gusts by elevation band, and the snow amounts, are appended below your sentence automatically, so do not list those numbers one by one. If "temperature_inversion" in the snapshot is not null, higher elevations were warmer than lower ones: a warning note about it is added above your sentence automatically, so do not contradict it and do not repeat its numbers. Pick out the single most notable feature instead (for example a sharp warm-up, strong wind, precipitation or a clear elevation or north/south contrast) and say it plainly.
+A table of high/low temperature, precipitation, wind and gusts by elevation band, and the snow amounts, are appended below your sentence automatically, so do not list those numbers one by one. If "temperature_inversion" in the snapshot is not null, higher elevations were warmer than lower ones: a warning note about it is added above your sentence automatically, so do not contradict it and do not repeat its numbers; if you mention it, call it what its "degree" field calls it (slight inversion, inversion or significant inversion). Pick out the single most notable feature instead (for example a sharp warm-up, strong wind, precipitation or a clear elevation or north/south contrast) and say it plainly.
 
 No heading, no bullets, no lists, nothing before or after the sentence. Bold any number with Markdown double asterisks, e.g. **72 km/h**. Metric units (°C, km/h, mm, cm). Never sum precipitation across stations. Use Mountain Standard Time phrasing like "overnight" or "mid-afternoon"; never mention UTC.
 
@@ -445,8 +368,6 @@ Describe observations only: no forecasts, recommendations, safety claims, or any
    rolled up per band: highest high, lowest low, the wettest single gauge
    (never a sum), the band's mean wind with its prevailing direction, and the
    peak gust. All of it is observed station data, not a forecast. */
-const BAND_RANGE = { Alpine: "≥2320 m", Treeline: "1800–2320 m", "Below treeline": "<1800 m" };
-
 export function bandRows(stations) {
   return BANDS.map((band) => {
     const rows = stations.filter((s) => s.elevation_band === band && !s.status);
