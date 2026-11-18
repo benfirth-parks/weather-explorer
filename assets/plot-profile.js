@@ -1,4 +1,5 @@
 import {dataKindTag} from './data-kind.js';
+import {feedbackBox} from './plot-feedback.js';
 import {PAIR_PLOTS, PIT_MAX_AGE_DAYS, HARDNESS, simTemps, hardnessLabel, ageDays, pitIsCurrent} from './plot-profile-data.js';
 
 /* Study-plot snow profile panel inside an expanded pair card: the latest simulated profile from the
@@ -197,6 +198,8 @@ function draw(box, data) {
   if (data.stale) notes.push(`The ${byk ? 'BYK Snowpack Model' : 'Banff Snowpack site'} did not answer; showing the last copy read.`);
   notes.push(data.label || 'Experimental snowpack-structure simulation, not an avalanche forecast.');
   box.append(element('p', 'plot-profile-note', notes.join(' ')));
+  // Forecaster feedback, for the Banff Snowpack study plots only (the lab's model).
+  if (!byk && sim) box.append(feedbackBox(data, {pitShown: Boolean(showPit)}));
 }
 
 /* Loads and draws the plot profile into `box`. `isCurrent` lets the caller drop a late answer. */
