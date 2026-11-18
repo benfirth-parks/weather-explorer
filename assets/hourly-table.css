@@ -1,0 +1,26 @@
+/* Hourly readings table under an enlarged station graph (assets/hourly-table.js). */
+.snow-modal-hint { padding:0 var(--space-5) var(--space-3); font-size:var(--text-xs); color:var(--color-text-muted); }
+.snow-modal-body canvas { cursor:pointer; }
+.snow-modal-table { flex:0 0 auto; max-height:42%; display:flex; flex-direction:column; min-height:0; border-top:1px solid var(--color-divider); }
+.snow-modal-table[hidden] { display:none; }
+.hourly-table-head { display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); padding:var(--space-2) var(--space-5); font-size:var(--text-xs); color:var(--color-text-muted); }
+.hourly-table-title strong { color:var(--color-text); font-weight:700; }
+.hourly-table-close { background:transparent; border:1px solid var(--color-divider); color:var(--color-text); border-radius:var(--radius-sm); padding:4px 8px; cursor:pointer; font:inherit; flex:0 0 auto; }
+.hourly-table-close:hover { border-color:var(--color-primary); color:var(--color-primary); }
+.hourly-table-scroll { overflow:auto; min-height:0; padding:0 var(--space-5) var(--space-3); position:relative; }
+.hourly-table-scroll:focus-visible { outline:2px solid var(--color-primary); outline-offset:-2px; }
+.hourly-table { border-collapse:collapse; width:100%; font-size:12px; font-variant-numeric:tabular-nums; }
+.hourly-table th, .hourly-table td { padding:4px 10px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--color-divider); }
+.hourly-table th:first-child { text-align:left; }
+.hourly-table thead th { position:sticky; top:0; background:var(--color-surface); color:var(--color-text-muted); font-size:11px; font-weight:700; z-index:1; }
+.hourly-table thead th span { font-weight:400; }
+.hourly-table tbody th { font-weight:400; color:var(--color-text-muted); }
+.hourly-table tr.hourly-gap td { text-align:left; color:var(--color-text-faint, var(--color-text-muted)); font-style:italic; }
+.hourly-table tr.hourly-selected th, .hourly-table tr.hourly-selected td { background:var(--color-primary-highlight); color:var(--color-text); font-weight:700; }
+.hourly-table-empty { margin:var(--space-2) 0; font-size:12px; color:var(--color-text-muted); }
+@media (max-width:768px) {
+  .snow-modal-table { max-height:48%; }
+  .hourly-table-head, .hourly-table-scroll { padding-left:var(--space-3); padding-right:var(--space-3); }
+  .hourly-table th, .hourly-table td { padding:6px 6px; }
+  .hourly-table-close { min-height:36px; }
+}
