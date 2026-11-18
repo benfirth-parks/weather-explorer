@@ -1,6 +1,6 @@
-/* Hourly readings table for one station (Ben, 18 Nov 2026): clicking the line on an enlarged
-   station graph lists that station's raw hourly readings for the range on screen, newest first,
-   with the clicked hour marked. Raw sensor values only; HW per hour comes from the same gauge
+/* Hourly readings table for one station (Ben, 18 Nov 2026): an enlarged station graph lists
+   that station's raw hourly readings for the range on screen, newest first, and clicking the
+   line marks that hour. Raw sensor values only; HW per hour comes from the same gauge
    intervals the graph draws (hwIntervals in assets/pair-comparison-data.js). */
 export const HOUR = 3600000;
 const DIRS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
