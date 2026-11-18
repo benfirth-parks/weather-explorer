@@ -66,3 +66,18 @@
 .plot-profile-key > span { display:flex; align-items:center; gap:4px; }
 .plot-profile-key i { display:inline-block; width:10px; height:10px; border-radius:2px; border:1px solid var(--color-border); }
 .plot-profile-note, .plot-profile-empty { color:var(--color-text-muted); line-height:1.6; margin:6px 0 0; font-size:12px; }
+
+/* Forecaster feedback box under the plot profile (assets/plot-feedback.js) */
+.plot-feedback { margin-top:10px; border:1px solid var(--color-border); border-radius:6px; padding:6px 10px; font-size:12px; }
+.plot-feedback > summary { cursor:pointer; font-weight:600; color:var(--color-text); padding:2px 0; }
+.plot-feedback-form { display:grid; gap:8px; margin-top:6px; }
+.plot-feedback fieldset { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; }
+.plot-feedback legend { font-weight:600; color:var(--color-text-muted); margin-right:8px; float:left; }
+.plot-feedback label { color:var(--color-text); }
+.plot-feedback-field { display:grid; gap:3px; }
+.plot-feedback-field > span { color:var(--color-text-muted); }
+.plot-feedback textarea, .plot-feedback input[type=text], .plot-feedback input[type=password] { width:100%; box-sizing:border-box; font:inherit; padding:5px 7px; border:1px solid var(--color-border); border-radius:4px; background:var(--color-surface, transparent); color:var(--color-text); }
+.plot-feedback-who { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px; }
+.plot-feedback .plot-feedback-send { justify-self:start; font:inherit; padding:5px 12px; border-radius:4px; border:1px solid var(--color-primary); background:var(--color-primary); color:#fff; cursor:pointer; }
+.plot-feedback .plot-feedback-send:disabled { opacity:.6; cursor:wait; }
+.plot-feedback-status { margin:0; color:var(--color-text-muted); min-height:1em; }
