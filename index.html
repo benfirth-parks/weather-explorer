@@ -548,6 +548,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
 .hn-gauge-flag{display:block;font-size:10px;opacity:.75;white-space:nowrap;}
 </style>
 <link rel="stylesheet" href="/assets/legend-toggle.css">
+<link rel="stylesheet" href="/assets/hourly-table.css">
 <link rel="stylesheet" href="/assets/data-kind.css">
 <script src="/assets/legend-toggle.js"></script>
 <script defer src="https://banff-app-portal.netlify.app/t.js" data-app="rockiesweatherdataexplorer"></script>
@@ -666,7 +667,7 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
         <div class="panel" id="gustPeakPanel"><div class="panel-header"><div><div class="panel-title">Wind gusts</div><div class="panel-title-sub">Peak recorded gust per observation across selected stations; higher stations are emphasized</div></div></div><div class="chart-box"><canvas id="gustPeakChart"></canvas></div><div class="legend-row" id="gustPeakNote" style="color:var(--color-text-faint);font-size:var(--text-xs);"></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
       </div>
       <div class="panel" id="gustPanel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Average wind speed</div><div class="panel-title-sub">Average wind speeds across selected stations; higher stations are emphasized. Arrows every 4 h show the direction the wind is blowing toward</div></div></div><div class="chart-box"><canvas id="gustChart"></canvas></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div></div>
-      <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Snow depth &amp; precipitation by station</div><div class="panel-title-sub">Each station has its own metric selector and time slider, default 24h. Snow stations open on snow depth (HS), floored at 0; precipitation-gauge stations open on HW. AB Env gauges offer both. These graphs show raw sensor readings only: HS from the depth sensor and HW from the gauge, as hourly bars with a dotted running total for the selected range. Interpreted new snow (HN24, HST) is in the 24h summary and the paired panes. Enlarge a graph to switch the view and range there too.</div></div></div><div class="per-station-grid" id="snowCards"></div></div>
+      <div class="panel" style="margin:var(--space-5);"><div class="panel-header"><div><div class="panel-title">Snow depth &amp; precipitation by station</div><div class="panel-title-sub">Each station has its own metric selector and time slider, default 24h. Snow stations open on snow depth (HS), floored at 0; precipitation-gauge stations open on HW. AB Env gauges offer both. These graphs show raw sensor readings only: HS from the depth sensor and HW from the gauge, as hourly bars with a dotted running total for the selected range. Interpreted new snow (HN24, HST) is in the 24h summary and the paired panes. Enlarge a graph to switch the view and range there too, and click its line for that station's hourly readings.</div></div></div><div class="per-station-grid" id="snowCards"></div></div>
       <div class="panel" id="hsComparePanel" style="margin:var(--space-5);">
         <div class="panel-header"><div><div class="panel-title">HS comparison — selected stations<span class="dk-tag dk-raw" title="Raw: read straight from the station sensors or a field observation. Bad readings are filtered out; totals, averages and peaks of raw readings stay raw.">Raw</span></div><div class="panel-title-sub" id="hsCompareSub">Validated snow depth (HS, cm) across all currently selected stations, over the main time range. Negative, implausible, and abrupt readings are filtered before plotting.</div></div></div>
         <div class="chart-box"><canvas id="hsCompareChart"></canvas></div>
@@ -2149,17 +2150,60 @@ updateMobileBadge();
    snowState[id] + windowedData(id) that drives the small card. The small chart
    is left untouched so closing the modal restores the card exactly as it was. */
 let snowModalChart=null;
+/* Hourly readings under the enlarged graph (Ben, 18 Nov 2026): clicking the line lists that station's raw
+   hourly readings for the range on screen, with the clicked hour marked in the table and on the graph.
+   A click anywhere in the plot picks the hour under the pointer. See assets/hourly-table.js. */
+let hourlyMod=null;
+const hourlyReady=import('/assets/hourly-table.js').then(m=>(hourlyMod=m));
+const snowModalHourly={id:null,t:null};
+const snowModalMarker={id:'snowModalHour',afterDatasetsDraw(chart){
+  const m=snowModalHourly, modal=document.getElementById('snowModal');
+  if(m.t==null||!modal||m.id!==modal.dataset.station) return;
+  const x=chart.scales.x.getPixelForValue(m.t), a=chart.chartArea;
+  if(!(x>=a.left&&x<=a.right)) return;
+  const g=chart.ctx;
+  g.save(); g.strokeStyle=cssVar('--color-text-muted')||'#5c6a70'; g.lineWidth=1.5; g.setLineDash([5,4]);
+  g.beginPath(); g.moveTo(x,a.top); g.lineTo(x,a.bottom); g.stroke(); g.restore();
+}};
+function hideSnowModalHourly(){
+  snowModalHourly.id=null; snowModalHourly.t=null;
+  const box=document.querySelector('#snowModal .snow-modal-table');
+  if(box){ box.hidden=true; box.replaceChildren(); }
+  if(snowModalChart){ try{ snowModalChart.update('none'); }catch(e){} }
+}
+function showSnowModalHourly(id,t){
+  const modal=document.getElementById('snowModal'), box=modal&&modal.querySelector('.snow-modal-table');
+  const state=snowState[id], s=STATIONS.find(x=>x.stationId===id);
+  if(!box||!state||!s) return;
+  if(!hourlyMod||!pairData){
+    Promise.all([hourlyReady,pairDataReady]).then(()=>{ if(modal.classList.contains('open')&&modal.dataset.station===id) showSnowModalHourly(id,t); });
+    return;
+  }
+  const to=Date.now(), from=to-state.hours*3600000, records=cache[id]||[];
+  /* Same rules as the cards: no wind where the site hides it, HS only where the card offers it, HW only from a usable gauge. */
+  const show={wind:!HIDE_WIND_IDS.has(id), hs:(!usesHW24(id)||DUAL_METRIC_IDS.has(id))&&!NO_SNOW_SENSOR_IDS.has(id), hw:hourlyAvailable(id,'hwHourly',records)};
+  const rows=hourlyMod.hourlyRows(records,from,to,show.hw?pairData.hwIntervals(records,from,to,1).points:[]);
+  const selected=hourlyMod.rowIndexAt(rows,t);
+  snowModalHourly.id=id; snowModalHourly.t=selected>=0?(rows[selected].t??rows[selected].hour):t;
+  hourlyMod.renderHourlyTable(box,{name:s.name, rangeLabel:(SNOW_CARD_RANGES.find(([h])=>h===state.hours)||SNOW_CARD_RANGES[0])[1].toLowerCase(),
+    rows, columns:hourlyMod.activeColumns(rows,show), selected,
+    timeText:ms=>siteTime.format(ms,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}),
+    onClose:hideSnowModalHourly});
+  if(snowModalChart){ try{ snowModalChart.update('none'); }catch(e){} }
+}
 function closeSnowChartModal(){
   const modal=document.getElementById('snowModal');
   if(!modal) return;
   modal.classList.remove('open');
   if(snowModalChart){ try{ snowModalChart.destroy(); }catch(e){} snowModalChart=null; }
+  hideSnowModalHourly();
 }
 function openSnowChartModal(id){
   const modal=document.getElementById('snowModal');
   if(!modal) return;
   const state=snowState[id]; if(!state) return;
   const s=STATIONS.find(x=>x.stationId===id); if(!s) return;
+  if(snowModalHourly.id&&snowModalHourly.id!==id) hideSnowModalHourly();
   const metricKey=state.metric;
   const metricLabel = HOURLY_METRICS.has(metricKey) ? HOURLY_METRICS.get(metricKey)
                     : metricKey==='precipTotal' ? 'HW (mm)'
@@ -2194,7 +2238,19 @@ function openSnowChartModal(id){
     cfg={type:'line',data:{datasets:[{label:s.name+' '+(metricKey==='snowHeight'?'snow height':'new snow'),data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:3,pointRadius:0,tension:.2,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{type:'time',time:{unit:state.hours<=48?'hour':'day'},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:12}},grid:{color:c.grid}},y:{beginAtZero:true,min:0,ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:12}},grid:{color:c.grid},title:{display:true,text:'cm',color:c.text}}}}};
   }
   modal.classList.add('open');
-  requestAnimationFrame(()=>{ snowModalChart=new Chart(canvas,cfg); });
+  /* Click the line (anywhere in the plot) for that hour's readings in the table below. */
+  cfg.plugins=(cfg.plugins||[]).concat(snowModalMarker);
+  cfg.options.onClick=(evt,_els,chart)=>{
+    const a=chart.chartArea;
+    if(evt.x<a.left||evt.x>a.right||evt.y<a.top||evt.y>a.bottom) return;
+    const t=chart.scales.x.getValueForPixel(evt.x);
+    if(Number.isFinite(t)) showSnowModalHourly(id,t);
+  };
+  requestAnimationFrame(()=>{
+    snowModalChart=new Chart(canvas,cfg);
+    /* Table already open for this station: redraw it for the new view or range. */
+    if(snowModalHourly.id===id) showSnowModalHourly(id,snowModalHourly.t);
+  });
 }
 (function wireSnowModal(){
   if(document.getElementById('snowModal')) return;
@@ -2203,7 +2259,7 @@ function openSnowChartModal(id){
   el.className='snow-modal';
   el.setAttribute('role','dialog');
   el.setAttribute('aria-modal','true');
-  el.innerHTML=`<div class="snow-modal-panel" role="document"><div class="snow-modal-head"><div><div class="snow-modal-title"></div><div class="snow-modal-sub"></div></div><div class="snow-modal-controls"><select class="small-select" data-role="modal-metric" aria-label="Graph view"></select><select class="small-select" data-role="modal-hours" aria-label="Time range"></select><button type="button" class="snow-modal-close" aria-label="Close">Close</button></div></div><div class="snow-modal-body"><canvas></canvas></div></div>`;
+  el.innerHTML=`<div class="snow-modal-panel" role="document"><div class="snow-modal-head"><div><div class="snow-modal-title"></div><div class="snow-modal-sub"></div></div><div class="snow-modal-controls"><select class="small-select" data-role="modal-metric" aria-label="Graph view"></select><select class="small-select" data-role="modal-hours" aria-label="Time range"></select><button type="button" class="snow-modal-close" aria-label="Close">Close</button></div></div><div class="snow-modal-body"><canvas></canvas></div><div class="snow-modal-hint">Click the line for this station's hourly readings.</div><div class="snow-modal-table" hidden></div></div>`;
   document.body.appendChild(el);
   el.addEventListener('click',e=>{ if(e.target===el) closeSnowChartModal(); });
   el.querySelector('.snow-modal-close').addEventListener('click',closeSnowChartModal);
