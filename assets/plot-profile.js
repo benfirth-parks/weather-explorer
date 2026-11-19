@@ -1,5 +1,6 @@
 import {dataKindTag} from './data-kind.js';
 import {feedbackBox} from './plot-feedback.js';
+import {appendAwsome} from './awsome-panel.js';
 import {PAIR_PLOTS, PIT_MAX_AGE_DAYS, HARDNESS, simTemps, hardnessLabel, ageDays, pitIsCurrent} from './plot-profile-data.js';
 
 /* Study-plot snow profile panel inside an expanded pair card: the latest simulated profile from the
@@ -134,7 +135,7 @@ function figure(title, meta, svg, kind) {
   return fig;
 }
 
-function draw(box, data) {
+function draw(box, data, plot) {
   box.replaceChildren();
   const byk = data.source === 'byk';
   const head = element('div', 'plot-profile-head');
@@ -197,7 +198,10 @@ function draw(box, data) {
   }
   if (data.stale) notes.push(`The ${byk ? 'BYK Snowpack Model' : 'Banff Snowpack site'} did not answer; showing the last copy read.`);
   notes.push(data.label || 'Experimental snowpack-structure simulation, not an avalanche forecast.');
-  box.append(element('p', 'plot-profile-note', notes.join(' ')));
+  const noteEl = element('p', 'plot-profile-note', notes.join(' '));
+  box.append(noteEl);
+  // Today's AWSOME stability snapshot fills the space beside the modelled profile.
+  appendAwsome(figs, plot, noteEl);
   // Forecaster feedback, for the Banff Snowpack study plots only (the lab's model).
   if (!byk && sim) box.append(feedbackBox(data, {pitShown: Boolean(showPit)}));
 }
@@ -210,7 +214,7 @@ export async function renderPlotProfile(box, plot, {fresh = false, isCurrent = (
   try {
     const data = await load(plot, fresh);
     if (!isCurrent()) return;
-    draw(box, data);
+    draw(box, data, plot);
   } catch (error) {
     if (!isCurrent()) return;
     box.replaceChildren(element('p', 'plot-profile-note', 'Modelled snowpack unavailable right now.'));

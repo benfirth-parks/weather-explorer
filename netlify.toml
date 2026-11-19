@@ -29,6 +29,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/awsome"
+  to = "/.netlify/functions/awsome"
+  status = 200
+
+[[redirects]]
   from = "/api/plot-profile"
   to = "/.netlify/functions/plot-profile"
   status = 200
