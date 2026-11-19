@@ -1,0 +1,158 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>
+<title>Study Plot Snowpack Visuals</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Archivo:wght@600;700&display=swap">
+<style>
+/* Layout: one band per study plot; each band = key numbers + season stratigraphy + today's profile */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --fg:#17212b; --muted:#5b6876; --line:#d5dce3; --accent:#1f5f8b;
+  --forecast:rgba(31,95,139,.08); --alert:#c2362b; --flag:#17212b;
+  --display:"Archivo","IBM Plex Sans",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f151b;--panel:#18212a;--fg:#e4eaf0;--muted:#94a3b2;--line:#2c3844;--accent:#7cb7e0;--forecast:rgba(124,183,224,.10);--alert:#ff7a6e;--flag:#e4eaf0;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f151b;--panel:#18212a;--fg:#e4eaf0;--muted:#94a3b2;--line:#2c3844;--accent:#7cb7e0;--forecast:rgba(124,183,224,.10);--alert:#ff7a6e;--flag:#e4eaf0;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:28px}
+header h1{font-family:var(--display);font-size:1.9rem;margin:0;text-wrap:balance;letter-spacing:-.01em}
+header p{margin:.35rem 0 0;color:var(--muted);max-width:70ch}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted);margin-top:12px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,.15)}
+.site{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;display:grid;gap:16px}
+.site-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px 20px}
+.site-head h2{font-family:var(--display);font-size:1.35rem;margin:0}
+.site-head .meta{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.stats{display:flex;flex-wrap:wrap;gap:8px 28px;font-size:.85rem}
+.stats div{display:grid}
+.stats b{font-family:var(--mono);font-size:1.05rem;font-weight:500;font-variant-numeric:tabular-nums}
+.stats small{color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:.68rem}
+.charts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.charts{grid-template-columns:minmax(0,1fr)}}
+figure{margin:0;min-width:0}
+figcaption{font-size:.8rem;color:var(--muted);margin-bottom:6px}
+figcaption strong{color:var(--fg);font-weight:600;font-size:.9rem;display:block}
+.svgbox{overflow-x:auto}
+svg text{fill:var(--muted);font-family:var(--mono);font-size:10px}
+.callout{font-size:.88rem;border-left:3px solid var(--alert);padding:2px 0 2px 10px;max-width:80ch}
+.pending{color:var(--muted);font-size:.9rem;max-width:70ch}
+footer{font-size:.78rem;color:var(--muted);max-width:90ch}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Study plot snowpack, Thu 19 Nov</h1>
+  <p>Today's snapshot from the SnowpackBC AWSOME model, Thu 19 Nov 2026 model time 06:00 UTC. Two charts per plot: the modelled flat-field profile with each layer's instability, and the most unstable layer on each aspect (38° slopes).</p>
+  <div class="legend" id="legend"></div>
+</header>
+<div id="sites"></div>
+<section class="site">
+  <div class="site-head"><h2>Simpson</h2><span class="meta">not yet mapped</span></div>
+  <p class="pending">Simpson is not a modelled station. Once I have the plot's coordinates and elevation I'll take the nearest 2.5 km grid cell and it gets the same two charts as the plots above.</p>
+</section>
+<footer>Grain colours follow the international classification (PP new snow, DF decomposing, RG rounds, FC facets, FCxr rounding facets, DH depth hoar, SH surface hoar). A dark outline marks layers the model flags as persistent weak layers. Punstable is the model's probability that a layer is unstable (Mayer et al. 2022); the dashed line at 0.77 is the commonly used "unstable" threshold. Aspect values come from the model's 38° slope runs. Sunshine uses grid cell B_0006_0022 (2311 m, treeline, about 1 km from the village), not plot instruments.</footer>
+</div>
+
+<script>
+const GRAIN={PP:"#7ed957",DF:"#2e8b3a",RG:"#f4a6c0",FC:"#9fd3f0",FCxr:"#7aa7e0",DH:"#2747c9",SH:"#d23ad6",MFcr:"#e8732c"};
+const GNAME={PP:"New snow",DF:"Decomposing",RG:"Rounds",FC:"Facets",FCxr:"Rounding facets",DH:"Depth hoar",SH:"Surface hoar"};
+const TODAY="11-19";
+// day: [date, HS cm, HN24 cm, TA C, tops, grains, punstable, weak-layer flags]
+const SITES=[
+{name:"Bow Summit",meta:"Station · 2040 m · below treeline",
+ note:"Shallow and weak at the base: the lower 6 cm is depth hoar flagged as a persistent weak layer. Punstable stays low (0.21 to 0.27) on every aspect, but crack lengths are short on N, E and W, so the base would propagate if it were loaded.",
+ wind:"SE",
+ aspects:{F:{pu:.27,d:10.7,g:"DH"},N:{pu:.27,d:12.5,g:"DH"},E:{pu:.27,d:12.4,g:"DH"},S:{pu:.21,d:2.2,g:"DH"},W:{pu:.27,d:11.4,g:"DH"}},
+ days:[
+["11-19",14.9,0,-7.7,[1.9,2.9,3.7,4.2,5.6,6.9,8.3,10.3,12.7,14.9],"DH DH DH DH DH FC FC DH DH DF",[.22,.22,.21,.27,.27,.11,.08,.11,.14,null],"1111100110"]
+]},
+{name:"Sunshine",meta:"Grid cell B_0006_0022 · 2311 m · treeline",
+ note:"Two problems today. Surface hoar buried on 16 Nov sits about 9 cm down and is the top concern on N, E and W slopes (Punstable 0.56 to 0.61). On the flat field the basal depth hoar ranks highest (0.67). Nothing is over 0.77 yet, but both layers will matter as load builds.",
+ wind:"SE",
+ aspects:{F:{pu:.67,d:22.9,g:"DH"},N:{pu:.61,d:8.8,g:"SH"},E:{pu:.61,d:8.8,g:"SH"},S:{pu:.37,d:4.3,g:"DF"},W:{pu:.56,d:8.6,g:"SH"}},
+ days:[
+["11-19",25,2.1,-9.3,[.8,2.1,4,6.1,6.9,8.7,10.5,11.9,12.4,13.2,13.6,14.9,16.4,16.7,18.5,20.6,22.9,25],"DH DH FC DH DH DH DH DH DH DH SH FCxr FCxr SH DF DF DF PP",[.66,.67,.64,.58,.62,.62,.62,.6,.5,.43,.36,.36,.43,.61,.4,.47,.56,null],"110111111110010000"]
+]}
+];
+const NS="http://www.w3.org/2000/svg";
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e}
+function txt(p,x,y,s,a={}){const t=el("text",{x,y,...a},p);t.textContent=s;return t}
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const THR=.77;
+
+function legend(){const L=document.getElementById("legend");for(const g of ["PP","DF","RG","FCxr","FC","DH","SH"]){L.insertAdjacentHTML("beforeend",`<span><i class="sw" style="background:${GRAIN[g]}"></i>${g} ${GNAME[g]}</span>`)}
+L.insertAdjacentHTML("beforeend",`<span><i class="sw" style="background:transparent;border:2px solid var(--flag)"></i>Persistent weak layer flag</span><span><i class="sw" style="background:var(--alert)"></i>Punstable ≥ 0.77</span>`)}
+
+function puColor(p){ // light to dark red ramp, alert at threshold
+  const stops=[[0,[232,238,243]],[.4,[247,201,140]],[.6,[236,135,84]],[.77,[194,54,43]],[1,[140,20,20]]];
+  for(let i=1;i<stops.length;i++){if(p<=stops[i][0]){const [p0,c0]=stops[i-1],[p1,c1]=stops[i],t=(p-p0)/(p1-p0);return `rgb(${c0.map((c,k)=>Math.round(c+(c1[k]-c)*t)).join(",")})`}}return "rgb(140,20,20)"}
+function aspectChart(site){
+  const W=330,H=260,cx=W/2,cy=126,R=104,r=36;
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,width:"100%",style:"display:block;max-width:360px;margin:0 auto",role:"img","aria-label":`${site.name} most unstable layer by aspect`});
+  const sect=[["N",-135,-45],["E",-45,45],["S",45,135],["W",135,225]];
+  const pt=(ang,rad)=>[cx+rad*Math.cos(ang*Math.PI/180),cy+rad*Math.sin(ang*Math.PI/180)];
+  sect.forEach(([k,a0,a1])=>{const v=site.aspects[k];const [x0,y0]=pt(a0,R),[x1,y1]=pt(a1,R),[x2,y2]=pt(a1,r),[x3,y3]=pt(a0,r);
+    el("path",{d:`M${x0},${y0} A${R},${R} 0 0 1 ${x1},${y1} L${x2},${y2} A${r},${r} 0 0 0 ${x3},${y3} Z`,fill:puColor(v.pu),stroke:"var(--panel)","stroke-width":3},svg);
+    const mid=(a0+a1)/2,[tx,ty]=pt(mid,(R+r)/2),dark=v.pu>=.6,col=dark?"#fff":"#17212b";
+    txt(svg,tx,ty-12,k,{"text-anchor":"middle",style:`fill:${col};font-weight:600;font-size:12px`});
+    txt(svg,tx,ty+3,v.pu.toFixed(2),{"text-anchor":"middle",style:`fill:${col};font-size:13px`});
+    txt(svg,tx,ty+17,`${v.g} ${v.d.toFixed(0)} cm`,{"text-anchor":"middle",style:`fill:${col};font-size:9.5px`});
+  });
+  const f=site.aspects.F,dark=f.pu>=.6,col=dark?"#fff":"#17212b";
+  el("circle",{cx,cy,r:r-4,fill:puColor(f.pu),stroke:"var(--line)"},svg);
+  txt(svg,cx,cy-8,"Flat",{"text-anchor":"middle",style:`fill:${col};font-size:9.5px`});
+  txt(svg,cx,cy+6,f.pu.toFixed(2),{"text-anchor":"middle",style:`fill:${col};font-size:12px`});
+  txt(svg,cx,cy+18,`${f.g} ${f.d.toFixed(0)} cm`,{"text-anchor":"middle",style:`fill:${col};font-size:8.5px`});
+  // scale bar
+  const sx=40,sw=W-80,sy=H-26;for(let i=0;i<60;i++)el("rect",{x:sx+i*sw/60,y:sy,width:sw/60+.5,height:8,fill:puColor(i/59)},svg);
+  [0,.5,.77,1].forEach(v=>{txt(svg,sx+v*sw,sy+20,v,{"text-anchor":"middle",...(v===.77?{style:"fill:var(--alert)"}:{})})});
+  return svg}
+
+function profile(site){
+  const d=site.days.find(x=>x[0]===TODAY),[date,hs,hn,ta,tops,gs,pu,wl]=d,g=gs.split(" ");
+  const W=330,H=260,m={l:30,r:14,t:16,b:30},ih=H-m.t-m.b,colW=46,bx=m.l+colW+40,bw=W-bx-m.r;
+  const maxH=Math.ceil(hs/5)*5+5,y=v=>m.t+ih-(v/maxH)*ih;
+  const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,width:"100%",style:"display:block",role:"img","aria-label":`${site.name} profile on 19 November`});
+  for(let v=0;v<=maxH;v+=5){txt(svg,m.l-6,y(v)+3,v,{"text-anchor":"end"});el("line",{x1:bx,x2:bx+bw,y1:y(v),y2:y(v),stroke:"var(--line)"},svg)}
+  // threshold
+  const px=v=>bx+v*bw;
+  [0,.5,1].forEach(v=>txt(svg,px(v),H-12,v,{"text-anchor":"middle"}));
+  txt(svg,bx+bw/2,H-1,"Punstable",{"text-anchor":"middle"});
+  let bot=0;let worst=-1;pu.forEach((p,j)=>{if(p!=null&&(worst<0||p>pu[worst]))worst=j});
+  tops.forEach((top,j)=>{const yy=y(top),hh=y(bot)-yy;
+    el("rect",{x:m.l,y:yy,width:colW,height:Math.max(hh,.5),fill:GRAIN[g[j]]||"#999"},svg);
+    if(wl[j]==="1")el("rect",{x:m.l+.75,y:yy+.75,width:colW-1.5,height:Math.max(hh-1.5,.3),fill:"none",stroke:"var(--flag)","stroke-width":1.2,opacity:.6},svg);
+    if(hh>8)txt(svg,m.l+colW/2,yy+hh/2+3,g[j],{"text-anchor":"middle",style:`fill:${["DH","DF","SH"].includes(g[j])?"#fff":"#17212b"}`,"font-size":"9"});
+    if(pu[j]!=null){const c=pu[j]>=THR?"var(--alert)":j===worst?"var(--fg)":"var(--muted)";el("rect",{x:bx,y:yy+Math.min(1,hh*.15),width:pu[j]*bw,height:Math.max(hh-Math.min(2,hh*.3),.8),fill:c,opacity:j===worst?.9:.45},svg)}
+    bot=top});
+  el("line",{x1:px(THR),x2:px(THR),y1:m.t,y2:m.t+ih,stroke:"var(--alert)","stroke-dasharray":"4 3"},svg);
+  txt(svg,px(THR)+3,m.t+8,"0.77",{style:"fill:var(--alert)"});
+  // label worst
+  const wt=tops[worst],wb=worst?tops[worst-1]:0;
+  txt(svg,bx+pu[worst]*bw+4,y((wt+wb)/2)+3,`${pu[worst].toFixed(2)} ${g[worst]}`,{style:"fill:var(--fg)"});
+  return {svg,worst:{p:pu[worst],g:g[worst],depth:hs-wt,top:wt}}}
+
+function render(){
+  const host=document.getElementById("sites");host.innerHTML="";
+  SITES.forEach(s=>{
+    const d=s.days.find(x=>x[0]===TODAY);
+    const sec=document.createElement("section");sec.className="site";
+    const pr=profile(s);
+    sec.innerHTML=`<div class="site-head"><h2>${s.name}</h2><span class="meta">${s.meta}</span></div>
+    <div class="stats">
+      <div><small>HS</small><b>${d[1].toFixed(0)} cm</b></div>
+      <div><small>HN24</small><b>${d[2].toFixed(1)} cm</b></div>
+      <div><small>Air temp</small><b>${d[3].toFixed(1)} °C</b></div>
+      <div><small>Wind, 24 h</small><b>from ${s.wind}</b></div>
+      <div><small>Most unstable layer</small><b>${pr.worst.p.toFixed(2)} · ${pr.worst.g} · ${pr.worst.depth.toFixed(0)} cm down</b></div>
+    </div>
+    <div class="charts">
+      <figure><figcaption><strong>Profile, flat field</strong>Layers by grain type and height, with each layer's Punstable.</figcaption><div class="svgbox"></div></figure>
+      <figure><figcaption><strong>Most unstable layer by aspect</strong>Punstable, grain type and depth below the surface.</figcaption><div class="svgbox"></div></figure>
+    </div>
+    <p class="callout">${s.note}</p>`;
+    const boxes=sec.querySelectorAll(".svgbox");boxes[0].appendChild(pr.svg);boxes[1].appendChild(aspectChart(s));
+    host.appendChild(sec)});
+}
+legend();render();
+</script>
+</body></html>
