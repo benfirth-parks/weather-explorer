@@ -62,7 +62,7 @@
 .plot-profile-fig figcaption strong { color:var(--color-text); }
 .plot-profile-svg { display:block; width:100%; max-width:440px; height:auto; font-family:inherit; }
 .plot-profile-svg path:hover { filter:brightness(1.1); }
-.awsome-fig .awsome-body { min-height:120px; }
+
 .plot-profile-key { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:8px; font-size:11px; color:var(--color-text-muted); }
 .plot-profile-key > span { display:flex; align-items:center; gap:4px; }
 .plot-profile-key i { display:inline-block; width:10px; height:10px; border-radius:2px; border:1px solid var(--color-border); }
@@ -87,3 +87,9 @@
 .awsome-key { margin-top:6px; max-width:440px; }
 .plot-profile-fig > .plot-profile-key { max-width:440px; }
 .awsome-key strong { color:var(--color-text); font-weight:600; margin-right:4px; }
+/* With the AWSOME panels, line every model up row by row (caption, chart, legend), so the height axes
+   sit level even when a caption wraps. */
+.plot-profile-figs:has(.awsome-fig) { row-gap:4px; }
+.plot-profile-figs:has(.awsome-fig) > figure { display:grid; grid-template-rows:subgrid; grid-row:span 3; align-content:start; margin-bottom:10px; }
+.plot-profile-figs:has(.awsome-fig) > figure > figcaption { align-self:end; }
+.awsome-fig .awsome-body { display:contents; }
