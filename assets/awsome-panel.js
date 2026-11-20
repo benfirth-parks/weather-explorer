@@ -166,11 +166,13 @@ function figure(title, meta) {
 export const awsomeTop = d => Math.max(d?.profile?.hs || 0, ...(d?.profile?.layers || []).map(l => l[0]));
 export const sharedScale = tops => Math.ceil(Math.max(20, ...tops.filter(Number.isFinite)) * 1.1 / 10) * 10;
 export const loadAwsome = load;
+/* True when the AWSOME panels are drawn for this study plot (not hidden with ?awsome=off). */
+export const awsomeShown = plot => !OFF && Object.hasOwn(AWSOME_POINTS, plot);
 
 /* Adds the two AWSOME Dry figures, each with its legend underneath, to the study-plot figure grid (`figs`),
    and the note after `noteHost`. `yMax` is the shared height scale in cm (own scale if not given). */
 export function appendAwsome(figs, plot, noteHost, yMax) {
-  if (OFF || !Object.hasOwn(AWSOME_POINTS, plot)) return;
+  if (!awsomeShown(plot)) return;
   const point = AWSOME_POINTS[plot];
   const a = figure('AWSOME Dry', 'flat field');
   const b = figure('AWSOME Dry · Punstable', 'flat field');

@@ -9,6 +9,8 @@
 
 export const STORE_NAME = "plot-feedback-v1";
 export const AGREEMENT = ["agree", "partly", "disagree"];
+/* Which model a note is about. */
+export const SOURCES = ["banff-snowpack", "awsome", "byk"];
 export const TOPICS = ["depth", "weak_layer", "crust", "surface", "wind", "temperature", "other"];
 export const LIMITS = { note: 2000, name: 60, topics: TOPICS.length };
 const PLOT_RE = /^[a-z0-9_-]{2,40}$/;
@@ -33,7 +35,7 @@ export function validateFeedback(body, now) {
     version: 1,
     received_at: new Date(now).toISOString(),
     plot,
-    source: body.source === "byk" ? "byk" : "banff-snowpack",
+    source: SOURCES.includes(body.source) ? body.source : "banff-snowpack",
     agreement,
     topics,
     note,

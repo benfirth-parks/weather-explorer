@@ -72,6 +72,7 @@
 .plot-feedback { margin-top:10px; border:1px solid var(--color-border); border-radius:6px; padding:6px 10px; font-size:12px; }
 .plot-feedback > summary { cursor:pointer; font-weight:600; color:var(--color-text); padding:2px 0; }
 .plot-feedback-form { display:grid; gap:8px; margin-top:6px; }
+.plot-feedback fieldset[hidden] { display:none; }
 .plot-feedback fieldset { border:0; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; }
 .plot-feedback legend { font-weight:600; color:var(--color-text-muted); margin-right:8px; float:left; }
 .plot-feedback label { color:var(--color-text); }
