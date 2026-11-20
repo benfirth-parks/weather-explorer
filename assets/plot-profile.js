@@ -1,5 +1,7 @@
 import {dataKindTag} from './data-kind.js';
 import {feedbackBox} from './plot-feedback.js';
+import {appendAwsome, loadAwsome, awsomeTop, sharedScale} from './awsome-panel.js';
+import {AWSOME_POINTS} from './awsome-data.js';
 import {PAIR_PLOTS, PIT_MAX_AGE_DAYS, HARDNESS, simTemps, hardnessLabel, ageDays, pitIsCurrent} from './plot-profile-data.js';
 
 /* Study-plot snow profile panel inside an expanded pair card: the latest simulated profile from the
@@ -66,12 +68,13 @@ function load(plot, fresh) {
 }
 
 /* One profile as an SVG: hardness bars (left) and temperature (right) on a shared height axis. */
-function drawProfile({layers, temps, tests, hsMax, aria, observed, bykFlags = false}) {
+function drawProfile({layers, temps, tests, hsMax, aria, observed, bykFlags = false, padTop = 0}) {
   const css = getComputedStyle(document.documentElement);
   const muted = css.getPropertyValue('--color-text-muted').trim() || '#666';
   const grid = css.getPropertyValue('--color-divider').trim() || css.getPropertyValue('--color-border').trim() || '#ddd';
   const ink = css.getPropertyValue('--color-text').trim() || '#222';
-  const W = 400, H = 340, m = {l: 40, r: 8, t: 10, b: 32};
+  // padTop lines the plot area up with the AWSOME panels beside it (their hardness labels sit on top).
+  const W = 400, H = 340 + padTop, m = {l: 40, r: 8, t: 10 + padTop, b: 32};
   const tempW = 92, gap = 14, hw = W - m.l - m.r - tempW - gap;
   const svg = sv('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': aria, class: 'plot-profile-svg'});
   const yMax = hsMax > 0 ? hsMax : 100;
@@ -134,7 +137,7 @@ function figure(title, meta, svg, kind) {
   return fig;
 }
 
-function draw(box, data) {
+function draw(box, data, plot, sharedMax) {
   box.replaceChildren();
   const byk = data.source === 'byk';
   const head = element('div', 'plot-profile-head');
@@ -147,11 +150,13 @@ function draw(box, data) {
   box.append(head);
   const sim = data.sim, pit = data.pit;
   const showPit = pit && pit.layers.length && pitIsCurrent(pit);
-  const hsMax = Math.ceil(Math.max(20, sim?.hs || 0, showPit ? pit.hs || pit.layers[0]?.[0] || 0 : 0) * 1.08 / 10) * 10;
+  const shared = sharedMax > 0;
+  const hsMax = shared ? sharedMax : Math.ceil(profileTop(data) * 1.08 / 10) * 10;
+  const padTop = shared ? 16 : 0;
   const figs = element('div', 'plot-profile-figs');
   if (sim && sim.layers.length) {
     figs.append(figure('Modelled', `${clock.format(sim.t)} MT · HS ${Math.round(sim.hs ?? sim.layers[0][0])} cm`, drawProfile({
-      layers: sim.layers, temps: simTemps(sim.layers), hsMax, observed: false, bykFlags: byk,
+      layers: sim.layers, temps: simTemps(sim.layers), hsMax, observed: false, bykFlags: byk, padTop,
       aria: `Modelled snow profile at ${data.name}${byk ? '' : ' study plot'}, ${clock.format(sim.t)} MT: ${sim.layers.length} layers, ${Math.round(sim.hs ?? sim.layers[0][0])} cm deep.`
     }), 'interp'));
   } else {
@@ -159,7 +164,7 @@ function draw(box, data) {
   }
   if (showPit) {
     figs.append(figure('Observed pit', `${clock.format(pit.t)} MT (${age(pit.t)})${pit.hs ? ` · HS ${pit.hs} cm` : ''}`, drawProfile({
-      layers: pit.layers, temps: pit.temps, tests: pit.tests, hsMax, observed: true,
+      layers: pit.layers, temps: pit.temps, tests: pit.tests, hsMax, observed: true, padTop,
       aria: `Observed snow profile at ${data.name} study plot, ${clock.format(pit.t)} MT: ${pit.layers.length} layers.`
     }), 'raw'));
   }
@@ -173,7 +178,10 @@ function draw(box, data) {
     item.append(sw, document.createTextNode(`${g} ${GRAIN[g][1].toLowerCase()}`));
     key.append(item);
   }
-  if (drawn) box.append(key);
+  // Beside the AWSOME panels each model carries its own legend underneath it.
+  const modelFig = figs.querySelector('.plot-profile-fig');
+  if (drawn && shared && modelFig) modelFig.append(key);
+  else if (drawn) box.append(key);
   const notes = drawn ? [byk
     ? 'Bars = hand hardness by layer, coloured by grain form; outlined bars are weak layers the BYK model rates structurally unstable. Hover a layer for details.'
     : 'Bars = hand hardness by layer, coloured by grain form; outlined bars are candidate weak layers (grain-form flag, not stability). Hover a layer for details.'] : [];
@@ -197,9 +205,26 @@ function draw(box, data) {
   }
   if (data.stale) notes.push(`The ${byk ? 'BYK Snowpack Model' : 'Banff Snowpack site'} did not answer; showing the last copy read.`);
   notes.push(data.label || 'Experimental snowpack-structure simulation, not an avalanche forecast.');
-  box.append(element('p', 'plot-profile-note', notes.join(' ')));
+  const noteEl = element('p', 'plot-profile-note', notes.join(' '));
+  box.append(noteEl);
+  // Today's AWSOME stability snapshot fills the space beside the modelled profile.
+  appendAwsome(figs, plot, noteEl, sharedMax);
   // Forecaster feedback, for the Banff Snowpack study plots only (the lab's model).
   if (!byk && sim) box.append(feedbackBox(data, {pitShown: Boolean(showPit)}));
+}
+
+/* Deepest snow in a plot answer (cm): the modelled HS and, when it is drawn, the observed pit. */
+function profileTop(data) {
+  const sim = data?.sim, pit = data?.pit;
+  const showPit = pit && pit.layers.length && pitIsCurrent(pit);
+  return Math.max(20, sim?.hs || sim?.layers?.[0]?.[0] || 0, showPit ? pit.hs || pit.layers[0]?.[0] || 0 : 0);
+}
+/* One height scale for the three AWSOME study plots (Bow Summit, Simpson, Sunshine): both models, every
+   site, so all their profiles compare by eye. Sites that fail to load are left out. */
+async function sharedHeight() {
+  const plots = Object.keys(AWSOME_POINTS);
+  const got = await Promise.allSettled([...plots.map(p => load(p).then(profileTop)), ...plots.map(p => loadAwsome(p).then(awsomeTop))]);
+  return sharedScale(got.map(r => (r.status === 'fulfilled' ? r.value : 0)));
 }
 
 /* Loads and draws the plot profile into `box`. `isCurrent` lets the caller drop a late answer. */
@@ -209,8 +234,9 @@ export async function renderPlotProfile(box, plot, {fresh = false, isCurrent = (
   box.replaceChildren(element('p', 'plot-profile-note', 'Loading modelled snowpack…'));
   try {
     const data = await load(plot, fresh);
+    const sharedMax = Object.hasOwn(AWSOME_POINTS, plot) ? await sharedHeight().catch(() => null) : null;
     if (!isCurrent()) return;
-    draw(box, data);
+    draw(box, data, plot, sharedMax);
   } catch (error) {
     if (!isCurrent()) return;
     box.replaceChildren(element('p', 'plot-profile-note', 'Modelled snowpack unavailable right now.'));
