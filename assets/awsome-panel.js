@@ -68,7 +68,7 @@ function load(plot) {
 function drawDry(data, mode, yMax) {
   const {muted, grid, ink} = colors();
   const layers = data.profile.layers;
-  const W = 300, H = 340, m = {l: 34, r: 12, t: 26, b: 38};
+  const W = 400, H = 356, m = {l: 40, r: 8, t: 26, b: 32};
   const pw = W - m.l - m.r, ph = H - m.t - m.b, x0 = m.l + pw;
   const y = cm => m.t + ph * (1 - cm / yMax);
   const xh = h => x0 - pw * Math.max(0, Math.min(6, h)) / 6;
@@ -80,7 +80,7 @@ function drawDry(data, mode, yMax) {
   const line = (x1, x2, y1, y2, stroke = grid, extra = {}) => sv('line', {x1, x2, y1, y2, stroke, 'stroke-width': 0.7, ...extra});
   svg.append(text(m.l + pw / 2, 11, 'Hand hardness', {fill: ink, 'font-size': 11}));
   svg.append(text(m.l - 4, m.t - 6, 'cm', {'text-anchor': 'end'}));
-  const step = yMax > 120 ? 25 : yMax > 40 ? 10 : 5;
+  const step = yMax > 250 ? 50 : yMax > 120 ? 25 : yMax > 40 ? 20 : 10;
   for (let v = 0; v <= yMax; v += step) svg.append(line(m.l, x0, y(v), y(v), grid, {'stroke-dasharray': '2 3'}), text(m.l - 5, y(v) + 3.5, String(v), {'text-anchor': 'end'}));
   for (let i = 1; i <= 6; i++) svg.append(line(xh(i), xh(i), m.t, m.t + ph, grid, {'stroke-dasharray': '2 3'}), text(xh(i), m.t + 12, HARDNESS[i]));
   svg.append(sv('rect', {x: m.l, y: m.t, width: pw, height: ph, fill: 'none', stroke: grid}));
@@ -118,40 +118,25 @@ function drawDry(data, mode, yMax) {
   return svg;
 }
 
-function legend() {
+function swatch(color, label, css) {
+  const item = element('span'), sw = element('i');
+  if (css) sw.style.cssText = css; else sw.style.background = color;
+  sw.setAttribute('aria-hidden', 'true');
+  item.append(sw, document.createTextNode(label));
+  return item;
+}
+/* Legend for one panel, placed directly under it. */
+function legend(mode) {
   const key = element('div', 'plot-profile-key awsome-key');
-  key.append(element('strong', '', 'AWSOME grain type'));
-  for (const g of KEY_GRAINS) {
-    const item = element('span'), sw = element('i');
-    sw.style.background = AWSOME_GRAIN[g][0];
-    sw.setAttribute('aria-hidden', 'true');
-    item.append(sw, document.createTextNode(`${g} ${AWSOME_GRAIN[g][1].toLowerCase()}`));
-    key.append(item);
+  if (mode === 'grain') {
+    for (const g of KEY_GRAINS) key.append(swatch(AWSOME_GRAIN[g][0], `${g} ${AWSOME_GRAIN[g][1].toLowerCase()}`));
+    key.append(swatch('', 'snow temperature', `background:${TEMP_COLOR};height:3px;border:0`),
+      swatch('', 'outlined = persistent weak layer flag', 'background:transparent;border:1.5px solid var(--color-text)'));
+  } else {
+    for (const c of PU_CLASSES) key.append(swatch(c.color, `Punstable ${c.label}`));
+    key.append(swatch('#2a2f38', 'no Punstable'), swatch('', 'Punstable curve', `background:${PU_COLOR};height:3px;border:0`));
   }
-  const pu = element('div', 'plot-profile-key awsome-key');
-  pu.append(element('strong', '', 'Punstable'));
-  for (const c of PU_CLASSES) {
-    const item = element('span'), sw = element('i');
-    sw.style.background = c.color;
-    sw.setAttribute('aria-hidden', 'true');
-    item.append(sw, document.createTextNode(c.label));
-    pu.append(item);
-  }
-  const lines = element('div', 'plot-profile-key awsome-key');
-  for (const [color, label] of [[TEMP_COLOR, 'snow temperature'], [PU_COLOR, 'Punstable curve']]) {
-    const item = element('span'), sw = element('i');
-    sw.style.cssText = `background:${color};height:3px;border:0`;
-    sw.setAttribute('aria-hidden', 'true');
-    item.append(sw, document.createTextNode(label));
-    lines.append(item);
-  }
-  const outline = element('span'), sw = element('i');
-  sw.style.cssText = 'background:transparent;border:1.5px solid var(--color-text)';
-  outline.append(sw, document.createTextNode('outlined = persistent weak layer flag'));
-  lines.append(outline);
-  const box = element('div', 'awsome-legend');
-  box.append(key, pu, lines);
-  return box;
+  return key;
 }
 
 function figure(title, meta) {
@@ -164,31 +149,27 @@ function figure(title, meta) {
   return {fig, body, cap};
 }
 
-/* One height scale (cm) for all three sites, so the panes compare at a glance: the deepest modelled
-   snowpack among the AWSOME points, plus 10 %, rounded up to 10 cm. Sites that fail to load are skipped. */
-const topOf = d => Math.max(d?.profile?.hs || 0, ...(d?.profile?.layers || []).map(l => l[0]));
+/* Height scale helpers. The pane (assets/plot-profile.js) puts the Banff modelled profile and both
+   AWSOME panels of all three sites on one scale: the deepest snowpack among them, plus 10 %, rounded up
+   to 10 cm. */
+export const awsomeTop = d => Math.max(d?.profile?.hs || 0, ...(d?.profile?.layers || []).map(l => l[0]));
 export const sharedScale = tops => Math.ceil(Math.max(20, ...tops.filter(Number.isFinite)) * 1.1 / 10) * 10;
-function scaleFor(own) {
-  return Promise.allSettled(Object.keys(AWSOME_POINTS).map(load))
-    .then(rs => sharedScale([topOf(own), ...rs.map(r => r.status === 'fulfilled' ? topOf(r.value) : 0)]));
-}
+export const loadAwsome = load;
 
-/* Adds the two AWSOME Dry figures and the legend column to the study-plot figure grid (`figs`), and the
-   note after `noteHost`. */
-export function appendAwsome(figs, plot, noteHost) {
+/* Adds the two AWSOME Dry figures, each with its legend underneath, to the study-plot figure grid (`figs`),
+   and the note after `noteHost`. `yMax` is the shared height scale in cm (own scale if not given). */
+export function appendAwsome(figs, plot, noteHost, yMax) {
   if (OFF || !Object.hasOwn(AWSOME_POINTS, plot)) return;
   const point = AWSOME_POINTS[plot];
-  const a = figure('AWSOME Dry', `${point.label}, flat field`);
+  const a = figure('AWSOME Dry', 'flat field');
   const b = figure('AWSOME Dry · Punstable', 'flat field');
-  const key = element('figure', 'plot-profile-fig awsome-fig awsome-legend-fig');
-  key.hidden = true;
-  figs.append(a.fig, b.fig, key);
+  figs.append(a.fig, b.fig);
   const after = element('div', 'awsome-after');
   noteHost?.after(after);
-  load(plot).then(data => scaleFor(data).then(yMax => [data, yMax])).then(([data, yMax]) => {
+  load(plot).then(data => {
     if (!figs.isConnected) return;
     const when = `${clock.format(data.t)} MT`;
-    a.cap.lastChild.textContent = ` · ${point.label} · ${when}${data.profile?.hs ? ` · HS ${Math.round(data.profile.hs)} cm` : ''}`;
+    a.cap.lastChild.textContent = ` · ${when}${data.profile?.hs ? ` · HS ${Math.round(data.profile.hs)} cm` : ''}`;
     b.cap.lastChild.textContent = ` · ${when}`;
     const layers = data.profile?.layers || [];
     if (!layers.length) {
@@ -196,14 +177,13 @@ export function appendAwsome(figs, plot, noteHost) {
       b.fig.remove();
       return;
     }
-    a.body.replaceChildren(drawDry(data, 'grain', yMax));
-    b.body.replaceChildren(drawDry(data, 'punstable', yMax));
+    const scale = yMax > 0 ? yMax : sharedScale([awsomeTop(data)]);
+    a.body.replaceChildren(drawDry(data, 'grain', scale), legend('grain'));
+    b.body.replaceChildren(drawDry(data, 'punstable', scale), legend('punstable'));
     const link = element('a', '', 'open AWSOME');
     link.href = data.url; link.target = '_blank'; link.rel = 'noopener';
     const note = element('p', 'plot-profile-note');
-    note.append(document.createTextNode(`AWSOME Dry profile (SnowpackBC), drawn as on the AWSOME site. Punstable is the modelled probability that a layer is unstable (Mayer et al. 2022). ${point.elevation ? `Model point ${point.elevation} m. ` : ''}${data.stale ? 'SnowpackBC did not answer; showing the last copy read. ' : ''}${data.label} `), link);
-    key.replaceChildren(element('figcaption', '', 'Legend'), legend());
-    key.hidden = false;
+    note.append(document.createTextNode(`AWSOME Dry profile (SnowpackBC, ${point.label}, flat field), drawn as on the AWSOME site. Punstable is the modelled probability that a layer is unstable (Mayer et al. 2022). ${point.elevation ? `Model point ${point.elevation} m. ` : ''}${data.stale ? 'SnowpackBC did not answer; showing the last copy read. ' : ''}${data.label} `), link);
     after.replaceChildren(note);
   }).catch(() => {
     if (!figs.isConnected) return;

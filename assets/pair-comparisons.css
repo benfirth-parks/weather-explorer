@@ -63,7 +63,6 @@
 .plot-profile-svg { display:block; width:100%; max-width:440px; height:auto; font-family:inherit; }
 .plot-profile-svg path:hover { filter:brightness(1.1); }
 .awsome-fig .awsome-body { min-height:120px; }
-.awsome-dry { max-width:340px; }
 .plot-profile-key { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:8px; font-size:11px; color:var(--color-text-muted); }
 .plot-profile-key > span { display:flex; align-items:center; gap:4px; }
 .plot-profile-key i { display:inline-block; width:10px; height:10px; border-radius:2px; border:1px solid var(--color-border); }
@@ -85,10 +84,6 @@
 .plot-feedback-status { margin:0; color:var(--color-text-muted); min-height:1em; }
 /* AWSOME Dry profile (assets/awsome-panel.js) */
 .awsome-after { margin-top:6px; }
-.awsome-legend { display:grid; gap:4px; margin-top:8px; }
-.awsome-key { margin-top:0; }
+.awsome-key { margin-top:6px; max-width:440px; }
+.plot-profile-fig > .plot-profile-key { max-width:440px; }
 .awsome-key strong { color:var(--color-text); font-weight:600; margin-right:4px; }
-/* AWSOME legend as a column beside the Dry panels */
-.plot-profile-figs:has(.awsome-legend-fig:not([hidden])) { grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); }
-.awsome-legend-fig .awsome-legend { margin-top:22px; gap:10px; }
-.awsome-legend-fig .awsome-key { flex-direction:column; flex-wrap:nowrap; gap:3px; }
