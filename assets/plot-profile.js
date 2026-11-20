@@ -1,6 +1,6 @@
 import {dataKindTag} from './data-kind.js';
 import {feedbackBox} from './plot-feedback.js';
-import {appendAwsome, loadAwsome, awsomeTop, sharedScale} from './awsome-panel.js';
+import {appendAwsome, loadAwsome, awsomeTop, sharedScale, awsomeShown} from './awsome-panel.js';
 import {AWSOME_POINTS} from './awsome-data.js';
 import {PAIR_PLOTS, PIT_MAX_AGE_DAYS, HARDNESS, simTemps, hardnessLabel, ageDays, pitIsCurrent} from './plot-profile-data.js';
 
@@ -209,8 +209,8 @@ function draw(box, data, plot, sharedMax) {
   box.append(noteEl);
   // Today's AWSOME stability snapshot fills the space beside the modelled profile.
   appendAwsome(figs, plot, noteEl, sharedMax);
-  // Forecaster feedback, for the Banff Snowpack study plots only (the lab's model).
-  if (!byk && sim) box.append(feedbackBox(data, {pitShown: Boolean(showPit)}));
+  // Forecaster feedback, for the study plots: the Banff Snowpack model and, where drawn, AWSOME.
+  if (!byk && sim) box.append(feedbackBox(data, {pitShown: Boolean(showPit), awsome: awsomeShown(plot) ? () => loadAwsome(plot) : null}));
 }
 
 /* Deepest snow in a plot answer (cm): the modelled HS and, when it is drawn, the observed pit. */
