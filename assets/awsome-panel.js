@@ -7,13 +7,14 @@ import {AWSOME_POINTS} from './awsome-data.js';
    Colours and class breaks follow the AWSOME (nivix) viewer. All data text is inserted as text.
    ?awsome=off hides it. */
 const NS = 'http://www.w3.org/2000/svg';
-/* Grain colours used by the AWSOME viewer. */
+/* Grain colours: the ICSSG colours the Banff Snowpack profile beside these panels uses (assets/plot-profile.js),
+   so one colour means one grain form across all three models. */
 export const AWSOME_GRAIN = {
-  PP: ['#ffde00', 'Precipitation particles'], DF: ['#f1f501', 'Decomposing & fragmented'], RG: ['#ffccd9', 'Rounded grains'],
-  FCxr: ['#dacef4', 'Faceted rounded'], FC: ['#b2edff', 'Faceted crystals'], DH: ['#4678e8', 'Depth hoar'],
-  SH: ['#ee3a1d', 'Surface hoar'], MF: ['#d5ebb5', 'Melt forms'], MFcr: ['#addd8e', 'Melt-freeze crust'], IF: ['#a3ddbb', 'Ice formations']
+  PP: ['#00ff00', 'Precipitation particles'], DF: ['#228b22', 'Decomposing and fragmented'], RG: ['#ffb6c1', 'Rounded grains'],
+  FC: ['#add8e6', 'Faceted crystals'], FCxr: ['#6495ed', 'Rounding faceted'], DH: ['#0000ff', 'Depth hoar'],
+  SH: ['#ff00ff', 'Surface hoar'], MF: ['#ff0000', 'Melt forms'], MFcr: ['#8b0000', 'Melt-freeze crust'], IF: ['#00ffff', 'Ice formation']
 };
-const KEY_GRAINS = ['PP', 'DF', 'RG', 'FCxr', 'FC', 'DH', 'SH', 'MF', 'MFcr'];
+const KEY_GRAINS = ['PP', 'DF', 'RG', 'FC', 'FCxr', 'DH', 'SH', 'MF', 'MFcr'];
 /* Punstable classes (EAWS breaks used by the AWSOME viewer: 0.70, 0.78, 0.85). */
 export const PU_CLASSES = [
   {max: 0.7, color: '#a2e05a', label: '< 0.70'},
@@ -23,7 +24,7 @@ export const PU_CLASSES = [
 ];
 export const puClass = p => PU_CLASSES.find(c => p < c.max) || PU_CLASSES.at(-1);
 const HARDNESS = ['', 'F', '4F', '1F', 'P', 'K', 'I'];
-const TEMP_COLOR = '#8a1538', PU_COLOR = '#e8891c';
+const TEMP_COLOR = '#d9472b', PU_COLOR = '#e8891c';
 const clock = new Intl.DateTimeFormat('en-CA', {timeZone: 'Etc/GMT+6', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false});
 const requests = new Map();
 const MEMORY_MS = 10 * 60000;
