@@ -32,7 +32,7 @@ export default async (req) => {
     if (!ts) throw new Error("no current model time");
     const files = Object.fromEntries(await Promise.all(ASPECTS.map(async a => [a, await getJSON(`${source}/geojson/${ts}.${a}.json`)])));
     const zarr = encodeURIComponent(`/opt/awsome/${source}/xsnowpack.zarr`);
-    const xs = await getJSON(`nivix/xs?file=${zarr}&location=${encodeURIComponent(location)}&inclination=0&azimuth=0&params=grainshape,punstable,layer_of_interest`).catch(() => null);
+    const xs = await getJSON(`nivix/xs?file=${zarr}&location=${encodeURIComponent(location)}&inclination=0&azimuth=0&params=grainshape,hardness,temperature,punstable,layer_of_interest`).catch(() => null);
     const body = summariseAwsome(plot, config.date, files, xs);
     cache.set(plot, {at: Date.now(), body});
     return json(200, body, 600);

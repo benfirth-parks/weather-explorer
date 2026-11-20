@@ -8,7 +8,7 @@
         grainType, instabilityDrivenBy}, .weather {hn24, ta, dw24_sector}
      nivix/xs?file=/opt/awsome/<source>/xsnowpack.zarr&location=..&inclination=0&azimuth=0&params=..
         -> {time: [unix s], hs: [cm], tops: [[layer top heights, cm above ground, bottom up]],
-            params: {grainshape: [[...]], punstable: [[...]], layer_of_interest: [[0|1]]}}
+            params: {grainshape, hardness (F=1 .. I=6), temperature (C), punstable, layer_of_interest (0|1): [[...]]}}
    Punstable is the probability that a layer is unstable (Mayer et al. 2022); 0.77 is the usual threshold. */
 
 export const AWSOME_SITE = 'https://snowpackbc.com';
@@ -44,16 +44,17 @@ export function weatherSummary(geojson, location) {
 }
 
 /* nivix season record -> the flat-field profile at model time t (unix s): layers bottom up as
-   [top_cm, bottom_cm, grain, punstable|null, weak 0|1]. */
+   [top_cm, bottom_cm, grain, punstable|null, weak 0|1, hardness|null, temp_c|null]. */
 export function profileAt(xs, t) {
   const times = xs?.time || [];
   let i = -1;
   for (let k = 0; k < times.length; k++) if (times[k] <= t) i = k;
   if (i < 0) return null;
-  const tops = xs.tops?.[i] || [], g = xs.params?.grainshape?.[i] || [], pu = xs.params?.punstable?.[i] || [], wl = xs.params?.layer_of_interest?.[i] || [];
+  const P = xs.params || {}, at = k => P[k]?.[i] || [];
+  const tops = xs.tops?.[i] || [], g = at('grainshape'), pu = at('punstable'), wl = at('layer_of_interest'), hd = at('hardness'), tc = at('temperature');
   let bottom = 0;
   const layers = tops.map((top, j) => {
-    const row = [num(top), num(bottom), g[j] || null, Number.isFinite(pu[j]) ? num(pu[j]) : null, wl[j] ? 1 : 0];
+    const row = [num(top), num(bottom), g[j] || null, Number.isFinite(pu[j]) ? num(pu[j]) : null, wl[j] ? 1 : 0, num(hd[j]), num(tc[j])];
     bottom = top;
     return row;
   });

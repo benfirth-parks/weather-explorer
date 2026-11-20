@@ -14,7 +14,7 @@ const files = {
 const T = Date.UTC(2026, 10, 19, 6) / 1000;
 const xs = {time: [T - 10800, T, T + 10800], hs: [20, 25, 26],
   tops: [[10, 20], [8, 16.7, 25], [1]],
-  params: {grainshape: [['DH', 'DF'], ['DH', 'SH', 'PP'], ['DH']], punstable: [[0.1, null], [0.66, 0.61, null], [0.2]], layer_of_interest: [[1, 0], [1, 1, 0], [0]]}};
+  params: {grainshape: [['DH', 'DF'], ['DH', 'SH', 'PP'], ['DH']], punstable: [[0.1, null], [0.66, 0.61, null], [0.2]], layer_of_interest: [[1, 0], [1, 1, 0], [0]], hardness: [[1, 1], [1, 1.27], [1]], temperature: [[-1, -2], [-0.5, -3], [-1]]}};
 
 test('model time maps to the snapshot file stamp', () => {
   assert.equal(stamp('2026-11-19T06:00:00'), '2026-11-19_06-00-00');
@@ -27,7 +27,7 @@ test('aspect summary finds the location and ignores others', () => {
 test('profile is taken at the model time, layers bottom up with bottoms filled in', () => {
   const p = profileAt(xs, T);
   assert.equal(p.t, T * 1000);
-  assert.deepEqual(p.layers, [[8, 0, 'DH', 0.66, 1], [16.7, 8, 'SH', 0.61, 1], [25, 16.7, 'PP', null, 0]]);
+  assert.deepEqual(p.layers, [[8, 0, 'DH', 0.66, 1, 1, -0.5], [16.7, 8, 'SH', 0.61, 1, 1.27, -3], [25, 16.7, 'PP', null, 0, null, null]]);
   assert.equal(profileAt(xs, T - 99999), null);
 });
 test('summary carries weather, aspects and profile', () => {
