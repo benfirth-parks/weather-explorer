@@ -86,6 +86,8 @@
 .awsome-after { margin-top:6px; }
 .awsome-key { margin-top:6px; max-width:440px; }
 .plot-profile-fig > .plot-profile-key { max-width:440px; }
+.awsome-site-link { flex-basis:100%; margin-top:2px; color:var(--color-primary); text-decoration:none; }
+.awsome-site-link:hover, .awsome-site-link:focus-visible { text-decoration:underline; }
 .awsome-key strong { color:var(--color-text); font-weight:600; margin-right:4px; }
 /* With the AWSOME panels, line every model up row by row (caption, chart, legend), so the height axes
    sit level even when a caption wraps. */

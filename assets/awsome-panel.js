@@ -140,6 +140,16 @@ function legend(mode) {
   return key;
 }
 
+/* A link to the model's own site on its own line at the foot of a panel's legend (kept inside the
+   legend so the panels' caption / chart / legend rows still line up). */
+export function withSiteLink(key, url) {
+  const link = element('a', 'awsome-site-link', 'SnowpackBC AWSOME ↗');
+  link.href = url; link.target = '_blank'; link.rel = 'noopener';
+  link.title = 'Open the AWSOME model on snowpackbc.com';
+  key.append(link);
+  return key;
+}
+
 function figure(title, meta) {
   const fig = element('figure', 'plot-profile-fig awsome-fig');
   const cap = element('figcaption');
@@ -179,8 +189,8 @@ export function appendAwsome(figs, plot, noteHost, yMax) {
       return;
     }
     const scale = yMax > 0 ? yMax : sharedScale([awsomeTop(data)]);
-    a.body.replaceChildren(drawDry(data, 'grain', scale), legend('grain'));
-    b.body.replaceChildren(drawDry(data, 'punstable', scale), legend('punstable'));
+    a.body.replaceChildren(drawDry(data, 'grain', scale), withSiteLink(legend('grain'), data.url));
+    b.body.replaceChildren(drawDry(data, 'punstable', scale), withSiteLink(legend('punstable'), data.url));
     const link = element('a', '', 'open AWSOME');
     link.href = data.url; link.target = '_blank'; link.rel = 'noopener';
     const note = element('p', 'plot-profile-note');
