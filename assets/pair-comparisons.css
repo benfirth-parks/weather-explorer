@@ -88,3 +88,7 @@
 .awsome-legend { display:grid; gap:4px; margin-top:8px; }
 .awsome-key { margin-top:0; }
 .awsome-key strong { color:var(--color-text); font-weight:600; margin-right:4px; }
+/* AWSOME legend as a column beside the Dry panels */
+.plot-profile-figs:has(.awsome-legend-fig:not([hidden])) { grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); }
+.awsome-legend-fig .awsome-legend { margin-top:22px; gap:10px; }
+.awsome-legend-fig .awsome-key { flex-direction:column; flex-wrap:nowrap; gap:3px; }

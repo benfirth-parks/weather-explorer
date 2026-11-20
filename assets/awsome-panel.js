@@ -164,17 +164,28 @@ function figure(title, meta) {
   return {fig, body, cap};
 }
 
-/* Adds the two AWSOME Dry figures to the study-plot figure grid (`figs`) and the legend and note after
-   `noteHost`. */
+/* One height scale (cm) for all three sites, so the panes compare at a glance: the deepest modelled
+   snowpack among the AWSOME points, plus 10 %, rounded up to 10 cm. Sites that fail to load are skipped. */
+const topOf = d => Math.max(d?.profile?.hs || 0, ...(d?.profile?.layers || []).map(l => l[0]));
+export const sharedScale = tops => Math.ceil(Math.max(20, ...tops.filter(Number.isFinite)) * 1.1 / 10) * 10;
+function scaleFor(own) {
+  return Promise.allSettled(Object.keys(AWSOME_POINTS).map(load))
+    .then(rs => sharedScale([topOf(own), ...rs.map(r => r.status === 'fulfilled' ? topOf(r.value) : 0)]));
+}
+
+/* Adds the two AWSOME Dry figures and the legend column to the study-plot figure grid (`figs`), and the
+   note after `noteHost`. */
 export function appendAwsome(figs, plot, noteHost) {
   if (OFF || !Object.hasOwn(AWSOME_POINTS, plot)) return;
   const point = AWSOME_POINTS[plot];
   const a = figure('AWSOME Dry', `${point.label}, flat field`);
   const b = figure('AWSOME Dry · Punstable', 'flat field');
-  figs.append(a.fig, b.fig);
+  const key = element('figure', 'plot-profile-fig awsome-fig awsome-legend-fig');
+  key.hidden = true;
+  figs.append(a.fig, b.fig, key);
   const after = element('div', 'awsome-after');
   noteHost?.after(after);
-  load(plot).then(data => {
+  load(plot).then(data => scaleFor(data).then(yMax => [data, yMax])).then(([data, yMax]) => {
     if (!figs.isConnected) return;
     const when = `${clock.format(data.t)} MT`;
     a.cap.lastChild.textContent = ` · ${point.label} · ${when}${data.profile?.hs ? ` · HS ${Math.round(data.profile.hs)} cm` : ''}`;
@@ -185,15 +196,15 @@ export function appendAwsome(figs, plot, noteHost) {
       b.fig.remove();
       return;
     }
-    const top = Math.max(data.profile.hs || 0, ...layers.map(l => l[0]));
-    const yMax = Math.ceil(Math.max(20, top) * 1.1 / 5) * 5;
     a.body.replaceChildren(drawDry(data, 'grain', yMax));
     b.body.replaceChildren(drawDry(data, 'punstable', yMax));
     const link = element('a', '', 'open AWSOME');
     link.href = data.url; link.target = '_blank'; link.rel = 'noopener';
     const note = element('p', 'plot-profile-note');
     note.append(document.createTextNode(`AWSOME Dry profile (SnowpackBC), drawn as on the AWSOME site. Punstable is the modelled probability that a layer is unstable (Mayer et al. 2022). ${point.elevation ? `Model point ${point.elevation} m. ` : ''}${data.stale ? 'SnowpackBC did not answer; showing the last copy read. ' : ''}${data.label} `), link);
-    after.replaceChildren(legend(), note);
+    key.replaceChildren(element('figcaption', '', 'Legend'), legend());
+    key.hidden = false;
+    after.replaceChildren(note);
   }).catch(() => {
     if (!figs.isConnected) return;
     a.body.replaceChildren(element('p', 'plot-profile-empty', 'AWSOME profile unavailable right now.'));

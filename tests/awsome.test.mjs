@@ -59,3 +59,9 @@ test('handler reads the current model time and returns the snapshot', async () =
     assert.equal(bad.status, 400);
   } finally { globalThis.fetch = real; }
 });
+
+test('the three sites share one height scale from the deepest snowpack', async () => {
+  const {sharedScale} = await import('../assets/awsome-panel.js');
+  assert.equal(sharedScale([173, 95, 0, NaN]), 200);
+  assert.equal(sharedScale([5]), 30);
+});
