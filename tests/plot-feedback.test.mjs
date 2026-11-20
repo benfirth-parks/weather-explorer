@@ -19,6 +19,11 @@ test('a good note is kept with the server receive time, never the client clock',
   assert.equal(r.record.source, 'banff-snowpack');
   assert.equal('team_code' in r.record, false);
 });
+test('the note records which model it is about', () => {
+  assert.equal(validateFeedback({...good, source: 'awsome'}, NOW).record.source, 'awsome');
+  assert.equal(validateFeedback({...good, source: 'byk'}, NOW).record.source, 'byk');
+  assert.equal(validateFeedback({...good, source: 'other'}, NOW).record.source, 'banff-snowpack');
+});
 test('a note needs a plot, a name, and either a verdict or words', () => {
   assert.equal(validateFeedback({...good, plot: '../x'}, NOW).ok, false);
   assert.equal(validateFeedback({...good, name: ' '}, NOW).ok, false);
