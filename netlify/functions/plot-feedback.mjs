@@ -1,16 +1,16 @@
 /* Forecaster feedback on the modelled study-plot snowpack (POST /api/plot-feedback).
 
    POST  { plot, source, team_code, name, agreement, topics[], note, model_t, model_hs, pit_t }
-         Saves one note to Netlify Blobs (plot-feedback-v1). Needs the team code
-         forecasters are given, so the public site cannot be used to post notes.
-         20 notes an hour per client IP.
+         Saves one note to Netlify Blobs (plot-feedback-v1). Open to anyone (owner,
+         2026-11-18: no team code); 20 notes an hour per client IP. If FEEDBACK_TEAM_CODE
+         is ever set, posts must carry it.
    GET   ?since=YYYY-MM-DD  with header x-feedback-admin-token
          Lists saved notes, oldest first. Used by the Banff Snowpack daily update
          to copy notes into its private archive. Notes and names are internal and
          never shown on the public site.
 
    Environment:
-     FEEDBACK_TEAM_CODE     required for POST   shared code for forecasters
+     FEEDBACK_TEAM_CODE     optional            if set, posts must carry this code
      FEEDBACK_ADMIN_TOKEN   required for GET    token for the daily update
 */
 
@@ -54,12 +54,11 @@ async function rateLimited(ip) {
 
 async function save(req) {
   const code = process.env.FEEDBACK_TEAM_CODE;
-  if (!code) return json({ error: "Feedback is not switched on yet." }, 503);
   const raw = await req.text();
   if (raw.length > MAX_BODY) return json({ error: "Note is too long." }, 413);
   let body;
   try { body = JSON.parse(raw); } catch { return json({ error: "Invalid JSON body." }, 400); }
-  if (!sameSecret(String(body?.team_code || "").trim(), code)) return json({ error: "That team code is not right." }, 401);
+  if (code && !sameSecret(String(body?.team_code || "").trim(), code)) return json({ error: "That team code is not right." }, 401);
   if (await rateLimited(clientIp(req))) return json({ error: "Too many notes this hour. Try again later." }, 429);
   const checked = validateFeedback(body, Date.now());
   if (!checked.ok) return json({ error: checked.error }, 400);

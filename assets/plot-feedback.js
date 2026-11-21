@@ -1,7 +1,6 @@
 /* Forecaster feedback box under the modelled study-plot snowpack.
    Forecasters say whether they agree with the model run shown, tick what the note is
-   about, and write what they see that the model may miss. Notes go to /api/plot-feedback,
-   which needs the team code. Notes and names stay internal: they are never shown here
+   about, and write what they see that the model may miss. Notes go to /api/plot-feedback. Notes and names stay internal: they are never shown here
    and never published on the Banff Snowpack site. The Banff Snowpack lab turns them into
    rules that are tested on past pits before they can change any forecast. */
 const TOPICS = [
@@ -81,10 +80,7 @@ export function feedbackBox(data, {pitShown = false, awsome = null} = {}) {
   const nameLabel = element('label', 'plot-feedback-field'), name = element('input');
   name.type = 'text'; name.maxLength = 60; name.autocomplete = 'name'; name.value = me.name || '';
   nameLabel.append(element('span', '', 'Name or initials'), name);
-  const codeLabel = element('label', 'plot-feedback-field'), code = element('input');
-  code.type = 'password'; code.maxLength = 100; code.autocomplete = 'off'; code.value = me.code || '';
-  codeLabel.append(element('span', '', 'Team code'), code);
-  who.append(nameLabel, codeLabel);
+  who.append(nameLabel);
 
   const send = element('button', 'plot-feedback-send', 'Save note');
   send.type = 'submit';
@@ -102,7 +98,6 @@ export function feedbackBox(data, {pitShown = false, awsome = null} = {}) {
     if (!source) { status.textContent = 'Pick which model the note is about.'; return; }
     if (!agreement && !note.value.trim()) { status.textContent = 'Pick agree, partly or disagree, or write a note.'; return; }
     if (!name.value.trim()) { status.textContent = 'Add your name or initials.'; return; }
-    if (!code.value.trim()) { status.textContent = 'Enter the team code.'; return; }
     send.disabled = true;
     status.textContent = 'Saving…';
     try {
@@ -116,16 +111,16 @@ export function feedbackBox(data, {pitShown = false, awsome = null} = {}) {
         method: 'POST',
         headers: {'content-type': 'application/json', accept: 'application/json'},
         body: JSON.stringify({
-          plot: data.plot, source, team_code: code.value.trim(), name: name.value.trim(),
+          plot: data.plot, source, name: name.value.trim(),
           agreement, topics: chosen, note: note.value, model_t: run.t, model_hs: run.hs, pit_t: pitShown ? data.pit?.t ?? null : null
         })
       });
       const answer = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(answer.error || `HTTP ${r.status}`);
-      remember({name: name.value.trim(), code: code.value.trim()});
+      remember({name: name.value.trim()});
       form.reset();
       if (models.length === 1) model.querySelector('input').checked = true;
-      name.value = remembered().name || ''; code.value = remembered().code || '';
+      name.value = remembered().name || '';
       status.textContent = 'Saved. Thank you.';
     } catch (error) {
       status.textContent = `Not saved: ${error.message}`;
