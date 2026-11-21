@@ -54,10 +54,16 @@ export const STATION_META = [
   // Group 5 · Waterton  (excluded from default summary scope)
   { stationId: "fts-summitlake",  name: "Summit Lake",                        elevation: 2056, park: "Waterton", group: 5, ns: "South", ew: "East" },
   { stationId: "fts-akamina",     name: "Akamina Pass (AEP)",                 elevation: 1676, park: "Waterton", group: 5, ns: "South", ew: "East" },
-  { stationId: "fts-waterton",    name: "Waterton Townsite",                  elevation: 1294, park: "Waterton", group: 5, ns: "South", ew: "East" }
+  { stationId: "fts-waterton",    name: "Waterton Townsite",                  elevation: 1294, park: "Waterton", group: 5, ns: "South", ew: "East" },
+  // Group 6 · Kananaskis  (excluded from default summary scope; Avalanche Canada feed)
+  { stationId: "kc-aster",        name: "Aster Lake",                         elevation: 2350, park: "Kananaskis", group: 6, ns: "South", ew: "West" },
+  { stationId: "kc-burstall",     name: "Burstall Pass",                      elevation: 2300, park: "Kananaskis", group: 6, ns: "South", ew: "West" },
+  { stationId: "kc-highwood",     name: "Highwood Pass",                      elevation: 2250, park: "Kananaskis", group: 6, ns: "South", ew: "East" },
+  { stationId: "kc-mudlake",      name: "Mud Lake",                           elevation: 1900, park: "Kananaskis", group: 6, ns: "South", ew: "West" },
+  { stationId: "kc-rundle",       name: "East End of Rundle",                 elevation: 1700, park: "Kananaskis", group: 6, ns: "North", ew: "West" }
 ];
 
-const GROUP_LABELS = { 1: "Banff VS", 2: "Banff Fire", 3: "Jasper VS", 4: "Jasper Fire", 5: "Waterton" };
+const GROUP_LABELS = { 1: "Banff VS", 2: "Banff Fire", 3: "Jasper VS", 4: "Jasper Fire", 5: "Waterton", 6: "Kananaskis" };
 
 function num(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -260,7 +266,7 @@ export const DEFAULT_GROUPS = [1, 2];
    valley stations of the same region as the Visitor Safety stations (groups 1 and 3), so a
    comparison across elevation bands takes a region's groups together. Returns every group in
    the regions the given groups touch; the default groups when it touches none. */
-export const REGION_GROUPS = [[1, 2], [3, 4], [5]];
+export const REGION_GROUPS = [[1, 2], [3, 4], [5], [6]];
 export function regionGroups(groups) {
   const asked = new Set(groups);
   const out = REGION_GROUPS.filter((region) => region.some((g) => asked.has(g))).flat();

@@ -48,3 +48,27 @@ test("archive merge: FTS360 replaces backup records, backup never overwrites FTS
   const fromFts = mergeAndPrune(existing, [{ measurementDateTime: t1, snowHeight: 8 }]);
   assert.deepEqual(fromFts[1], { measurementDateTime: t1, snowHeight: 8 });
 });
+
+test("Kananaskis stations: Avalanche Canada every sync, from 6 h before the newest record, despiked", async () => {
+  const { despike } = await import("../netlify/functions/_avcan.mjs");
+  const { isKnownStation } = await import("../netlify/functions/_weather-archive.mjs");
+  assert.ok(isKnownStation("kc-burstall") && isKnownStation("kc-aster"));
+  const now = Date.UTC(2026, 10, 21, 15);
+  const hs = [50, 50, 51, 146, 51, 52, 52];
+  const measurements = hs.map((v, i) => ({ measurementDateTime: iso(now - (hs.length - i) * H), snowHeight: v, airTempAvg: -5 }));
+  let asked = null;
+  const fetchImpl = async (url) => { asked = new URL(String(url)); return { ok: true, json: async () => [...measurements].reverse() }; };
+  // Archive current to 1 h ago: still fetched (no 3 h gate), starting 6 h before it.
+  const newest = now - H;
+  const out = await fetchBackup("kc-rundle", [{ measurementDateTime: iso(newest), source: AVCAN_SOURCE }], { now, fetchImpl });
+  assert.match(asked.pathname, /stations\/159\/measurements/);
+  assert.equal(asked.searchParams.get("fromDate"), iso(newest - 6 * H));
+  assert.equal(out.length, 6); // hours after newest - 6 h
+  const spike = out.find((r) => r.hsDespiked);
+  assert.equal(spike.snowHeight, null);
+  assert.equal(out.filter((r) => r.hsDespiked).length, 1);
+  // Empty archive: the last 7 days.
+  await fetchBackup("kc-aster", [], { now, fetchImpl });
+  assert.equal(asked.searchParams.get("fromDate"), iso(now - 7 * 24 * H));
+  assert.deepEqual(despike([{ snowHeight: 10 }]), [{ snowHeight: 10 }]);
+});

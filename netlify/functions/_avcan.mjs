@@ -40,6 +40,21 @@ export const AVCAN_STATION_IDS = {
   "fts-akamina": 126
 };
 
+/* Group 6 · Kananaskis (Ben, 21 Nov 2026; the stations of his K-Country Wx Actuals site,
+   benfirth-parks/kcountry-wx-actuals). Kananaskis Country's own network: Avalanche Canada is
+   their only feed (no NOAA or FTS360 here), so for these it is the primary source, not a
+   backup. No precipitation gauge; Aster Lake has no depth sensor. */
+export const AVCAN_ONLY_STATION_IDS = {
+  "kc-rundle": 159,
+  "kc-mudlake": 3,
+  "kc-burstall": 1,
+  "kc-aster": 4,
+  "kc-highwood": 5
+};
+export const isAvcanOnly = (stationId) => Object.hasOwn(AVCAN_ONLY_STATION_IDS, stationId);
+/* Hours re-read before the newest Avalanche Canada-only record, to pick up late or revised hours. */
+const AVCAN_ONLY_OVERLAP_HOURS = 6;
+
 const FIELD_MAP = {
   snowHeight: "snowHeight",
   airTempAvg: "airTempAvg",
@@ -100,13 +115,33 @@ export function backupRecordsAfter(measurements, afterMs) {
     .sort((a, b) => new Date(a.measurementDateTime) - new Date(b.measurementDateTime));
 }
 
-/** Fetches backup records for a station when NOAA and FTS360 are both behind; [] otherwise. */
+/* Snow-depth spike filter for the Avalanche Canada-only stations (from the K-Country site):
+   East End of Rundle reads ~0 cm and then 28 or 146 cm for a single hour. A depth more than
+   15 cm from the median of the 3 h either side is dropped. Records sorted oldest first. */
+export function despike(records) {
+  const hs = records.map((r) => (typeof r.snowHeight === "number" && Number.isFinite(r.snowHeight) ? r.snowHeight : null));
+  return records.map((r, i) => {
+    if (hs[i] == null) return r;
+    const lo = Math.max(0, i - 3);
+    const nb = hs.slice(lo, i + 4).filter((v, j) => v != null && j !== i - lo).sort((a, b) => a - b);
+    if (!nb.length) return r;
+    const med = nb[Math.floor(nb.length / 2)];
+    // null (not left out) so the merge also clears a spike an earlier sync kept.
+    return Math.abs(hs[i] - med) > 15 ? { ...r, snowHeight: null, hsDespiked: true } : r;
+  });
+}
+
+/** Fetches backup records for a station when NOAA and FTS360 are both behind; [] otherwise.
+    For an Avalanche Canada-only station (Kananaskis) it fetches every sync, from a few hours
+    before its newest record. */
 export async function fetchBackup(stationId, observations, { now = Date.now(), fetchImpl = fetch } = {}) {
-  const avcanId = AVCAN_STATION_IDS[stationId];
+  const only = isAvcanOnly(stationId);
+  const avcanId = only ? AVCAN_ONLY_STATION_IDS[stationId] : AVCAN_STATION_IDS[stationId];
   if (!avcanId) return [];
-  const newest = newestPrimaryTime(observations);
-  if (Number.isFinite(newest) && now - newest < BACKUP_AFTER_HOURS * 3600 * 1000) return [];
-  const from = Math.max(Number.isFinite(newest) ? newest : 0, now - MAX_BACKFILL_DAYS * 86400 * 1000);
+  const newest = only ? newestTime(observations, () => true) : newestPrimaryTime(observations);
+  if (!only && Number.isFinite(newest) && now - newest < BACKUP_AFTER_HOURS * 3600 * 1000) return [];
+  const after = only && Number.isFinite(newest) ? newest - AVCAN_ONLY_OVERLAP_HOURS * 3600 * 1000 : newest;
+  const from = Math.max(Number.isFinite(after) ? after : 0, now - MAX_BACKFILL_DAYS * 86400 * 1000);
   const url = new URL(`${AVCAN_BASE}/stations/${avcanId}/measurements`);
   url.searchParams.set("fromDate", new Date(from).toISOString());
   url.searchParams.set("toDate", new Date(now).toISOString());
@@ -115,5 +150,6 @@ export async function fetchBackup(stationId, observations, { now = Date.now(), f
   const body = await res.json();
   // The API returns a bare array (newest first); the docs show { measurements: [...] }.
   const list = Array.isArray(body) ? body : body && body.measurements;
-  return backupRecordsAfter(list, Number.isFinite(newest) ? newest : -Infinity);
+  const recs = backupRecordsAfter(list, Number.isFinite(after) ? after : -Infinity);
+  return only ? despike(recs) : recs;
 }
