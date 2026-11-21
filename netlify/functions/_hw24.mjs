@@ -2,7 +2,9 @@
    Snow Amounts block. */
 
 /* Stations with no precipitation gauge — mirrors NO_PRECIP_GAUGE_IDS in index.html. */
-export const NO_PRECIP_GAUGE_IDS = new Set(["fts-vulture", "fts-simpup", "fts-simplo", "fts-bowsummit"]);
+export const NO_PRECIP_GAUGE_IDS = new Set(["fts-vulture", "fts-simpup", "fts-simplo", "fts-bowsummit",
+  // Group 6 · Kananaskis: no precipitation gauge
+  "kc-rundle", "kc-mudlake", "kc-burstall", "kc-aster", "kc-highwood"]);
 const PC_MAX_STEP = 50;
 const num = (value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 

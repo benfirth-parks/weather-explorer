@@ -1,5 +1,5 @@
 import { getStore } from "@netlify/blobs";
-import { fetchBackup, isBackupRecord, newestFtsTime } from "./_avcan.mjs";
+import { fetchBackup, isBackupRecord, newestFtsTime, AVCAN_ONLY_STATION_IDS } from "./_avcan.mjs";
 import { fetchNoaaRecords, LRGS_STATIONS, NOAA_SOURCE } from "./_lrgs.mjs";
 
 const STORE_NAME = "rockies-weather-archive-v1";
@@ -37,8 +37,8 @@ export const STATIONS = {
 };
 
 /* Every station the archive keeps: FTS360 stations plus NOAA-only ones
-   (Waterton). */
-export const ALL_STATION_IDS = [...new Set([...Object.keys(STATIONS), ...Object.keys(LRGS_STATIONS)])];
+   (Waterton) and Avalanche Canada-only ones (Kananaskis). */
+export const ALL_STATION_IDS = [...new Set([...Object.keys(STATIONS), ...Object.keys(LRGS_STATIONS), ...Object.keys(AVCAN_ONLY_STATION_IDS)])];
 export const isKnownStation = (stationId) => ALL_STATION_IDS.includes(stationId);
 
 /* Hours of NOAA messages each scheduled sync asks for; overlap covers missed runs. */

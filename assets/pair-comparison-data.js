@@ -277,8 +277,8 @@ function hsCredits(rows, windowMs, from, threshold = () => HN_FROM_HS_THRESHOLD_
    Every station whose HN comes from its depth sensor is checked this way (Ben, 5 Nov 2026): gauge stations
    by the gauge and RDPS as at Sunshine, gauge-less ones by RDPS alone. Each needs an RDPS point in
    netlify/functions/_rdps.mjs. index.html and mobile.html keep inline copies of both sets. */
-export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine', 'fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley', 'fts-bowprecip', 'fts-pikarun', 'fts-coleman', 'fts-bigbend', 'fts-maligne', 'fts-summitlake', 'fts-akamina']);
-export const HN_NO_GAUGE_IDS = new Set(['fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley']);
+export const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine', 'fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley', 'fts-bowprecip', 'fts-pikarun', 'fts-coleman', 'fts-bigbend', 'fts-maligne', 'fts-summitlake', 'fts-akamina', 'kc-rundle', 'kc-mudlake', 'kc-burstall', 'kc-highwood']);
+export const HN_NO_GAUGE_IDS = new Set(['fts-simplo', 'fts-boslo', 'fts-bowsummit', 'fts-stanley', 'kc-rundle', 'kc-mudlake', 'kc-burstall', 'kc-highwood']);
 /* Nearby gauge (Ben, 7 Nov 2026): Simpson Lower has no gauge, and RDPS can fall just short of RDPS_EXPECT_MM in
    a real light snowfall (6 Nov: 2 cm of depth, RDPS 0.9 mm, Vermillion's gauge 0.33 mm). For a station listed
    here, a depth rise also counts when that neighbour's gauge logged GAUGE_CONFIRM_MM or more over the same

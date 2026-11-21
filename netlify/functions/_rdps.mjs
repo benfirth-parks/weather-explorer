@@ -17,6 +17,10 @@ export const RDPS_POINTS = {
   "fts-maligne": { latitude: 52.7244, longitude: -117.6494, elevation: 1712 },
   "fts-summitlake": { latitude: 49.006447, longitude: -114.03637, elevation: 2056 },
   "fts-akamina": { latitude: 49.0346, longitude: -114.05459, elevation: 1676 },
+  "kc-rundle": { latitude: 51.07323, longitude: -115.40978, elevation: 1700 },
+  "kc-mudlake": { latitude: 50.794167, longitude: -115.30714, elevation: 1900 },
+  "kc-burstall": { latitude: 50.758183, longitude: -115.36667, elevation: 2300 },
+  "kc-highwood": { latitude: 50.598618, longitude: -114.98721, elevation: 2250 },
 };
 export const RDPS_PAST_DAYS = 92;
 import { NEIGHBOUR_GAUGE_IDS, hourlyGauge } from "../../assets/pair-comparison-data.js";
