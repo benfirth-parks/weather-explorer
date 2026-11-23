@@ -65,8 +65,8 @@ function jsonResponse(body, status = 200, extraHeaders = {}) {
 }
 
 function clientIp(req) {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
+  /* Set by Netlify from the real connection. x-forwarded-for is supplied by
+     the caller, so it must not be used to key the rate limit. */
   return req.headers.get("x-nf-client-connection-ip") || "unknown";
 }
 

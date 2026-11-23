@@ -48,6 +48,7 @@
 //   }
 
 import { getStore } from "@netlify/blobs";
+import { safeEqual } from "./_secret.mjs";
 
 const STORE_NAME = "rockies-weather-archive-v1";
 const RETENTION_MS = Math.round(3 * 365.25 * 24 * 60 * 60 * 1000);
@@ -78,7 +79,7 @@ export default async (req) => {
     return json(405, { ok: false, error: "method-not-allowed" });
   }
   const adminToken = req.headers.get("x-admin-token");
-  if (!process.env.ARCHIVE_ADMIN_TOKEN || adminToken !== process.env.ARCHIVE_ADMIN_TOKEN) {
+  if (!safeEqual(adminToken || "", process.env.ARCHIVE_ADMIN_TOKEN || "")) {
     return json(401, { ok: false, error: "unauthorized" });
   }
 

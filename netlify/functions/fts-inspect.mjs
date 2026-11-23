@@ -1,4 +1,5 @@
 import { STATIONS, inspectStationHeaders } from "./_weather-archive.mjs";
+import { safeEqual } from "./_secret.mjs";
 
 /* Admin-only diagnostic endpoint.
    Returns the raw FTS360 CSV header row + up to 3 sample data rows for a
@@ -14,8 +15,7 @@ export default async (request) => {
   const token = request.headers.get("x-archive-admin-token") || url.searchParams.get("token");
 
   if (
-    !process.env.ARCHIVE_ADMIN_TOKEN ||
-    token !== process.env.ARCHIVE_ADMIN_TOKEN
+    !safeEqual(token || "", process.env.ARCHIVE_ADMIN_TOKEN || "")
   ) {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),

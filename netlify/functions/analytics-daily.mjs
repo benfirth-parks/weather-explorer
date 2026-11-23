@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { safeEqual } from "./_secret.mjs";
 
 // One day's page views and visitors, for the App Portal's history import.
 // The full report reads every event in its range in one call, which is too
@@ -31,7 +32,7 @@ export async function countDay(store, date) {
 export default async (request) => {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
   if (!process.env.ANALYTICS_ADMIN_TOKEN) return json({ error: "Analytics admin token is not configured" }, 503);
-  if (request.headers.get("x-analytics-admin-token") !== process.env.ANALYTICS_ADMIN_TOKEN) {
+  if (!safeEqual(request.headers.get("x-analytics-admin-token") || "", process.env.ANALYTICS_ADMIN_TOKEN)) {
     return json({ error: "Unauthorized" }, 401);
   }
 
