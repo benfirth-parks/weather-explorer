@@ -7,9 +7,10 @@
   var me = document.currentScript;
   var APP = (me && me.getAttribute("data-app")) || document.title || "App";
   var css = [
-    ".afb-btn{position:fixed;left:16px;bottom:16px;z-index:2147483000;font:600 14px/1 system-ui,sans-serif;padding:11px 14px;border-radius:22px;border:1px solid rgba(0,0,0,.15);background:#16202b;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;min-height:44px}",
+    ".afb-btn{position:fixed;left:12px;bottom:12px;z-index:990;font:600 13px/1 system-ui,sans-serif;padding:9px 12px;border-radius:20px;border:1px solid rgba(0,0,0,.15);background:#16202b;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer;min-height:40px;opacity:.82}",
+    ".afb-btn:hover,.afb-btn:focus-visible,.afb-btn[aria-expanded=true]{opacity:1}",
     ".afb-btn:focus-visible,.afb-box button:focus-visible,.afb-box textarea:focus-visible,.afb-box input:focus-visible{outline:3px solid #7cc2ff;outline-offset:2px}",
-    ".afb-box{position:fixed;left:16px;bottom:72px;z-index:2147483001;width:min(360px,calc(100vw - 32px));background:#fff;color:#16202b;border:1px solid #d9e0e7;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:16px;font:15px/1.45 system-ui,sans-serif}",
+    ".afb-box{position:fixed;left:12px;bottom:64px;z-index:991;width:min(360px,calc(100vw - 32px));background:#fff;color:#16202b;border:1px solid #d9e0e7;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:16px;font:15px/1.45 system-ui,sans-serif}",
     ".afb-box h2{margin:0 0 4px;font-size:17px}",
     ".afb-box p{margin:0 0 10px;color:#5b6876;font-size:13px}",
     ".afb-box textarea,.afb-box input{display:block;width:100%;box-sizing:border-box;font:16px system-ui,sans-serif;padding:9px 10px;border:1px solid #c5ced8;border-radius:8px;margin:0 0 8px;background:#fff;color:#16202b}",
@@ -31,7 +32,7 @@
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "afb-btn";
-    btn.textContent = "Suggest a change";
+    btn.textContent = "Feedback";
     btn.setAttribute("aria-expanded", "false");
 
     var box = document.createElement("div");
@@ -59,6 +60,31 @@
       btn.setAttribute("aria-expanded", String(open));
       if (open) { msg.textContent = ""; text.focus(); }
     }
+    // Sit above anything pinned to the bottom of the screen (a phone tab bar, a bottom sheet), and stay under the
+    // app's own pop-ups and full-screen views (z-index 990 is below them), so the box never covers a control.
+    function place() {
+      var lift = 0, covered = false;
+      try {
+        var hits = document.elementsFromPoint(24, window.innerHeight - 4);
+        for (var i = 0; i < hits.length; i++) {
+          var el = hits[i];
+          if (el === btn || el === box || btn.contains(el) || box.contains(el)) continue;
+          var cs = getComputedStyle(el);
+          if ((cs.position === "fixed" || cs.position === "sticky") && cs.pointerEvents !== "none") {
+            var r = el.getBoundingClientRect();
+            // a bar along the bottom: sit above it; a tall sheet, pop-up or full-screen view: step out of the way
+            if (r.height < window.innerHeight * 0.6) lift = Math.max(lift, window.innerHeight - r.top);
+            else covered = true;
+          }
+        }
+      } catch (e) { lift = 0; }
+      btn.style.display = covered && box.hidden ? "none" : "";
+      btn.style.bottom = (12 + lift) + "px";
+      box.style.bottom = (64 + lift) + "px";
+    }
+    place();
+    window.addEventListener("resize", place, { passive: true });
+    setInterval(place, 2500);
     btn.addEventListener("click", function () { toggle(box.hidden); });
     box.querySelector(".afb-cancel").addEventListener("click", function () { toggle(false); btn.focus(); });
     box.addEventListener("keydown", function (e) { if (e.key === "Escape") { toggle(false); btn.focus(); } });
