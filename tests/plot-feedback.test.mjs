@@ -51,12 +51,12 @@ test('secrets compare exactly', () => {
   assert.equal(sameSecret('', ''), false);
   assert.ok(TOPICS.includes('crust'));
 });
-test('posting is refused without the team code, and listing without the admin token', async () => {
+test('a set team code is enforced, and listing needs the admin token', async () => {
   const old = {...process.env};
   try {
     delete process.env.FEEDBACK_TEAM_CODE; delete process.env.FEEDBACK_ADMIN_TOKEN;
     const post = body => handler(new Request('https://x/api/plot-feedback', {method: 'POST', body: JSON.stringify(body)}));
-    assert.equal((await post(good)).status, 503);
+    assert.equal((await post({...good, name: ''})).status, 400);  // open posting still validates
     process.env.FEEDBACK_TEAM_CODE = 'other';
     assert.equal((await post(good)).status, 401);
     assert.equal((await handler(new Request('https://x/api/plot-feedback'))).status, 503);
