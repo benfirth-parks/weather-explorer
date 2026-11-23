@@ -1,4 +1,5 @@
 import { getStore } from "@netlify/blobs";
+import { safeEqual } from "./_secret.mjs";
 
 const STORE_NAME = "weather-explorer-analytics-v1";
 const MAX_DAYS = 366;
@@ -45,7 +46,7 @@ export default async (request) => {
     });
   }
 
-  if (request.headers.get("x-analytics-admin-token") !== process.env.ANALYTICS_ADMIN_TOKEN) {
+  if (!safeEqual(request.headers.get("x-analytics-admin-token") || "", process.env.ANALYTICS_ADMIN_TOKEN)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" }

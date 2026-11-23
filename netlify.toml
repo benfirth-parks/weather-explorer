@@ -70,3 +70,10 @@
 # Site health check: 45 minutes past every hour, in UTC.
 [functions."site-health-check"]
   schedule = "45 * * * *"
+
+# Baseline response headers for every page and API route.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

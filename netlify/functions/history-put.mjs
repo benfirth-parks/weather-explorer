@@ -4,6 +4,7 @@
 // Body: { stationId, year, source?, observations: [{ measurementDateTime, ... }] }
 import { getStore } from "@netlify/blobs";
 import { STATIONS, historyKey } from "./_weather-archive.mjs";
+import { safeEqual } from "./_secret.mjs";
 
 const STORE_NAME = "rockies-weather-archive-v1";
 const KNOWN_FIELDS = new Set([
@@ -17,7 +18,7 @@ const json = (status, body) => new Response(JSON.stringify(body), {
 
 export default async (req) => {
   if (req.method !== "POST") return json(405, { ok: false, error: "method-not-allowed" });
-  if (!process.env.ARCHIVE_ADMIN_TOKEN || req.headers.get("x-admin-token") !== process.env.ARCHIVE_ADMIN_TOKEN) {
+  if (!safeEqual(req.headers.get("x-admin-token") || "", process.env.ARCHIVE_ADMIN_TOKEN || "")) {
     return json(401, { ok: false, error: "unauthorized" });
   }
   let body;

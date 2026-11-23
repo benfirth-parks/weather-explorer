@@ -1,4 +1,5 @@
 import { STATIONS, syncStation } from "./_weather-archive.mjs";
+import { safeEqual } from "./_secret.mjs";
 
 export default async (request) => {
   if (request.method !== "POST") {
@@ -17,8 +18,7 @@ export default async (request) => {
   const token = request.headers.get("x-archive-admin-token");
 
   if (
-    !process.env.ARCHIVE_ADMIN_TOKEN ||
-    token !== process.env.ARCHIVE_ADMIN_TOKEN
+    !safeEqual(token || "", process.env.ARCHIVE_ADMIN_TOKEN || "")
   ) {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
