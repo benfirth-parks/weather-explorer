@@ -145,7 +145,7 @@ function legend(mode) {
 export function withSiteLink(key, url) {
   const link = element('a', 'awsome-site-link', 'SnowpackBC AWSOME ↗');
   link.href = url; link.target = '_blank'; link.rel = 'noopener';
-  link.title = 'Open the AWSOME model on snowpackbc.com';
+  link.title = 'Open the Banff AWSOME dashboard on banff.snowpackbc.com';
   key.append(link);
   return key;
 }
