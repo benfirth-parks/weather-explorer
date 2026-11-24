@@ -5,7 +5,7 @@
    precipitation is the total for the hour ending at the timestamp (UTC).
    The HS Sheet sync (benfirth-parks/banff-winter-meeting scripts/sync_snow_sheet.py) makes the same call. */
 export const RDPS_POINTS = {
-  "fts-sunshine": { latitude: 51.078358, longitude: -115.782455, elevation: 2200 },
+  "fts-sunshine": { latitude: 51.08888, longitude: -115.75452, elevation: 2200 },
   "fts-simplo": { latitude: 50.98507, longitude: -115.984215, elevation: 2115 },
   "fts-boslo": { latitude: 51.45722, longitude: -116.357834, elevation: 2210 },
   "fts-bowsummit": { latitude: 51.709373, longitude: -116.47904, elevation: 2040 },
