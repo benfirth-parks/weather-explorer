@@ -241,15 +241,29 @@ export function smoothedHs(records, windowMs = 3 * HOUR) {
 // HS ratchet: each rise of >= HN_FROM_HS_THRESHOLD_CM in the smoothed trace above the last reference
 // level is a credit {x, gain}; settlement lowers the reference and a gap over MAX_GAP resets it.
 // threshold(x) gives the step (cm) at time x; HN_FROM_HS_THRESHOLD_CM by default.
+/* Short dips (Ben, 24 Nov 2026): Sunshine's smoothed depth sat at 30-31 cm overnight on 23 Nov, dipped to 29 cm
+   around 06:00 MT and was back at 32 by 07:00; the reference followed the dip down, so the recovery counted as
+   3 cm of HN (HN24 5 cm from 0.6 mm on the gauge). Settlement only lowers the reference once the depth has stayed
+   below it for DIP_HOLD_H; a dip that recovers sooner leaves the reference where it was. */
+export const DIP_HOLD_H = 3;
 function hsCredits(rows, windowMs, from, threshold = () => HN_FROM_HS_THRESHOLD_CM) {
   const credits = [], seen = [];
-  let ref = null, last = null, partial = false;
+  // below: when the depth first went under the reference; settling: it has stayed under for DIP_HOLD_H, so the
+  // reference now follows it down at once until the depth rises again.
+  let ref = null, last = null, partial = false, below = null, low = null, settling = false;
   for (const p of smoothedHs(rows, windowMs)) {
-    if (last && p.x - last.x > MAX_GAP) { ref = null; if (p.x > from) partial = true; }
+    if (last && p.x - last.x > MAX_GAP) { ref = null; below = null; settling = false; if (p.x > from) partial = true; }
     last = p;
     seen.push(p.x);
-    if (ref === null || p.y < ref) { ref = p.y; }
-    else if (p.y - ref >= threshold(p.x)) {
+    if (ref === null) { ref = p.y; continue; }
+    if (p.y < ref) {
+      if (below === null) { below = p.x; low = p.y; } else low = Math.min(low, p.y);
+      if (settling || p.x - below >= DIP_HOLD_H * HOUR) { ref = low; settling = true; }
+      continue;
+    }
+    if (p.y === ref && settling) continue;
+    below = null; settling = false;
+    if (p.y - ref >= threshold(p.x)) {
       const gain = p.y - ref;
       ref = p.y;
       if (gain <= 50) credits.push({x: p.x, gain});
@@ -355,16 +369,62 @@ function stuckPeriods(trace, rows, to) {
   }
   return periods;
 }
+/* Gauge not reporting (Ben, 24 Nov 2026). The Bow Summit gauge (fts-bowprecip) read a flat 200.0 mm from its
+   22 Oct service onward, through storms RDPS forecast and Sunshine's gauge caught, while its depth rose 3 to 17 cm.
+   The stuck test above needs a 5 cm rise in 6 h, which a slow storm never makes, so the flat gauge passed as a
+   dry one. A gauge is taken as not reporting from the start of any OFFLINE_FLAT_H window in which it was read
+   (at least OFFLINE_COVERAGE of the hours) but rose under GAUGE_CONFIRM_MM while RDPS forecast OFFLINE_RDPS_MM or
+   more, until it next rises GAUGE_CONFIRM_MM. While not reporting, the gauge is ignored and a depth rise counts
+   as HN only when RDPS expected RDPS_EXPECT_MM or more, as at the stations with no gauge. The periods are worked
+   out on the server from the station's archive (netlify/functions/_rdps.mjs fetchBackCheck) and ride on the
+   RDPS points as `forecast.gaugeOffline` ([{start, end}], end null while still not reporting). */
+export const OFFLINE_FLAT_H = 72;
+export const OFFLINE_RDPS_MM = 5;
+export const OFFLINE_COVERAGE = 0.8;
+export function gaugeOfflinePeriods(records, forecast, to = Date.now()) {
+  if (!Array.isArray(forecast) || !forecast.length || !Array.isArray(records)) return [];
+  const fc = forecast.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.x <= to);
+  if (!fc.length) return [];
+  const first = Math.ceil(fc[0].x / HOUR) * HOUR, last = Math.floor(to / HOUR) * HOUR;
+  if (last - first < OFFLINE_FLAT_H * HOUR) return [];
+  const rdps = new Map(fc.map(p => [Math.ceil(p.x / HOUR) * HOUR, p.y]));
+  const rise = new Map(hourlyGauge(records, first - HOUR, to).map(p => [p.x, p.y]));
+  const read = new Set();
+  for (const r of records) {
+    const x = Date.parse(r.measurementDateTime), v = numeric(r.precipTotal);
+    if (v !== null && v >= 0 && v <= 5000 && x > first - HOUR && x <= to) read.add(Math.ceil(x / HOUR) * HOUR);
+  }
+  const hours = [];
+  for (let x = first; x <= last; x += HOUR) hours.push({x, g: rise.get(x) || 0, f: rdps.get(x) || 0, seen: read.has(x)});
+  const n = OFFLINE_FLAT_H, periods = [];
+  const G = [0], F = [0], S = [0]; // prefix sums
+  for (const h of hours) { G.push(G.at(-1) + h.g); F.push(F.at(-1) + h.f); S.push(S.at(-1) + (h.seen ? 1 : 0)); }
+  for (let i = n - 1; i < hours.length; i++) {
+    const lo = i - n + 1, start = hours[lo].x - HOUR;
+    if (periods.length && (periods.at(-1).end === null || start < periods.at(-1).end)) continue;
+    const g = G[i + 1] - G[lo], f = F[i + 1] - F[lo], seen = S[i + 1] - S[lo];
+    if (g >= GAUGE_CONFIRM_MM - 1e-9 || f < OFFLINE_RDPS_MM || seen < OFFLINE_COVERAGE * n) continue;
+    let end = null;
+    for (let j = i + 1; j < hours.length; j++) if (G[j + 1] - G[i + 1] >= GAUGE_CONFIRM_MM - 1e-9) { end = hours[j].x; break; }
+    const prev = periods.at(-1);
+    if (prev && prev.end !== null && start <= prev.end) prev.end = end; else periods.push({start, end});
+    if (end === null) break;
+  }
+  return periods;
+}
 /* HN credits for a gauge-checked station; the gauge records default to the depth records. forecast is the
    RDPS hourly precipitation [{x: hour end (ms), y: mm}], or null when it is not available.
-   gauge: 'stuck' or 'missing' (at `to`), 'forecast' when there is no gauge data at all but RDPS is there (rises
+   gauge: 'offline' (not reporting, see gaugeOfflinePeriods), 'stuck' or 'missing' (at `to`), 'forecast' when there is no gauge data at all but RDPS is there (rises
    then count on RDPS alone), 'rdps' when a rise in the window counted on the RDPS forecast alone, else 'ok'. */
 export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, forecast = null) {
   const rows = ordered(records).filter(r => r.x > from - 30 * HOUR && r.x <= to);
   const trace = gaugeTrace((gaugeRecords || records).filter(r => { const x = Date.parse(r.measurementDateTime); return x > from - 60 * HOUR && x <= to; }), to);
+  const offline = forecast && Array.isArray(forecast.gaugeOffline) ? forecast.gaugeOffline : [];
+  const inOffline = t => offline.some(o => t >= o.start && (o.end === null || o.end === undefined || t <= o.end));
   const stuck = stuckPeriods(trace, rows, to);
-  const inStuck = t => stuck.some(s => t >= s.start && t <= s.end);
-  const gaugeHw = t => gaugeBetween(trace, t - GAUGE_BEFORE_H * HOUR, Math.min(t + GAUGE_AFTER_H * HOUR, to));
+  const inStuck = t => !inOffline(t) && stuck.some(s => t >= s.start && t <= s.end);
+  // A gauge that is not reporting is ignored, so the rise is checked against RDPS alone.
+  const gaugeHw = t => (inOffline(t) ? null : gaugeBetween(trace, t - GAUGE_BEFORE_H * HOUR, Math.min(t + GAUGE_AFTER_H * HOUR, to)));
   const expected = t => forecastBetween(forecast, t - GAUGE_BEFORE_H * HOUR, t + GAUGE_AFTER_H * HOUR);
   const nearbyGauge = forecast && Array.isArray(forecast.neighbourGauge) ? forecast.neighbourGauge : null;
   const nearby = t => { const n = forecastBetween(nearbyGauge, t - GAUGE_BEFORE_H * HOUR, t + GAUGE_AFTER_H * HOUR); return n !== null && n >= GAUGE_CONFIRM_MM; };
@@ -386,10 +446,11 @@ export function gaugeCheckedCredits(records, from, to, gaugeRecords = records, f
     return g === null && f === null;
   });
   const gauge = !trace.length ? (forecast && forecast.length ? 'forecast' : 'missing')
+    : inOffline(to) ? 'offline'
     : !inStuck(to) && gaugeHw(to) === null ? 'missing' : inStuck(to) ? 'stuck' : onForecast ? 'rdps' : 'ok';
   return {credits, seen: r3.seen, partial: r3.partial, stuck, gauge};
 }
-/* The gauge's state at `to` for a gauge-checked station: 'ok', 'stuck', 'missing', 'forecast' or 'rdps'. */
+/* The gauge's state at `to` for a gauge-checked station: 'ok', 'offline', 'stuck', 'missing', 'forecast' or 'rdps'. */
 export function gaugeState(records, to, forecast = null) {
   return gaugeCheckedCredits(records, to - 24 * HOUR, to, records, forecast).gauge;
 }

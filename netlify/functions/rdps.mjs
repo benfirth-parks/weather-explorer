@@ -1,7 +1,7 @@
 /* GET /api/rdps?station=fts-sunshine -> {station, source, points: [{x: hour end (ms), y: mm}]}: the RDPS
    hourly precipitation forecast used as the HN back check (see _rdps.mjs). points is null when the station
    has no RDPS point or the forecast could not be fetched. neighbourGauge: a nearby gauge's hourly HW for stations
-   in NEIGHBOUR_GAUGE_IDS (Simpson Lower: Vermillion). */
+   in NEIGHBOUR_GAUGE_IDS (Simpson Lower: Vermillion). gaugeOffline: when the station's own gauge was not reporting. */
 import { fetchBackCheck, RDPS_POINTS } from "./_rdps.mjs";
 
 export default async (request) => {
@@ -10,7 +10,7 @@ export default async (request) => {
     return new Response(JSON.stringify({ error: "Invalid station" }), { status: 400, headers: { "content-type": "application/json; charset=utf-8" } });
   }
   const points = await fetchBackCheck(station);
-  return new Response(JSON.stringify({ station, source: "RDPS (GEM Regional) via Open-Meteo", points, ...(points?.neighbourGauge ? { neighbourId: points.neighbourId, neighbourGauge: points.neighbourGauge } : {}) }), {
+  return new Response(JSON.stringify({ station, source: "RDPS (GEM Regional) via Open-Meteo", points, ...(points?.neighbourGauge ? { neighbourId: points.neighbourId, neighbourGauge: points.neighbourGauge } : {}), ...(points?.gaugeOffline ? { gaugeOffline: points.gaugeOffline } : {}) }), {
     status: 200,
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": points ? "public, max-age=900" : "no-store" },
   });

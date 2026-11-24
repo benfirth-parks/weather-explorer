@@ -23,7 +23,8 @@ export const RDPS_POINTS = {
   "kc-highwood": { latitude: 50.598618, longitude: -114.98721, elevation: 2250 },
 };
 export const RDPS_PAST_DAYS = 92;
-import { NEIGHBOUR_GAUGE_IDS, hourlyGauge } from "../../assets/pair-comparison-data.js";
+import { NEIGHBOUR_GAUGE_IDS, HN_NO_GAUGE_IDS, hourlyGauge, gaugeOfflinePeriods } from "../../assets/pair-comparison-data.js";
+import { cleanGaugeSpikes } from "../../assets/gauge-spikes.js";
 const KEEP_MS = 20 * 60000;
 const cache = new Map();
 
@@ -63,21 +64,36 @@ export async function fetchRdps(id, { fetchImpl = fetch } = {}) {
 }
 
 /* RDPS points plus, for a station in NEIGHBOUR_GAUGE_IDS (Simpson Lower: Vermillion), the neighbour's hourly
-   gauge increments as `neighbourGauge` on the returned array (assets/pair-comparison-data.js
-   gaugeCheckedCredits). null when there is no RDPS forecast. */
+   gauge increments as `neighbourGauge` on the returned array, and, for a station with its own gauge, the times
+   that gauge was not reporting as `gaugeOffline` ([{start, end}], end null while it still is; Ben, 24 Nov 2026)
+   (assets/pair-comparison-data.js gaugeCheckedCredits, gaugeOfflinePeriods). null when there is no RDPS forecast. */
 export async function fetchBackCheck(id, { fetchImpl = fetch, readArchiveImpl = null } = {}) {
   const points = await fetchRdps(id, { fetchImpl });
   const neighbour = NEIGHBOUR_GAUGE_IDS[id];
-  if (!points || !neighbour) return points;
+  const ownGauge = !HN_NO_GAUGE_IDS.has(id);
+  if (!points || (!neighbour && !ownGauge)) return points;
   const out = [...points];
-  try {
-    const read = readArchiveImpl || (await import("./_weather-archive.mjs")).readArchive;
-    const archive = await read(neighbour);
-    const now = Date.now();
-    out.neighbourGauge = hourlyGauge(archive.observations || [], now - RDPS_PAST_DAYS * 24 * 3600000, now);
-    out.neighbourId = neighbour;
-  } catch (e) {
-    console.warn(JSON.stringify({ event: "neighbour-gauge-failed", id, neighbour, error: e.message }));
+  const now = Date.now();
+  let read = readArchiveImpl;
+  const reader = async () => read || (read = (await import("./_weather-archive.mjs")).readArchive);
+  if (ownGauge) {
+    try {
+      const archive = await (await reader())(id);
+      const from = now - (RDPS_PAST_DAYS + 1) * 24 * 3600000;
+      const obs = (archive.observations || []).filter(r => Date.parse(r.measurementDateTime) >= from);
+      out.gaugeOffline = gaugeOfflinePeriods(cleanGaugeSpikes(obs), points, now);
+    } catch (e) {
+      console.warn(JSON.stringify({ event: "gauge-offline-failed", id, error: e.message }));
+    }
+  }
+  if (neighbour) {
+    try {
+      const archive = await (await reader())(neighbour);
+      out.neighbourGauge = hourlyGauge(cleanGaugeSpikes(archive.observations || []), now - RDPS_PAST_DAYS * 24 * 3600000, now);
+      out.neighbourId = neighbour;
+    } catch (e) {
+      console.warn(JSON.stringify({ event: "neighbour-gauge-failed", id, neighbour, error: e.message }));
+    }
   }
   return out;
 }
