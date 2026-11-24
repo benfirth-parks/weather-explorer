@@ -11,7 +11,10 @@
             params: {grainshape, hardness (F=1 .. I=6), temperature (C), punstable, layer_of_interest (0|1): [[...]]}}
    Punstable is the probability that a layer is unstable (Mayer et al. 2022); 0.77 is the usual threshold. */
 
-export const AWSOME_SITE = 'https://snowpackbc.com';
+export const AWSOME_SITE = 'https://snowpackbc.com';   // data source read by /api/awsome
+/* Where the panels' links send viewers: the Banff AWSOME dashboard (its data files need a login, so the
+   data is still read from AWSOME_SITE). */
+export const AWSOME_LINK = 'https://banff.snowpackbc.com';
 export const ASPECTS = ['F', 'N', 'E', 'S', 'W'];
 export const PUNSTABLE_THRESHOLD = 0.77;
 /* Study plot (as in PAIR_PLOTS) -> AWSOME location. Simpson and Sunshine are not AWSOME stations, so they
@@ -72,7 +75,7 @@ export function summariseAwsome(plot, date, files, xs) {
     weather: weatherSummary(files.F, point.location),
     aspects,
     profile: xs ? profileAt(xs, t / 1000) : null,
-    url: `${AWSOME_SITE}/#/modelling/awsome`,
+    url: AWSOME_LINK,
     label: 'Experimental SnowpackBC AWSOME model output, not an avalanche forecast.'
   };
 }
