@@ -5,10 +5,10 @@ import handler from '../netlify/functions/awsome.mjs';
 
 const feature = (location, pu, depth, grain) => ({properties: {location, snowpack: {hs: 24.95, Punstable: {value: pu, depth, grainType: grain, instabilityDrivenBy: 'shallow_old_snow'}}, weather: {hn24: 2.1, ta: -9.3, dw24_sector: 'SE'}}});
 const files = {
-  F: {features: [feature('B_0006_0022', 0.67, 22.87, 'DH')]},
-  N: {features: [feature('B_0006_0022', 0.61, 8.79, 'SH')]},
-  E: {features: [feature('B_0006_0022', 0.61, 8.77, 'SH')]},
-  S: {features: [feature('B_0006_0022', 0.37, 4.34, 'DF')]},
+  F: {features: [feature('B_0007_0023', 0.67, 22.87, 'DH')]},
+  N: {features: [feature('B_0007_0023', 0.61, 8.79, 'SH')]},
+  E: {features: [feature('B_0007_0023', 0.61, 8.77, 'SH')]},
+  S: {features: [feature('B_0007_0023', 0.37, 4.34, 'DF')]},
   W: {features: [feature('other', 0.9, 1, 'PP')]}
 };
 const T = Date.UTC(2026, 10, 19, 6) / 1000;
@@ -21,8 +21,8 @@ test('model time maps to the snapshot file stamp', () => {
   assert.equal(stamp('nope'), null);
 });
 test('aspect summary finds the location and ignores others', () => {
-  assert.deepEqual(aspectSummary(files.N, 'B_0006_0022'), {pu: 0.61, depth: 8.79, grain: 'SH', tag: 'shallow_old_snow'});
-  assert.equal(aspectSummary(files.W, 'B_0006_0022'), null);
+  assert.deepEqual(aspectSummary(files.N, 'B_0007_0023'), {pu: 0.61, depth: 8.79, grain: 'SH', tag: 'shallow_old_snow'});
+  assert.equal(aspectSummary(files.W, 'B_0007_0023'), null);
 });
 test('profile is taken at the model time, layers bottom up with bottoms filled in', () => {
   const p = profileAt(xs, T);

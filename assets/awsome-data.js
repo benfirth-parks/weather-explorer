@@ -18,11 +18,12 @@ export const AWSOME_LINK = 'https://banff.snowpackbc.com';
 export const ASPECTS = ['F', 'N', 'E', 'S', 'W'];
 export const PUNSTABLE_THRESHOLD = 0.77;
 /* Study plot (as in PAIR_PLOTS) -> AWSOME location. Simpson and Sunshine are not AWSOME stations, so they
-   use a Banff grid cell (2.5 km): the one nearest the station with the closest elevation. */
+   use a Banff grid cell (2.5 km). Simpson: the cell nearest Simpson Lower with the closest elevation. Sunshine:
+   the cell nearest the Goat's Eye study plot and station at 51.08888, -115.75452 (Ben, 24 Nov 2026). */
 export const AWSOME_POINTS = {
   bow_summit: {source: 'banff_stn', location: 'Bow_Summit', label: 'Bow Summit station run', elevation: 2040},
   simpson: {source: 'banff_grid', location: 'B_0002_0016', label: 'grid cell 1.5 km W of Simpson Lower', elevation: 1930},
-  goats_eye: {source: 'banff_grid', location: 'B_0006_0022', label: 'grid cell 1 km W of Sunshine Village', elevation: 2311}
+  goats_eye: {source: 'banff_grid', location: 'B_0007_0023', label: 'grid cell 1.2 km N of the Goat\'s Eye study plot', elevation: 2253}
 };
 
 /* "2026-11-19T06:00:00" -> "2026-11-19_06-00-00" (the snapshot file stamp); null if unreadable. */
