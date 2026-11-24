@@ -436,7 +436,8 @@ async function render(view) {
     if (result.peak) fact += `, heaviest **${result.peak.y.toFixed(1)} ${unit}/${step} h** ending ${when(result.peak.end, hours)}`;
     facts.push(fact);
     if (result.partial) notes.push(`${name}: some ${label} intervals missing (gaps or rejected readings); total is for the intervals with data.`);
-    if (result.gauge === 'stuck') notes.push(`${name}: HW gauge looks stuck (flat while the depth rose), so HN is from depth only until it moves.`);
+    if (result.gauge === 'offline') notes.push(`${name}: HW gauge not reporting (flat for days while RDPS forecast precipitation), so a depth rise counts as HN only when RDPS forecast precipitation.`);
+    else if (result.gauge === 'stuck') notes.push(`${name}: HW gauge looks stuck (flat while the depth rose), so HN is from depth only until it moves.`);
     else if (result.gauge === 'missing') notes.push(HN_NO_GAUGE_IDS.has(id) ? `${name}: no RDPS forecast, so HN is from depth only.` : `${name}: no HW gauge data, so HN is from depth only.`);
     else if (result.gauge === 'forecast' && !HN_NO_GAUGE_IDS.has(id)) notes.push(`${name}: no HW gauge data, so a depth rise counts as HN only when RDPS forecast precipitation.`);
     else if (result.gauge === 'rdps') notes.push(`${name}: some HN counted because RDPS forecast precipitation the gauge did not record.`);

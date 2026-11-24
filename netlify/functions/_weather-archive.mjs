@@ -1,6 +1,7 @@
 import { getStore } from "@netlify/blobs";
 import { fetchBackup, isBackupRecord, newestFtsTime, AVCAN_ONLY_STATION_IDS } from "./_avcan.mjs";
 import { fetchNoaaRecords, LRGS_STATIONS, NOAA_SOURCE } from "./_lrgs.mjs";
+import { cleanGaugeSpikes } from "../../assets/gauge-spikes.js";
 
 const STORE_NAME = "rockies-weather-archive-v1";
 const RETENTION_MS = Math.round(3 * 365.25 * 24 * 60 * 60 * 1000);
@@ -529,5 +530,8 @@ export function selectHours(archive, requestedHours) {
   const maximumHours = Math.floor(RETENTION_MS / 3_600_000);
   const hours = Math.min(Math.max(Number(requestedHours) || 24, 1), maximumHours);
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
-  return archive.observations.filter((record) => new Date(record.measurementDateTime).getTime() >= cutoff);
+  /* Gauge rises that fall back within 2 h are held at the earlier level (assets/gauge-spikes.js) before the
+     window is cut, so a blip at the window's edge is still recognised. The stored archive is not changed. */
+  const recent = archive.observations.filter((record) => new Date(record.measurementDateTime).getTime() >= cutoff - 3 * 60 * 60 * 1000);
+  return cleanGaugeSpikes(recent).filter((record) => new Date(record.measurementDateTime).getTime() >= cutoff);
 }

@@ -103,7 +103,9 @@ test('gauge check: Sunshine depth jitter with a flat gauge is not new snow (Nov 
   // Real Sunshine readings, 07:00 MT Oct 31 to Nov 3: gauge flat at 240.5 mm, depth wandering 18 to 22 cm.
   const recs = JSON.parse(readFileSync(new URL('./sunshine-dry-fixture.json', import.meta.url)));
   const now = Date.parse('2026-11-03T13:00:00Z');
-  assert.equal(newSnow24h(recs, now), 4, 'the plain depth rule counts the jitter');
+  // Before the short-dip hold (24 Nov 2026) the plain rule counted 4 cm of this jitter; dips that recover within
+  // DIP_HOLD_H no longer lower the reference, so it now counts 2 cm.
+  assert.equal(newSnow24h(recs, now), 2, 'the plain depth rule still counts some jitter');
   assert.equal(newSnow24h(recs, now, {gaugeCheck: true}), 0);
   assert.equal(stormSnow(recs, now, {gaugeCheck: true}).hst, 0);
   assert.equal(gaugeState(recs, now), 'ok');
