@@ -1,0 +1,33 @@
+name: diag usask radiation
+on:
+  push:
+    branches: [diag/usask-radiation]
+    paths-ignore: ["diag-out/**"]
+permissions:
+  contents: write
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: NOAA platform table, regional subset
+        run: |
+          mkdir -p diag-out
+          curl -sS -m 120 -L https://dcs1.noaa.gov/pdts_compressed.txt -o pdt.txt || true
+          ls -la pdt.txt || true
+          head -c 3000 pdt.txt > diag-out/pdt-head.txt || true
+          grep -a -i -E "ALBERT|BANFF|YOHO|KOOTENAY|USASK|SASKATOON|PEYTO|GOLDEN|LOUISE|CANMORE|KANANASKIS|HYDROLOGY|PCGCCA|RADIUM|FIELD|BOW |CALGARY|ENVCAN|ECCC|MSC" pdt.txt > diag-out/pdt-region.txt || true
+          wc -l diag-out/pdt-region.txt || true
+      - name: Pull messages
+        env:
+          LRGS_USER: ${{ secrets.LRGS_USER }}
+          LRGS_PASSWORD: ${{ secrets.LRGS_PASSWORD }}
+        run: python scripts/diag_region.py
+      - name: Commit
+        run: |
+          git config user.name diag-bot; git config user.email diag-bot@users.noreply.github.com
+          git add diag-out; git commit -m "diag output" || exit 0
+          git push
