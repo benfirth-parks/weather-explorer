@@ -11,11 +11,11 @@
   // for apps that don't define them. The button sits bottom-right, clear of left-hand sidebars and sliders.
   var V = function (name, fallback) { return "var(--color-" + name + "," + fallback + ")"; };
   var css = [
-    ".afb-btn{position:fixed;right:16px;bottom:16px;z-index:990;display:inline-flex;align-items:center;gap:6px;font:600 13px/1 system-ui,sans-serif;padding:10px 14px;border-radius:22px;border:1px solid " + V("border", "rgba(0,0,0,.15)") + ";background:" + V("text", "#16202b") + ";color:" + V("text-inverse", "#fff") + ";box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;min-height:42px;opacity:.88}",
-    ".afb-btn svg{width:16px;height:16px;flex:none}",
-    ".afb-btn:hover,.afb-btn:focus-visible,.afb-btn[aria-expanded=true]{opacity:1}",
+    ".afb-btn{position:fixed;right:16px;bottom:16px;z-index:990;display:inline-flex;align-items:center;gap:8px;font:700 15px/1 system-ui,sans-serif;padding:12px 18px;border-radius:26px;border:2px solid #fff;background:#ff5a1f;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;min-height:48px}",
+    ".afb-btn svg{width:20px;height:20px;flex:none}",
+    ".afb-btn:hover,.afb-btn[aria-expanded=true]{background:#e84a12}",
     ".afb-btn:focus-visible,.afb-box button:focus-visible,.afb-box textarea:focus-visible,.afb-box input:focus-visible,.afb-box select:focus-visible{outline:3px solid " + V("primary", "#7cc2ff") + ";outline-offset:2px}",
-    ".afb-box{position:fixed;right:16px;bottom:70px;z-index:991;width:min(360px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:" + V("surface", "#fff") + ";color:" + V("text", "#16202b") + ";border:1px solid " + V("border", "#d9e0e7") + ";border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:16px;font:15px/1.45 system-ui,sans-serif;box-sizing:border-box}",
+    ".afb-box{position:fixed;right:16px;bottom:78px;z-index:991;width:min(360px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:" + V("surface", "#fff") + ";color:" + V("text", "#16202b") + ";border:1px solid " + V("border", "#d9e0e7") + ";border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:16px;font:15px/1.45 system-ui,sans-serif;box-sizing:border-box}",
     ".afb-box h2{margin:0 0 4px;font-size:17px}",
     ".afb-box p{margin:0 0 10px;color:" + V("text-muted", "#5b6876") + ";font-size:13px}",
     ".afb-box label.afb-lbl{display:block;font-size:13px;font-weight:600;margin:0 0 4px}",
@@ -28,7 +28,7 @@
     ".afb-msg{font-size:14px;margin:6px 0 0}",
     // Apps without theme variables still get a dark box when the device is in dark mode.
     "@media (prefers-color-scheme:dark){:root:not([data-theme]) .afb-box{background:" + V("surface", "#18202a") + ";color:" + V("text", "#e6ebf0") + ";border-color:" + V("border", "#2a3542") + "}:root:not([data-theme]) .afb-box textarea,:root:not([data-theme]) .afb-box input,:root:not([data-theme]) .afb-box select,:root:not([data-theme]) .afb-row button{background:" + V("bg", "#0f141a") + ";color:" + V("text", "#e6ebf0") + ";border-color:" + V("border", "#2a3542") + "}:root:not([data-theme]) .afb-box p{color:" + V("text-muted", "#98a5b3") + "}}",
-    "@media (max-width:600px){.afb-btn{right:12px;bottom:12px;padding:10px 12px}.afb-box{right:12px;left:12px;width:auto;bottom:62px}}",
+    "@media (max-width:600px){.afb-btn{right:12px;bottom:12px;padding:11px 16px}.afb-box{right:12px;left:12px;width:auto;bottom:70px}}",
     "@media print{.afb-btn,.afb-box{display:none}}"
   ].join("\n");
   // Topics a note can be about. Override per app with data-topics="Data|Graphs|Other".
@@ -94,7 +94,7 @@
       btn.style.display = covered && box.hidden ? "none" : "";
       var small = window.innerWidth <= 600;
       btn.style.bottom = ((small ? 12 : 16) + lift) + "px";
-      box.style.bottom = ((small ? 62 : 70) + lift) + "px";
+      box.style.bottom = ((small ? 70 : 78) + lift) + "px";
     }
     place();
     window.addEventListener("resize", place, { passive: true });
