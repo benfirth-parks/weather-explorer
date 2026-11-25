@@ -11,9 +11,9 @@
   // for apps that don't define them. The button sits bottom-right, clear of left-hand sidebars and sliders.
   var V = function (name, fallback) { return "var(--color-" + name + "," + fallback + ")"; };
   var css = [
-    ".afb-btn{position:fixed;right:16px;bottom:16px;z-index:990;display:inline-flex;align-items:center;gap:8px;font:700 15px/1 system-ui,sans-serif;padding:12px 18px;border-radius:26px;border:2px solid #fff;background:#ff5a1f;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;min-height:48px}",
+    ".afb-btn{position:fixed;right:16px;bottom:16px;z-index:990;display:inline-flex;align-items:center;gap:8px;font:700 15px/1 system-ui,sans-serif;padding:12px 18px;border-radius:26px;border:2px solid #fff;background:#d9693c;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;min-height:48px}",
     ".afb-btn svg{width:20px;height:20px;flex:none}",
-    ".afb-btn:hover,.afb-btn[aria-expanded=true]{background:#e84a12}",
+    ".afb-btn:hover,.afb-btn[aria-expanded=true]{background:#c25a30}",
     ".afb-btn:focus-visible,.afb-box button:focus-visible,.afb-box textarea:focus-visible,.afb-box input:focus-visible,.afb-box select:focus-visible{outline:3px solid " + V("primary", "#7cc2ff") + ";outline-offset:2px}",
     ".afb-box{position:fixed;right:16px;bottom:78px;z-index:991;width:min(360px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:" + V("surface", "#fff") + ";color:" + V("text", "#16202b") + ";border:1px solid " + V("border", "#d9e0e7") + ";border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:16px;font:15px/1.45 system-ui,sans-serif;box-sizing:border-box}",
     ".afb-box h2{margin:0 0 4px;font-size:17px}",
@@ -23,7 +23,7 @@
     ".afb-box textarea{min-height:96px;resize:vertical}",
     ".afb-row{display:flex;gap:8px;justify-content:flex-end}",
     ".afb-row button{font:600 15px system-ui,sans-serif;padding:9px 14px;border-radius:8px;min-height:44px;cursor:pointer;border:1px solid " + V("border", "#c5ced8") + ";background:" + V("surface", "#fff") + ";color:" + V("text", "#16202b") + "}",
-    ".afb-row .afb-send{background:#ff5a1f;border-color:#ff5a1f;color:#fff}",
+    ".afb-row .afb-send{background:#d9693c;border-color:#d9693c;color:#fff}",
     ".afb-row .afb-send:disabled{opacity:.6;cursor:default}",
     ".afb-msg{font-size:14px;margin:6px 0 0}",
     // Apps without theme variables still get a dark box when the device is in dark mode.
