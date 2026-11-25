@@ -40,6 +40,8 @@ export const STATION_META = [
   { stationId: "fts-lakelouise",  name: "Lake Louise - Fire",                 elevation: 1730, park: "Banff",    group: 2, ns: "North", ew: "West" },
   { stationId: "fts-castle",      name: "Castle - Fire",                      elevation: 1450, park: "Banff",    group: 2, ns: "South", ew: "East" },
   { stationId: "fts-skoki",       name: "Skoki - AB Env",                     elevation: 2160, park: "Banff",    group: 2, ns: "North", ew: "West" },
+  { stationId: "us-helen",        name: "Helen Creek - U Sask",               elevation: 2545, park: "Banff",    group: 2, ns: "North", ew: "West" },
+  { stationId: "us-peyto",        name: "Peyto Moraine - U Sask",             elevation: 2240, park: "Banff",    group: 2, ns: "North", ew: "West" },
   // Group 3 · Jasper VS  (excluded from default summary scope)
   { stationId: "fts-tangleridge", name: "Tangle Ridge",                       elevation: 3009, park: "Jasper",   group: 3, ns: "North", ew: "West" },
   { stationId: "fts-coleman",     name: "Coleman Avalanche Control",          elevation: 2176, park: "Banff",    group: 3, ns: "North", ew: "West" },

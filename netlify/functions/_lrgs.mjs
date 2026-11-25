@@ -33,6 +33,9 @@ const ERR_DAUTHFAILED = 47;
    "lines": one value per line; map = line index -> field(s).
    "csv":   "<n> HH:MM:SS a,b,c..." ; map = comma index -> field(s).
    "coded": ":TA 57 #60 -5.9 :SD 12 #15 19 19 18 19" ; map = code -> field(s).
+   "rows":  U Sask Centre for Hydrology stations, one 15-minute row per line,
+            "+2026.,+321.0,+2100.,-7.091,..." = year, day of year, HHMM in UTC-6, values;
+            map = comma index -> field(s); scale = field -> multiplier.
    Values sent as "////" or -99999 are treated as missing. */
 const NEW = ["newSnow", "precipIncr"]; // FTS360 stores the gauge increment under both names
 const FULL = { 2: "relativeHumidity", 5: "airTempAvg", 8: "windSpeedAvg", 9: "windDirAvg", 10: "windSpeedGust" };
@@ -68,8 +71,23 @@ export const LRGS_STATIONS = {
   "fts-bowprecip":    { addr: "4455A646", format: "coded", map: { PC: "precipTotal", TA: "airTempAvg", SD: "snowHeight" } },
   "fts-pikarun":      { addr: "4454C15A", format: "coded", map: { PC: "precipTotal", TA: "airTempAvg", RH: "relativeHumidity", Depth: "snowHeight" } },
   "fts-skoki":        { addr: "4441E7E8", format: "coded", map: { PC: "precipTotal", TA: "airTempAvg", SW: "newSnow" } },
-  "fts-akamina":      { addr: "4441041A", format: "coded", map: { PC: "precipTotal", TA: "airTempAvg", XR: "relativeHumidity", SD: "snowHeight" } }
+  "fts-akamina":      { addr: "4441041A", format: "coded", map: { PC: "precipTotal", TA: "airTempAvg", XR: "relativeHumidity", SD: "snowHeight" } },
+  /* U Sask Centre for Hydrology research stations (Ben, 24 Nov 2026), for their four-component radiation.
+     Columns were matched to U Sask's own charts (temp, wind, snow depth in m, precip) and, for radiation, by
+     the day/night pattern: incoming/outgoing shortwave read ~0 at night, outgoing longwave matches the snow
+     surface temperature. Wind is m/s (x3.6 to km/h), depth m (x100 to cm). Peyto's gauge is left out: U Sask
+     calls it unreliable (Pradhananga et al. 2021, ESSD 13, 2875). */
+  "us-peyto":         { addr: "C40024B8", format: "rows",
+                        map: { 3: "airTempAvg", 4: "relativeHumidity", 5: "windSpeedAvg", 6: "windDirAvg", 7: "snowHeight",
+                               8: "swIn", 9: "swOut", 10: "lwIn", 11: "lwOut", 16: "windSpeedGust" } },
+  "us-helen":         { addr: "C4008440", format: "rows",
+                        map: { 3: "airTempAvg", 4: "relativeHumidity", 5: "windSpeedAvg", 6: "windDirAvg", 7: "snowHeight",
+                               8: "swIn", 9: "swOut", 10: "lwIn", 11: "lwOut", 16: "precipTotal", 17: "windSpeedGust" } }
 };
+const ROWS_SCALE = { windSpeedAvg: 3.6, windSpeedGust: 3.6, snowHeight: 100 };
+/* Radiation (W/m2) is averaged over the hour ending at each record; the other fields are the reading at the hour. */
+export const RADIATION_FIELDS = ["swIn", "swOut", "lwIn", "lwOut"];
+const RADIATION_OK = { swIn: [-30, 1600], swOut: [-30, 1400], lwIn: [80, 500], lwOut: [120, 520] };
 const BY_ADDR = Object.fromEntries(Object.entries(LRGS_STATIONS).map(([id, s]) => [s.addr, id]));
 
 /* ---- Decoding ---- */
@@ -128,6 +146,7 @@ export function decodeBody(stationId, body, sentMs) {
     }
     return any ? [rec] : [];
   }
+  if (st.format === "rows") return decodeRows(st, text);
   // coded: ":CODE <minutes before send> #<interval> v1 v2 ..." newest first
   const byTime = new Map();
   const re = /:([A-Za-z][A-Za-z0-9 ]*?) (\d+) #(\d+)((?: -?[\d.]+)+)/g;
@@ -147,6 +166,50 @@ export function decodeBody(stationId, body, sentMs) {
     });
   }
   return [...byTime.values()];
+}
+
+/* U Sask rows: hourly records at the top of each hour, radiation the mean of that hour's 15-minute rows
+   (hh:15 to hh+1:00), everything else the row at the hour itself. */
+function decodeRows(st, text) {
+  const rows = [];
+  for (const line of text.split(/\r?\n/)) {
+    const cells = line.trim().replace(/,$/, "").split(",");
+    if (cells.length < 4 || !/^\+20\d\d\.?$/.test(cells[0].trim())) continue;
+    const vals = cells.map(value);
+    const [year, doy, hhmm] = vals;
+    if (year === null || doy === null || hhmm === null) continue;
+    const t = Date.UTC(year, 0, doy, Math.floor(hhmm / 100) + 6, hhmm % 100); // UTC-6 -> UTC
+    if (Number.isFinite(t)) rows.push({ t, vals: vals.map((v) => (v === -8190 ? null : v)) });
+  }
+  const byHour = new Map();
+  for (const row of rows) {
+    const hour = Math.ceil(row.t / 3_600_000) * 3_600_000;
+    if (!byHour.has(hour)) byHour.set(hour, []);
+    byHour.get(hour).push(row);
+  }
+  const out = [];
+  for (const [hour, hr] of [...byHour].sort((a, b) => a[0] - b[0])) {
+    const rec = { measurementDateTime: iso(hour), source: NOAA_SOURCE };
+    let any = false;
+    const atHour = hr.find((r) => r.t === hour);
+    for (const [idx, field] of Object.entries(st.map)) {
+      let v;
+      if (RADIATION_FIELDS.includes(field)) {
+        const [lo, hi] = RADIATION_OK[field];
+        const xs = hr.map((r) => r.vals[Number(idx)]).filter((x) => x !== null && x >= lo && x <= hi);
+        if (!xs.length) continue;
+        v = Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10;
+      } else {
+        v = atHour ? atHour.vals[Number(idx)] : null;
+        if (v === null || v === undefined) continue;
+        if (ROWS_SCALE[field]) v = Math.round(v * ROWS_SCALE[field] * 10) / 10;
+      }
+      rec[field] = v;
+      any = true;
+    }
+    if (any) out.push(rec);
+  }
+  return out;
 }
 
 /** Raw DCP message (37-byte DOMSAT header + body) -> { stationId, records } or null. */

@@ -685,7 +685,11 @@ td.fresh-ok,td.fresh-stale,td.fresh-unknown{font-family:var(--font-mono);font-we
 </div>
 <script>
 const STATIONS_GROUP1 = [{"stationId":"fts-boslo","name":"Bosworth Lower","latitude":51.45722,"longitude":-116.357834,"elevation":2210,"park":"Yoho","group":1,"color":"#c46a2e"},{"stationId":"fts-bosup","name":"Bosworth Upper","latitude":51.46954,"longitude":-116.34969,"elevation":2745,"park":"Yoho","group":1,"color":"#9a4fbf"},{"stationId":"fts-bowsummit","name":"Bow Summit","latitude":51.709373,"longitude":-116.47904,"elevation":2040,"park":"Banff","group":1,"color":"#3daaa0"},{"stationId":"fts-bowprecip","name":"Bow Summit Precip Gauge - AB Env","latitude":51.712,"longitude":-116.481,"elevation":2040,"park":"Banff","group":1,"color":"#2f9e8f"},{"stationId":"fts-lookout","name":"Lookout","latitude":51.07417,"longitude":-115.754295,"elevation":2640,"park":"Banff","group":1,"color":"#c85d2a"},{"stationId":"fts-simplo","name":"Simpson Lower","latitude":50.98507,"longitude":-115.984215,"elevation":2115,"park":"Kootenay","group":1,"color":"#7f3fbf"},{"stationId":"fts-simpup","name":"Simpson Upper","latitude":50.990124,"longitude":-115.991165,"elevation":2320,"park":"Kootenay","group":1,"color":"#c48b2e"},{"stationId":"fts-stanley","name":"Stanley Lower","latitude":51.184673,"longitude":-116.0892,"elevation":1930,"park":"Kootenay","group":1,"color":"#5b6bd6"},{"stationId":"fts-sunshine","name":"Sunshine Village- AB Env","latitude":51.08888,"longitude":-115.75452,"elevation":2200,"park":"Banff","group":1,"color":"#8fa42d"},{"stationId":"fts-vulture","name":"Vulture Peak","latitude":51.6244,"longitude":-116.47188,"elevation":2930,"park":"Banff","group":1,"color":"#d19100"},{"stationId":"fts-whymper","name":"Whymper","latitude":51.2126,"longitude":-116.11409,"elevation":2600,"park":"Kootenay","group":1,"color":"#4f78c4"}];
-const STATIONS_GROUP2 = [{"stationId":"fts-boulder","name":"Boulder Creek - Fire","latitude":51.3665,"longitude":-116.5264,"elevation":1650,"park":"Kootenay","group":2,"color":"#3e8f6f"},{"stationId":"fts-pikarun","name":"Pika Run -AB ENV/ LLSA","latitude":51.442,"longitude":-116.217,"elevation":2200,"park":"Banff","group":2,"color":"#5a4fbf"},{"stationId":"fts-vermillion","name":"Vermillion Crossing - Fire","latitude":51.0194,"longitude":-115.9766,"elevation":1310,"park":"Kootenay","group":2,"color":"#c4426b"},{"stationId":"fts-lakelouise","name":"Lake Louise - Fire","latitude":51.4281,"longitude":-116.2093,"elevation":1730,"park":"Banff","group":2,"color":"#c25d99"},{"stationId":"fts-castle","name":"Castle - Fire","latitude":51.2796,"longitude":-115.9562,"elevation":1450,"park":"Banff","group":2,"color":"#a4732c"},{"stationId":"fts-skoki","name":"Skoki - AB Env","latitude":51.482,"longitude":-116.217,"elevation":2160,"park":"Banff","group":2,"color":"#9e3f5b"}];
+/* U Sask Centre for Hydrology research stations in Group 2 (Ben, 24 Nov 2026), for their four-component
+   radiation (incoming and outgoing shortwave and longwave). NOAA-only feed (us-* in netlify/functions/_lrgs.mjs).
+   Peyto Moraine position from GWFO (Peyto Main); Helen Creek's is the basin centre GWFO gives, so its marker
+   is approximate. Elevations from U Sask. */
+const STATIONS_GROUP2 = [{"stationId":"fts-boulder","name":"Boulder Creek - Fire","latitude":51.3665,"longitude":-116.5264,"elevation":1650,"park":"Kootenay","group":2,"color":"#3e8f6f"},{"stationId":"fts-pikarun","name":"Pika Run -AB ENV/ LLSA","latitude":51.442,"longitude":-116.217,"elevation":2200,"park":"Banff","group":2,"color":"#5a4fbf"},{"stationId":"fts-vermillion","name":"Vermillion Crossing - Fire","latitude":51.0194,"longitude":-115.9766,"elevation":1310,"park":"Kootenay","group":2,"color":"#c4426b"},{"stationId":"fts-lakelouise","name":"Lake Louise - Fire","latitude":51.4281,"longitude":-116.2093,"elevation":1730,"park":"Banff","group":2,"color":"#c25d99"},{"stationId":"fts-castle","name":"Castle - Fire","latitude":51.2796,"longitude":-115.9562,"elevation":1450,"park":"Banff","group":2,"color":"#a4732c"},{"stationId":"fts-skoki","name":"Skoki - AB Env","latitude":51.482,"longitude":-116.217,"elevation":2160,"park":"Banff","group":2,"color":"#9e3f5b"},{"stationId":"us-helen","name":"Helen Creek (U Sask)","latitude":51.68,"longitude":-116.41,"elevation":2545,"park":"Banff","group":2,"color":"#888","provisional":true},{"stationId":"us-peyto","name":"Peyto Moraine (U Sask)","latitude":51.68549,"longitude":-116.54495,"elevation":2240,"park":"Banff","group":2,"color":"#888"}];
 /* ---- Group 3 · Jasper Fire / Jasper Visitor Safety ----
    Coordinates come from each station's own Stn_lat/Stn_long in the FTS360 feed;
    elevations are sampled from the ASTER 30 m DEM at those coordinates.
@@ -1246,8 +1250,8 @@ const NO_SNOW_SENSOR_IDS = new Set(['fts-skoki','fts-lakelouise','fts-boulder','
    have loaded. */
 /* Every station whose HN comes from its depth sensor is checked (Ben, 5 Nov 2026); those with no gauge
    (HN_NO_GAUGE_IDS) count a depth rise only when RDPS expected 1 mm or more. */
-const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine','fts-simplo','fts-boslo','fts-bowsummit','fts-stanley','fts-bowprecip','fts-pikarun','fts-coleman','fts-bigbend','fts-maligne','fts-summitlake','fts-akamina','kc-rundle','kc-mudlake','kc-burstall','kc-highwood']);
-const HN_NO_GAUGE_IDS = new Set(['fts-simplo','fts-boslo','fts-bowsummit','fts-stanley','kc-rundle','kc-mudlake','kc-burstall','kc-highwood']);
+const HN_GAUGE_CHECK_IDS = new Set(['fts-sunshine','fts-simplo','fts-boslo','fts-bowsummit','fts-stanley','fts-bowprecip','fts-pikarun','fts-coleman','fts-bigbend','fts-maligne','fts-summitlake','fts-akamina','kc-rundle','kc-mudlake','kc-burstall','kc-highwood','us-peyto','us-helen']);
+const HN_NO_GAUGE_IDS = new Set(['fts-simplo','fts-boslo','fts-bowsummit','fts-stanley','kc-rundle','kc-mudlake','kc-burstall','kc-highwood','us-peyto']);
 const hnGaugeState={};
 let hnGaugeRerender=false;
 function hnGaugeNote(id){
@@ -1332,7 +1336,7 @@ const HW24_GROUPS = new Set([3,4,5]);
 const DUAL_METRIC_IDS = new Set(['fts-bowprecip','fts-sunshine']);
 /* These stations have no precipitation gauge at all, so any precipIncr/precipTotal
    values present in their records are not meaningful and HW24 should show as a dash. */
-const NO_PRECIP_GAUGE_IDS = new Set(['fts-vulture','fts-simpup','fts-simplo','fts-bowsummit','kc-rundle','kc-mudlake','kc-burstall','kc-aster','kc-highwood']);
+const NO_PRECIP_GAUGE_IDS = new Set(['fts-vulture','fts-simpup','fts-simplo','fts-bowsummit','kc-rundle','kc-mudlake','kc-burstall','kc-aster','kc-highwood','us-peyto']);
 function usesHW24(id){
   if(HW24_IDS.has(id)) return true;
   const s=STATION_BY_ID[id];
@@ -1918,6 +1922,28 @@ let pairData=null;
 const pairDataReady=import('/assets/pair-comparison-data.js').then(m=>(pairData=m));
 let rdpsMod=null;
 const rdpsReady=import('/assets/rdps.js').then(m=>(rdpsMod=m));
+/* Snowpack radiation view (Ben, 24 Nov 2026): net shortwave, net longwave and net radiation in W/m2 at the
+   stations that send all four components (U Sask Peyto Moraine, Helen Creek). See assets/radiation.js. */
+let radMod=null;
+const radReady=import('/assets/radiation.js').then(m=>(radMod=m));
+const RADIATION_LABEL='Radiation (W/m²)';
+function hasRadiationRecords(records){return records.some(d=>['swIn','swOut','lwIn','lwOut'].every(f=>Number.isFinite(numOf(d[f]))));}
+function themeIsDark(){const t=document.documentElement.dataset.theme; return t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);}
+function radiationConfig(id,hours,fontSize,enlarged){
+  if(!radMod) return null;
+  const to=Date.now(), c=chartTextColors();
+  return radMod.radiationChartConfig({records:cache[id]||[],from:to-hours*3600000,to,hours,fontSize,enlarged,theme:themeIsDark()?'dark':'light',
+    text:c.text,grid:c.grid,netColor:cssVar('--color-text')||c.text,
+    formatTime:ms=>siteTime.format(ms,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})});
+}
+function drawRadiationCardChart(id){
+  const ctx=document.getElementById('snowChart-'+id);
+  if(!ctx) return;
+  const cfg=radiationConfig(id,snowState[id].hours,11,false);
+  if(!cfg){ radReady.then(()=>drawSnowChart(id)); return; }
+  if(snowCharts[id]) snowCharts[id].destroy();
+  snowCharts[id]=new Chart(ctx,cfg);
+}
 const HOURLY_BAND_COLORS={light:['#2a78d6','#d39000','#008300'],dark:['#3987e5','#c98500','#008300']};
 function hourlyBandColor(elevation){
   const t=document.documentElement.dataset.theme;
@@ -1944,6 +1970,7 @@ function snowMetricOptions(id,records){
     if(hasSnowHeight) push('snowHeight');
     if(hw) push('hwHourly');
   }
+  if(hasRadiationRecords(records)) opts.push(['radiation',RADIATION_LABEL]);
   return opts;
 }
 function snowMetricOptionsHtml(opts,metric){
@@ -2026,6 +2053,8 @@ const hasPrecip = records.some(d =>
     if(LEGACY_SNOW_METRICS[state.metric]) state.metric=LEGACY_SNOW_METRICS[state.metric];
     /* Gauge stations open on HW until the menu is used; any view the station can't show falls back to the first in the menu. */
     if(isHW&&!state.touched&&opts.length) state.metric=opts[0][0];
+    /* Radiation stations open on radiation until the menu is used. */
+    if(!state.touched&&opts.some(([k])=>k==='radiation')) state.metric='radiation';
     if(opts.length&&!opts.some(([k])=>k===state.metric)) state.metric=opts[0][0];
     snowState[id]=state;
     card.innerHTML=`<div class="station-card-head"><div><div class="station-card-title">${s.name}${dkTag(metricDataKind(state.metric))}</div><div class="station-card-meta">${s.park} · ${s.elevation} m</div></div><select class="small-select" data-role="snow-metric" aria-label="Accumulation metric for ${s.name}">${snowMetricOptionsHtml(opts,state.metric)}</select></div><div class="range-label"><select class="small-select" data-role="snow-hours" aria-label="Time range for ${s.name}">${SNOW_CARD_RANGES.map(([h,l])=>`<option value="${h}" ${state.hours===h?'selected':''}>${l}</option>`).join('')}</select></div><div class="chart-box" data-role="snow-chartbox" title="Click to enlarge" style="height:220px;margin-top:var(--space-3);"><canvas id="snowChart-${id}"></canvas><button type="button" class="enlarge-chip" data-role="snow-enlarge" aria-label="Enlarge chart">Enlarge</button></div><div class="resize-handle" data-target="self"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v6h-6M15 21L21 15"/></svg></div>`;
@@ -2048,6 +2077,7 @@ const hasPrecip = records.some(d =>
 const snowCharts={};
 function drawSnowChart(id){
   if(HOURLY_METRICS.has((snowState[id]||{}).metric)){ drawHourlyCardChart(id); return; }
+  if((snowState[id]||{}).metric==='radiation'){ drawRadiationCardChart(id); return; }
 
   const state=snowState[id];
   const ctx=document.getElementById('snowChart-'+id);
@@ -2218,7 +2248,8 @@ function openSnowChartModal(id){
   /* Checked before the menus below change modal.dataset.station. */
   const sameStation=modal.classList.contains('open')&&modal.dataset.station===id;
   const metricKey=state.metric;
-  const metricLabel = HOURLY_METRICS.has(metricKey) ? HOURLY_METRICS.get(metricKey)
+  const metricLabel = metricKey==='radiation' ? RADIATION_LABEL
+                    : HOURLY_METRICS.has(metricKey) ? HOURLY_METRICS.get(metricKey)
                     : metricKey==='precipTotal' ? 'HW (mm)'
                     : 'Snow height (cm)';
   /* The enlarged view carries the card's menus so the view and range can be switched there. */
@@ -2233,7 +2264,10 @@ function openSnowChartModal(id){
   const c=chartTextColors();
   if(snowModalChart){ try{ snowModalChart.destroy(); }catch(e){} snowModalChart=null; }
   let cfg;
-  if(HOURLY_METRICS.has(metricKey)){
+  if(metricKey==='radiation'){
+    cfg=radiationConfig(id,state.hours,12,true);
+    if(!cfg){ radReady.then(()=>openSnowChartModal(id)); return; }
+  } else if(HOURLY_METRICS.has(metricKey)){
     cfg=hourlyBarConfig(id,state.hours,12,true);
     if(!cfg){ pairDataReady.then(()=>openSnowChartModal(id)); return; }
   } else if(metricKey==='precipTotal'){
