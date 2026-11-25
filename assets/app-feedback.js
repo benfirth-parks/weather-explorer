@@ -1,27 +1,38 @@
-/* App feedback box (shared by Ben's live apps). A small "Suggest a change" button in the corner opens a box where a
+/* App feedback box (shared by Ben's live apps). A floating "Feedback" button in the bottom-right corner opens a box where a
  * colleague types a suggestion. It posts to this site's Netlify form "app-feedback" (the hidden static copy of the
  * form in the page lets Netlify accept it). Suggestions then wait in Ben's COO dashboard for his approval before any
  * change is built. Usage: <script src="app-feedback.js" data-app="Weather Actuals" defer></script>
+ * Optional data-topics="A|B|C" sets the topic list. Colours follow the page's --color-* theme variables.
  * Self-contained: no libraries, its own styles under .afb-, nothing else on the page is touched. */
 (function () {
   var me = document.currentScript;
   var APP = (me && me.getAttribute("data-app")) || document.title || "App";
+  // Colours come from the page's own theme variables (so the site's dark/light toggle applies), with fallbacks
+  // for apps that don't define them. The button sits bottom-right, clear of left-hand sidebars and sliders.
+  var V = function (name, fallback) { return "var(--color-" + name + "," + fallback + ")"; };
   var css = [
-    ".afb-btn{position:fixed;left:12px;bottom:12px;z-index:990;font:600 13px/1 system-ui,sans-serif;padding:9px 12px;border-radius:20px;border:1px solid rgba(0,0,0,.15);background:#16202b;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer;min-height:40px;opacity:.82}",
-    ".afb-btn:hover,.afb-btn:focus-visible,.afb-btn[aria-expanded=true]{opacity:1}",
-    ".afb-btn:focus-visible,.afb-box button:focus-visible,.afb-box textarea:focus-visible,.afb-box input:focus-visible{outline:3px solid #7cc2ff;outline-offset:2px}",
-    ".afb-box{position:fixed;left:12px;bottom:64px;z-index:991;width:min(360px,calc(100vw - 32px));background:#fff;color:#16202b;border:1px solid #d9e0e7;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.25);padding:16px;font:15px/1.45 system-ui,sans-serif}",
+    ".afb-btn{position:fixed;right:16px;bottom:16px;z-index:990;display:inline-flex;align-items:center;gap:8px;font:700 15px/1 system-ui,sans-serif;padding:12px 18px;border-radius:26px;border:2px solid #fff;background:#ff5a1f;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer;min-height:48px}",
+    ".afb-btn svg{width:20px;height:20px;flex:none}",
+    ".afb-btn:hover,.afb-btn[aria-expanded=true]{background:#e84a12}",
+    ".afb-btn:focus-visible,.afb-box button:focus-visible,.afb-box textarea:focus-visible,.afb-box input:focus-visible,.afb-box select:focus-visible{outline:3px solid " + V("primary", "#7cc2ff") + ";outline-offset:2px}",
+    ".afb-box{position:fixed;right:16px;bottom:78px;z-index:991;width:min(360px,calc(100vw - 32px));max-height:calc(100vh - 100px);overflow:auto;background:" + V("surface", "#fff") + ";color:" + V("text", "#16202b") + ";border:1px solid " + V("border", "#d9e0e7") + ";border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:16px;font:15px/1.45 system-ui,sans-serif;box-sizing:border-box}",
     ".afb-box h2{margin:0 0 4px;font-size:17px}",
-    ".afb-box p{margin:0 0 10px;color:#5b6876;font-size:13px}",
-    ".afb-box textarea,.afb-box input{display:block;width:100%;box-sizing:border-box;font:16px system-ui,sans-serif;padding:9px 10px;border:1px solid #c5ced8;border-radius:8px;margin:0 0 8px;background:#fff;color:#16202b}",
+    ".afb-box p{margin:0 0 10px;color:" + V("text-muted", "#5b6876") + ";font-size:13px}",
+    ".afb-box label.afb-lbl{display:block;font-size:13px;font-weight:600;margin:0 0 4px}",
+    ".afb-box textarea,.afb-box input,.afb-box select{display:block;width:100%;box-sizing:border-box;font:16px system-ui,sans-serif;padding:9px 10px;border:1px solid " + V("border", "#c5ced8") + ";border-radius:8px;margin:0 0 10px;background:" + V("bg", "#fff") + ";color:" + V("text", "#16202b") + "}",
     ".afb-box textarea{min-height:96px;resize:vertical}",
     ".afb-row{display:flex;gap:8px;justify-content:flex-end}",
-    ".afb-row button{font:600 15px system-ui,sans-serif;padding:9px 14px;border-radius:8px;min-height:44px;cursor:pointer;border:1px solid #c5ced8;background:#fff;color:#16202b}",
+    ".afb-row button{font:600 15px system-ui,sans-serif;padding:9px 14px;border-radius:8px;min-height:44px;cursor:pointer;border:1px solid " + V("border", "#c5ced8") + ";background:" + V("surface", "#fff") + ";color:" + V("text", "#16202b") + "}",
     ".afb-row .afb-send{background:#ff5a1f;border-color:#ff5a1f;color:#fff}",
+    ".afb-row .afb-send:disabled{opacity:.6;cursor:default}",
     ".afb-msg{font-size:14px;margin:6px 0 0}",
-    "@media (prefers-color-scheme:dark){.afb-box{background:#18202a;color:#e6ebf0;border-color:#2a3542}.afb-box textarea,.afb-box input,.afb-row button{background:#0f141a;color:#e6ebf0;border-color:#2a3542}.afb-box p{color:#98a5b3}}",
+    // Apps without theme variables still get a dark box when the device is in dark mode.
+    "@media (prefers-color-scheme:dark){:root:not([data-theme]) .afb-box{background:" + V("surface", "#18202a") + ";color:" + V("text", "#e6ebf0") + ";border-color:" + V("border", "#2a3542") + "}:root:not([data-theme]) .afb-box textarea,:root:not([data-theme]) .afb-box input,:root:not([data-theme]) .afb-box select,:root:not([data-theme]) .afb-row button{background:" + V("bg", "#0f141a") + ";color:" + V("text", "#e6ebf0") + ";border-color:" + V("border", "#2a3542") + "}:root:not([data-theme]) .afb-box p{color:" + V("text-muted", "#98a5b3") + "}}",
+    "@media (max-width:600px){.afb-btn{right:12px;bottom:12px;padding:11px 16px}.afb-box{right:12px;left:12px;width:auto;bottom:70px}}",
     "@media print{.afb-btn,.afb-box{display:none}}"
   ].join("\n");
+  // Topics a note can be about. Override per app with data-topics="Data|Graphs|Other".
+  var TOPICS = ((me && me.getAttribute("data-topics")) || "Station data|Graphs|Snowpack models|24 hour summary|Layout or phone view|Other").split("|");
 
   function init() {
     if (document.querySelector(".afb-btn")) return;
@@ -32,7 +43,7 @@
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "afb-btn";
-    btn.textContent = "Feedback";
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Feedback</span>';
     btn.setAttribute("aria-expanded", "false");
 
     var box = document.createElement("div");
@@ -43,7 +54,9 @@
     box.innerHTML =
       '<h2>Suggest a change</h2>' +
       '<p>What would make this app better for you? Ben reviews every suggestion.</p>' +
-      '<label class="afb-sr" style="position:absolute;left:-9999px" for="afb-text">Suggestion</label>' +
+      '<label class="afb-lbl" for="afb-topic">Topic</label>' +
+      '<select id="afb-topic">' + TOPICS.map(function (t) { return '<option>' + t.replace(/[<>&"]/g, "") + '</option>'; }).join("") + '</select>' +
+      '<label class="afb-lbl" for="afb-text">Suggestion</label>' +
       '<textarea id="afb-text" maxlength="2000" placeholder="e.g. Show the hourly table without having to click"></textarea>' +
       '<label style="position:absolute;left:-9999px" for="afb-name">Your name (optional)</label>' +
       '<input id="afb-name" maxlength="80" placeholder="Your name (optional)" autocomplete="name">' +
@@ -52,7 +65,7 @@
 
     document.body.appendChild(box);
     document.body.appendChild(btn);
-    var text = box.querySelector("#afb-text"), name = box.querySelector("#afb-name"), msg = box.querySelector(".afb-msg");
+    var topic = box.querySelector("#afb-topic"), text = box.querySelector("#afb-text"), name = box.querySelector("#afb-name"), msg = box.querySelector(".afb-msg");
     var send = box.querySelector(".afb-send");
 
     function toggle(open) {
@@ -65,7 +78,7 @@
     function place() {
       var lift = 0, covered = false;
       try {
-        var hits = document.elementsFromPoint(24, window.innerHeight - 4);
+        var hits = document.elementsFromPoint(window.innerWidth - 30, window.innerHeight - 4);
         for (var i = 0; i < hits.length; i++) {
           var el = hits[i];
           if (el === btn || el === box || btn.contains(el) || box.contains(el)) continue;
@@ -79,8 +92,9 @@
         }
       } catch (e) { lift = 0; }
       btn.style.display = covered && box.hidden ? "none" : "";
-      btn.style.bottom = (12 + lift) + "px";
-      box.style.bottom = (64 + lift) + "px";
+      var small = window.innerWidth <= 600;
+      btn.style.bottom = ((small ? 12 : 16) + lift) + "px";
+      box.style.bottom = ((small ? 70 : 78) + lift) + "px";
     }
     place();
     window.addEventListener("resize", place, { passive: true });
@@ -96,7 +110,7 @@
       msg.textContent = "Sending…";
       var body = new URLSearchParams({
         "form-name": "app-feedback", app: APP, subject: "App feedback: " + APP,
-        suggestion: s, name: name.value.trim(), page: location.pathname, "bot-field": ""
+        topic: topic.value, suggestion: "[" + topic.value + "] " + s, name: name.value.trim(), page: location.pathname, "bot-field": ""
       });
       fetch("/", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString() })
         .then(function (r) {
