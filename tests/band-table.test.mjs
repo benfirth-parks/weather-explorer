@@ -32,7 +32,7 @@ test('markdown table, dash where a band has no gauge', () => {
 test('summary leaves out the four valley fire stations but keeps Skoki and Pika Run', async () => {
   const {STATION_META, DEFAULT_GROUPS, SUMMARY_EXCLUDED_IDS} = await import('../netlify/functions/_ai-summary.mjs');
   const used = STATION_META.filter(m => DEFAULT_GROUPS.includes(m.group) && !SUMMARY_EXCLUDED_IDS.has(m.stationId));
-  assert.equal(used.length, 15); // includes U Sask Peyto Moraine and Helen Creek (group 2)
+  assert.equal(used.length, 13); // U Sask Peyto Moraine and Helen Creek are left out (radiation only)
   assert.ok(used.every(m => !/- Fire$/.test(m.name)));
   assert.ok(used.some(m => m.stationId === 'fts-skoki'));
   assert.ok(used.some(m => m.stationId === 'fts-pikarun'));

@@ -102,7 +102,7 @@ test('/api/inversion: group 1 alone still sees the valley stations of its region
   };
   const out = await inversionForGroups([1], read);
   assert.deepEqual(out.groups, [1, 2]);
-  assert.equal(out.station_count, 19);
+  assert.equal(out.station_count, 17);
   assert.ok(asked.includes('fts-vermillion'));
   assert.ok(!asked.includes('fts-maligne'));
   assert.equal(out.inversion.upper, 'Alpine');

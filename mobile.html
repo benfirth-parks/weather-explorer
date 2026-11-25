@@ -455,6 +455,10 @@ let cache = {};
 let trendChart, windRoseChart, gustChart;
 const snowState = {};
 const SNOW_CARD_RANGES = [[24,'Last 24 hours'],[72,'Last 72 hours'],[168,'Last 7 days'],[336,'Last 14 days'],[720,'Last 30 days']];
+/* U Sask research stations, added for their radiation (Ben, 24 Nov 2026). Ben, 25 Nov: left out of the 24 hour
+   summaries (station cards, table, AI summary) and the precip graphs (averages HW, HN accumulated, HW trend,
+   card HN/HW); their cards show radiation and snow height only. */
+const SUMMARY_PRECIP_EXCLUDED_IDS = new Set(['us-peyto','us-helen']);
 const SNOW_GRAPH_EXCLUDED_IDS = new Set(['fts-bosup','fts-lookout','fts-simpup','fts-vulture','fts-whymper','kc-aster']);
 const WIND_DEFAULT_IDS = new Set(STATIONS.filter(s=>s.elevation>=2200).map(s=>s.stationId));
 
@@ -1033,6 +1037,7 @@ function kpiBodyHTML(sum,inPair){
     statsHTML;
 }
 function renderKPIs(ids){
+  ids=ids.filter(id=>!SUMMARY_PRECIP_EXCLUDED_IDS.has(id));
   const row=document.getElementById('kpiRow');
   row.innerHTML='';
   const done=new Set();
@@ -1077,6 +1082,7 @@ function renderKPIs(ids){
   });
 }
 function renderHighLow(ids){
+  ids=ids.filter(id=>!SUMMARY_PRECIP_EXCLUDED_IDS.has(id));
   const body=document.getElementById('highLowBody');
   body.innerHTML='';
   ids.forEach(id=>{
@@ -1128,7 +1134,7 @@ function selectedAverageSeries(ids,bucketMs){
       const w=numOf(d.windSpeedAvg); if(Number.isFinite(w)&&w>=0&&w<250){ add(wind,k,id,w);
         /* Speed-weighted vector sum of direction for the bucket (all selected stations). */
         const dir=numOf(d.windDirAvg); if(Number.isFinite(dir)&&dir>=0&&dir<=360&&w>0){const r=dir*Math.PI/180; const v=dirVec.get(k)||{x:0,y:0}; v.x+=w*Math.sin(r); v.y+=w*Math.cos(r); dirVec.set(k,v);} }});
-    if(NO_PRECIP_GAUGE_IDS.has(id)) return;
+    if(NO_PRECIP_GAUGE_IDS.has(id)||SUMMARY_PRECIP_EXCLUDED_IDS.has(id)) return;
     const acc=precipAccumSeries(rows); if(acc.length<2) return; precipIds.push(id);
     for(let i=1;i<acc.length;i++){const inc=acc[i].hw-acc[i-1].hw; if(!Number.isFinite(inc)||inc<0||inc>50) continue; const t=new Date(acc[i].measurementDateTime).getTime(); const k=key(t); let b=precip.get(k); if(!b){b=new Map(); precip.set(k,b);} b.set(id,(b.get(id)||0)+inc);}
   });
@@ -1169,7 +1175,7 @@ function renderTrendAverage(ids,bounds,windowHours){
    (not averaged). Hourly HN uses the 24 h summary's HN24 rule: HS with a 3 h running median, each rise of
    2 cm or more (the feeds' "new snow" fields are ignored), via hnIntervals in assets/pair-comparison-data.js.
    Stations with no working depth sensor, or an excluded HS trace, have no HN24 and are left out. */
-function hnCumAvailable(id){return !SNOW_GRAPH_EXCLUDED_IDS.has(id)&&!NO_SNOW_SENSOR_IDS.has(id);}
+function hnCumAvailable(id){return !SUMMARY_PRECIP_EXCLUDED_IDS.has(id)&&!SNOW_GRAPH_EXCLUDED_IDS.has(id)&&!NO_SNOW_SENSOR_IDS.has(id);}
 function renderTrendHnCum(ids,bounds,windowHours){
   const c=chartTextColors(), font={family:"'Courier Prime', monospace",size:11};
   const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase();
@@ -1228,7 +1234,7 @@ function chooseOpeningMetric(ids){
     return;
   }
   metricChosen=true;
-  const hn=ids.map(newSnow24h).filter(v=>v!==null);
+  const hn=ids.filter(id=>!SUMMARY_PRECIP_EXCLUDED_IDS.has(id)).map(newSnow24h).filter(v=>v!==null);
   const mean=hn.length?hn.reduce((p,q)=>p+q,0)/hn.length:0;
   if(mean>OPEN_ON_HN_CM){ metric='hnCum'; document.getElementById('mainMetricSelect').value='hnCum'; }
 }
@@ -1240,7 +1246,7 @@ function metricDataKind(m){return (m==='hnCum'||m==='hnHourly'||m==='newSnow')?'
 /* Tags only on snow and precip values (Ben, 2026-11-12): temperature, wind, RH and the mixed averages view carry none. */
 const TAGGED_TREND_METRICS=new Set(['snowHeight','precipTotal','hnCum']);
 function setTrendKind(m){const el=document.getElementById('trendKind'); if(el) el.innerHTML=TAGGED_TREND_METRICS.has(m)?dkTag(metricDataKind(m)):'';}
-function renderTrend(ids){chooseOpeningMetric(ids); setTrendKind(metric); if(metric==='hnCum'){renderTrendHnCum(ids,axisBounds(hours),hours);return;} if(metric==='selectedAvg'){renderTrendAverage(ids,axisBounds(hours),hours);return;} const meta=METRIC_META[metric]; const bounds=axisBounds(hours); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw,'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join(''); bindLegendToggles(trendChart,[...document.getElementById('trendLegend').children],ids,'trend-stations');}
+function renderTrend(ids){chooseOpeningMetric(ids); setTrendKind(metric); if(metric==='precipTotal'||metric==='hnCum') ids=ids.filter(id=>!SUMMARY_PRECIP_EXCLUDED_IDS.has(id)); if(metric==='hnCum'){renderTrendHnCum(ids,axisBounds(hours),hours);return;} if(metric==='selectedAvg'){renderTrendAverage(ids,axisBounds(hours),hours);return;} const meta=METRIC_META[metric]; const bounds=axisBounds(hours); let earliestData=null; const datasets=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); let raw; if(metric==='precipTotal'){raw=precipAccumSeries(windowedData(id)).map(d=>({measurementDateTime:d.measurementDateTime, precipTotal:d.hw}));} else {raw=windowedData(id).filter(d=>d[metric]!==undefined&&d[metric]!==null); if(metric==='snowHeight') raw=filterSnowSpikes(raw,'snowHeight');} if(raw.length){const t=new Date(raw[0].measurementDateTime).getTime(); if(earliestData===null||t<earliestData) earliestData=t;} const data=raw.map(d=>({x:new Date(d.measurementDateTime),y:d[metric]})); return {label:s.name,data,borderColor:s.color,backgroundColor:s.color+'22',borderWidth:2,pointRadius:0,tension:.25,fill:false};}); const coverageMs=earliestData!==null?(bounds.max.getTime()-earliestData):0; const coverageHrs=coverageMs/3600000; const windowLabel=document.getElementById('hoursLabel').textContent.toLowerCase(); let subText=`Hourly observations · ${windowLabel} window`; if(earliestData!==null && coverageHrs < hours-1){subText += ` · only ${coverageHrs<24?Math.round(coverageHrs)+'h':Math.round(coverageHrs/24)+'d'} of data available in this range`;} else if(earliestData===null){subText += ' · no data available in this range';} document.getElementById('trendTitle').textContent=meta.label+' Trend'; document.getElementById('trendSub').textContent=subText; const c=chartTextColors(); if(trendChart)trendChart.destroy(); const yOpts=(metric==='snowHeight'||metric==='precipTotal')?{beginAtZero:true,min:0}:{}; const unit=timeUnitFor(hours); trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false}},scales:{x:{type:'time',min:bounds.min,max:bounds.max,time:{unit},ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},y:Object.assign({ticks:{color:c.text,font:{family:"'Courier Prime', monospace",size:11}},grid:{color:c.grid}},yOpts)}}}); document.getElementById('trendLegend').innerHTML=ids.map(id=>{const s=STATIONS.find(x=>x.stationId===id); return `<span class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${s.name}</span>`}).join(''); bindLegendToggles(trendChart,[...document.getElementById('trendLegend').children],ids,'trend-stations');}
 function windFocusIds(ids){const hi=ids.filter(id=>WIND_DEFAULT_IDS.has(id)); return hi.length?hi:ids;}
 /* Wind speed classes per CAA OGRS 2016 (Observation Guidelines and Recording
    Standards for Weather, Snowpack and Avalanches), section 1.4.17 Wind speed.
@@ -1557,6 +1563,7 @@ function snowMetricOptions(id,records){
     if(hw) push('hwHourly');
   }
   if(hasRadiationRecords(records)) opts.push(['radiation',RADIATION_LABEL]);
+  if(SUMMARY_PRECIP_EXCLUDED_IDS.has(id)) return opts.filter(([k])=>!['hwHourly','hnHourly','precipTotal'].includes(k));
   return opts;
 }
 function snowMetricOptionsHtml(opts,metric){
