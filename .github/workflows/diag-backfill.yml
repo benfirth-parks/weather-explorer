@@ -1,0 +1,17 @@
+name: diag backfill U Sask
+on:
+  push:
+    branches: [diag/usask-radiation]
+    paths: [".github/workflows/diag-backfill.yml"]
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          ADMIN_TOKEN: ${{ secrets.ARCHIVE_ADMIN_TOKEN }}
+        run: |
+          # run 2
+          curl -sS -m 280 -H "x-admin-token: ${ADMIN_TOKEN}" \
+            "https://rockiesweatherdataexplorer.netlify.app/api/fts-sync-manual?noaaHours=72" \
+            | jq -c '{total,succeeded,failed,peyto: [.results[]? | select((.stationId // .station // "") | test("us-"))]}' || true
