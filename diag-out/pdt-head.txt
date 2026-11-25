@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NOAA DADDS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script>
+      // aws-sdk requires global to exist
+      window.global = window;
+    </script>
+    <script type="module" crossorigin src="/assets/index-B1roit5Z.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-vue-CVHD1ko5.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-pinia-DP6QRt-m.js">
+    <link rel="modulepreload" crossorigin href="/assets/primevue-BNkyXCet.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-vue-router-CtUDz6sn.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-luxon-BDx6lZXm.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-vuelidate-7TLFFJOv.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-vueuse-DowjgBvM.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Bc3u1HMH.css">
+  </head>
+  <body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript
+      ><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TM9V9BJ4" height="0" width="0" style="display: none; visibility: hidden"></iframe
+    ></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    <div id="app"></div>
+  </body>
+</html>
