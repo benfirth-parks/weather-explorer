@@ -4,14 +4,16 @@ on:
     branches: [diag/usask-radiation]
     paths: [".github/workflows/diag-backfill.yml"]
 jobs:
-  check:
+  dump:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - run: |
-          # run 3: read what the site serves
-          for s in us-peyto us-helen; do
-            curl -sS -m 60 -D - -o body.json "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=24" | head -20
-            head -c 300 body.json; echo
-            jq -c '[length, (.[-1]), ([.[]|select(.swIn!=null)]|length)]' body.json || true
+          # run 4: dump live API data
+          mkdir out
+          for s in fts-boslo fts-bosup fts-bowsummit fts-bowprecip fts-lookout fts-simplo fts-simpup fts-stanley fts-sunshine fts-vulture fts-whymper fts-boulder fts-pikarun fts-vermillion fts-lakelouise fts-castle fts-skoki us-helen us-peyto fts-tangleridge fts-coleman fts-bigbend fts-maligne fts-saskcrossing fts-jasperqd1 fts-dorothy fts-devona fts-rangercreek fts-summitlake fts-akamina fts-waterton kc-aster kc-burstall kc-highwood kc-mudlake kc-rundle; do
+            curl -sS -m 60 -o out/$s.json "https://rockiesweatherdataexplorer.netlify.app/api/fts?station=$s&hours=168" || echo "fail $s"
           done
+          ls -la out | head -60
+      - uses: actions/upload-artifact@v4
+        with: { name: apidump, path: out }
