@@ -21,6 +21,8 @@ export const RDPS_POINTS = {
   "kc-mudlake": { latitude: 50.794167, longitude: -115.30714, elevation: 1900 },
   "kc-burstall": { latitude: 50.758183, longitude: -115.36667, elevation: 2300 },
   "kc-highwood": { latitude: 50.598618, longitude: -114.98721, elevation: 2250 },
+  "us-peyto": { latitude: 51.68549, longitude: -116.54495, elevation: 2240 },
+  "us-helen": { latitude: 51.68, longitude: -116.41, elevation: 2545 },
 };
 export const RDPS_PAST_DAYS = 92;
 import { NEIGHBOUR_GAUGE_IDS, HN_NO_GAUGE_IDS, hourlyGauge, gaugeOfflinePeriods } from "../../assets/pair-comparison-data.js";

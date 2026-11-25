@@ -38,7 +38,7 @@ export const STATIONS = {
 };
 
 /* Every station the archive keeps: FTS360 stations plus NOAA-only ones
-   (Waterton) and Avalanche Canada-only ones (Kananaskis). */
+   (Waterton, U Sask) and Avalanche Canada-only ones (Kananaskis). */
 export const ALL_STATION_IDS = [...new Set([...Object.keys(STATIONS), ...Object.keys(LRGS_STATIONS), ...Object.keys(AVCAN_ONLY_STATION_IDS)])];
 export const isKnownStation = (stationId) => ALL_STATION_IDS.includes(stationId);
 
@@ -112,7 +112,7 @@ async function freezeCompletedYear(stationId, observations) {
    responses stay well under the function payload limit. Means for levels,
    min/max for extremes, last value for running totals, sum for increments,
    vector mean for direction. */
-const MEAN_FIELDS = ["airTempAvg", "relativeHumidity", "windSpeedAvg", "snowHeight"];
+const MEAN_FIELDS = ["airTempAvg", "relativeHumidity", "windSpeedAvg", "snowHeight", "swIn", "swOut", "lwIn", "lwOut"];
 export function downsample(records, stepHours) {
   if (!(stepHours > 1)) return records;
   const step = stepHours * 3_600_000;

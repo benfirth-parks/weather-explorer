@@ -82,3 +82,30 @@ test("FTS360 window follows FTS records; backup waits on NOAA or FTS360", () => 
   assert.equal(new Date(newestFtsTime(obs)).toISOString(), "2026-11-02T11:00:00.000Z");
   assert.equal(new Date(newestPrimaryTime(obs)).toISOString(), "2026-11-02T12:00:00.000Z");
 });
+
+test("U Sask rows (Peyto Moraine) give one hourly record with hour-mean radiation", () => {
+  const d = dec("us-peyto");
+  assert.equal(d.stationId, "us-peyto");
+  assert.equal(d.records.length, 1);
+  const r = d.records[0];
+  // 13:00 UTC-6 on day 327 (Nov 23) is 19:00 UTC
+  assert.equal(r.measurementDateTime, "2026-11-23T19:00:00.000Z");
+  assert.equal(r.airTempAvg, -8.83);
+  assert.equal(r.relativeHumidity, 100);
+  assert.equal(r.windSpeedAvg, 21.9);     // 6.083 m/s
+  assert.equal(r.snowHeight, 23.4);       // 0.234 m
+  assert.equal(r.precipTotal, undefined); // Peyto's gauge is not used
+  for (const f of ["swIn", "swOut", "lwIn", "lwOut"]) assert.ok(Number.isFinite(r[f]), f);
+  assert.equal(r.swIn, 161.7);
+  assert.equal(r.lwOut, 273.8);
+});
+
+test("U Sask rows (Helen Creek) carry the gauge total and radiation", () => {
+  const r = dec("us-helen").records[0];
+  assert.equal(r.measurementDateTime, "2026-11-23T19:00:00.000Z");
+  assert.equal(r.precipTotal, 533.8);
+  assert.equal(r.swIn, 302.3);
+  assert.equal(r.swOut, 274.2);
+  assert.equal(r.lwIn, 260.4);
+  assert.equal(r.lwOut, 270.6);
+});
