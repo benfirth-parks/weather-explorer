@@ -36,6 +36,8 @@ const ERR_DAUTHFAILED = 47;
    "rows":  U Sask Centre for Hydrology stations, one 15-minute row per line,
             "+2026.,+321.0,+2100.,-7.091,..." = year, day of year, HHMM in UTC-6, values;
             map = comma index -> field(s); scale = field -> multiplier.
+   "csvrows": lines "<row type> HH:MM:SS v0,v1,...", UTC; only lines of `rowType` are read; radiation is the
+            mean of the rows in the hour ending at each record. map = comma index -> field.
    Values sent as "////" or -99999 are treated as missing. */
 const NEW = ["newSnow", "precipIncr"]; // FTS360 stores the gauge increment under both names
 const FULL = { 2: "relativeHumidity", 5: "airTempAvg", 8: "windSpeedAvg", 9: "windDirAvg", 10: "windSpeedGust" };
@@ -82,8 +84,16 @@ export const LRGS_STATIONS = {
                                8: "swIn", 9: "swOut", 10: "lwIn", 11: "lwOut", 16: "windSpeedGust" } },
   "us-helen":         { addr: "C4008440", format: "rows",
                         map: { 3: "airTempAvg", 4: "relativeHumidity", 5: "windSpeedAvg", 6: "windDirAvg", 7: "snowHeight",
-                               8: "swIn", 9: "swOut", 10: "lwIn", 11: "lwOut", 16: "precipTotal", 17: "windSpeedGust" } }
+                               8: "swIn", 9: "swOut", 10: "lwIn", 11: "lwOut", 16: "precipTotal", 17: "windSpeedGust" } },
+  /* K-Country stations relayed to kcountry-wx-actuals (Ben, 25 Nov 2026), so that site needs no LRGS login.
+     Not shown on this site. Shortwave only, served by /api/kc-radiation (netlify/functions/kc-radiation.mjs).
+     Burstall Pass (U Sask): 15-minute "1" rows, two shortwave channels at positions 9 and 10 (swA, swB; which
+     is incoming is unconfirmed). East End of Rundle: hourly "0" row, incoming shortwave at position 10. */
+  "kc-burstall":      { addr: "C4000254", format: "csvrows", rowType: "1", map: { 9: "swA", 10: "swB" } },
+  "kc-rundle":        { addr: "ABC03668", format: "csvrows", rowType: "0", map: { 10: "swIn" } }
 };
+export const KC_RADIATION_FIELDS = ["swIn", "swA", "swB"];
+const KC_RADIATION_OK = [-30, 1600];
 const ROWS_SCALE = { windSpeedAvg: 3.6, windSpeedGust: 3.6, snowHeight: 100 };
 /* Radiation (W/m2) is averaged over the hour ending at each record; the other fields are the reading at the hour. */
 export const RADIATION_FIELDS = ["swIn", "swOut", "lwIn", "lwOut"];
@@ -147,6 +157,7 @@ export function decodeBody(stationId, body, sentMs) {
     return any ? [rec] : [];
   }
   if (st.format === "rows") return decodeRows(st, text);
+  if (st.format === "csvrows") return decodeCsvRows(st, text, sentMs);
   // coded: ":CODE <minutes before send> #<interval> v1 v2 ..." newest first
   const byTime = new Map();
   const re = /:([A-Za-z][A-Za-z0-9 ]*?) (\d+) #(\d+)((?: -?[\d.]+)+)/g;
@@ -205,6 +216,39 @@ function decodeRows(st, text) {
         if (ROWS_SCALE[field]) v = Math.round(v * ROWS_SCALE[field] * 10) / 10;
       }
       rec[field] = v;
+      any = true;
+    }
+    if (any) out.push(rec);
+  }
+  return out;
+}
+
+/* K-Country "csvrows": hourly records, each field the mean of that hour's rows (hh:15 to hh+1:00). */
+function decodeCsvRows(st, text, sentMs) {
+  const rows = [];
+  const re = /(?:^|[\r\n])\s*(\d+) (\d\d):(\d\d):(\d\d) ([^\r\n]*)/g;
+  const day = new Date(sentMs);
+  let m;
+  while ((m = re.exec(text))) {
+    if (m[1] !== st.rowType) continue;
+    let t = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), Number(m[2]), Number(m[3]), Number(m[4]));
+    if (t > sentMs + 600_000) t -= 86_400_000; // a row from just before midnight in a message sent after it
+    rows.push({ t, vals: m[5].split(",").map(value) });
+  }
+  const byHour = new Map();
+  for (const row of rows) {
+    const hour = Math.ceil(row.t / 3_600_000) * 3_600_000;
+    if (!byHour.has(hour)) byHour.set(hour, []);
+    byHour.get(hour).push(row);
+  }
+  const out = [];
+  for (const [hour, hr] of [...byHour].sort((a, b) => a[0] - b[0])) {
+    const rec = { measurementDateTime: iso(hour), source: NOAA_SOURCE };
+    let any = false;
+    for (const [idx, field] of Object.entries(st.map)) {
+      const xs = hr.map((r) => r.vals[Number(idx)]).filter((x) => x !== null && x !== undefined && x >= KC_RADIATION_OK[0] && x <= KC_RADIATION_OK[1]);
+      if (!xs.length) continue;
+      rec[field] = Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10;
       any = true;
     }
     if (any) out.push(rec);
