@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {utcTime, currentSeason, summarisePlot, simTemps, hardnessLabel, pitIsCurrent, plotForPairIds, decodeByk, summariseByk} from './plot-profile-fixture.mjs';
 import handler from '../netlify/functions/plot-profile.mjs';
-import {SITES, SEASON} from './plot-profile-fixture.mjs';
+import {SITES, SEASON, MAIN} from './plot-profile-fixture.mjs';
 
 test('source times are UTC, with or without minutes', () => {
   assert.equal(utcTime('2026-10-07T12'), Date.UTC(2026, 9, 7, 12));
@@ -25,6 +25,33 @@ test('the latest simulated profile and latest pit are kept, by time not array or
   assert.deepEqual(s.pit.score, {hsDiff: -4, grainAgreement: 0.62, hardnessMae: 0.8});
   assert.equal(s.elevation, 2040);
   assert.match(s.url, /site=bow_summit$/);
+});
+test('without a main-model file the pane is standard SNOWPACK and says so', () => {
+  const s = summarisePlot('bow_summit', SITES.sites[0], SEASON);
+  assert.deepEqual(s.model, {kind: 'standard', id: 'snowpack', name: 'Standard SNOWPACK', runId: null});
+  assert.equal(s.label, SEASON.label);
+});
+test('the main model is drawn when its file has a profile, with its own pit score', () => {
+  const s = summarisePlot('bow_summit', SITES.sites[0], SEASON, MAIN);
+  assert.equal(s.model.kind, 'main');
+  assert.equal(s.model.name, 'Carver Daniels');
+  assert.equal(s.model.id, 'process-f010e90861');
+  assert.equal(s.sim.t, Date.UTC(2026, 9, 7, 12));
+  assert.equal(s.sim.hs, 59.5);
+  assert.equal(s.sim.layers.length, 2);
+  assert.equal(s.pit.id, 'pit-2');
+  assert.deepEqual(s.pit.score, {hsDiff: 2, grainAgreement: 0.7, hardnessMae: 0.5});
+  assert.equal(s.label, MAIN.main.label);
+});
+test('a main model with no score at the latest pit shows no score, never the standard one', () => {
+  const s = summarisePlot('bow_summit', SITES.sites[0], SEASON, {main: {...MAIN.main, pits: []}});
+  assert.equal(s.pit.id, 'pit-2');
+  assert.equal(s.pit.score, null);
+});
+test('an empty main-model run falls back to standard SNOWPACK', () => {
+  const s = summarisePlot('bow_summit', SITES.sites[0], SEASON, {main: {...MAIN.main, nowcast: []}});
+  assert.equal(s.model.kind, 'standard');
+  assert.equal(s.sim.hs, 62.4);
 });
 test('an empty season gives no profiles rather than an error', () => {
   const s = summarisePlot('simpson', null, {season: '2026-2027', nowcast: [], pits: []});
@@ -60,7 +87,8 @@ test('the function returns the compact record and rejects unknown plots', async 
   const seen = [];
   globalThis.fetch = async url => {
     seen.push(String(url));
-    const body = String(url).endsWith('sites.json') ? SITES : SEASON;
+    const u = String(url);
+    const body = u.endsWith('sites.json') ? SITES : u.endsWith('_main.json') ? MAIN : SEASON;
     return new Response(JSON.stringify(body), {status: 200});
   };
   try {
@@ -70,11 +98,14 @@ test('the function returns the compact record and rejects unknown plots', async 
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.pit.id, 'pit-2');
-    assert.deepEqual(seen, ['https://banff-snowpack.netlify.app/data/sites.json', 'https://banff-snowpack.netlify.app/data/bow_summit/2026-2027.json']);
+    assert.equal(body.model.name, 'Carver Daniels');
+    assert.equal(body.sim.hs, 59.5);
+    assert.deepEqual(seen, ['https://banff-snowpack.netlify.app/data/sites.json', 'https://banff-snowpack.netlify.app/data/bow_summit/2026-2027.json',
+      'https://banff-snowpack.netlify.app/data/bow_summit/2026-2027_main.json']);
     assert.match(res.headers.get('cache-control'), /max-age=600/);
     // A second read within the memory window does not refetch.
     await handler(new Request('https://x/api/plot-profile?plot=bow_summit'));
-    assert.equal(seen.length, 2);
+    assert.equal(seen.length, 3);
   } finally {
     globalThis.fetch = realFetch;
   }

@@ -102,17 +102,17 @@ export function feedbackBox(data, {pitShown = false, awsome = null} = {}) {
     status.textContent = 'Saving…';
     try {
       // The run the forecaster saw: the Banff modelled profile, or today's AWSOME snapshot.
-      let run = {t: data.sim?.t ?? null, hs: data.sim?.hs ?? null};
+      let run = {t: data.sim?.t ?? null, hs: data.sim?.hs ?? null, id: data.model?.id ?? null};
       if (source === 'awsome') {
         const a = await awsome().catch(() => null);
-        run = {t: a?.t ?? null, hs: a?.profile?.hs ?? null};
+        run = {t: a?.t ?? null, hs: a?.profile?.hs ?? null, id: null};
       }
       const r = await fetch('/api/plot-feedback', {
         method: 'POST',
         headers: {'content-type': 'application/json', accept: 'application/json'},
         body: JSON.stringify({
           plot: data.plot, source, name: name.value.trim(),
-          agreement, topics: chosen, note: note.value, model_t: run.t, model_hs: run.hs, pit_t: pitShown ? data.pit?.t ?? null : null
+          agreement, topics: chosen, note: note.value, model_t: run.t, model_hs: run.hs, model_id: run.id, pit_t: pitShown ? data.pit?.t ?? null : null
         })
       });
       const answer = await r.json().catch(() => ({}));
