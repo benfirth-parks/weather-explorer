@@ -17,6 +17,8 @@ test('a good note is kept with the server receive time, never the client clock',
   assert.equal(r.record.model_hs_cm, 61);
   assert.equal(r.record.pit_shown_t, '2026-11-16T18:00:00.000Z');
   assert.equal(r.record.source, 'banff-snowpack');
+  assert.equal(r.record.model_id, null);
+  assert.equal(validateFeedback({...good, model_id: 'process-f010e90861'}, NOW).record.model_id, 'process-f010e90861');
   assert.equal('team_code' in r.record, false);
 });
 test('the note records which model it is about', () => {

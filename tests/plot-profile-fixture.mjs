@@ -6,7 +6,8 @@ export const plotForPairIds = ids => PAIR_PLOTS[ids.join(',')] || null;
 export const SITES = {sites: [
   {id: 'bow_summit', name: 'Bow Summit', lat: 51.70946, lon: -116.4795, elevation_m: 2040, seasons: [
     {season: '2025-2026', mode: 'live', file: 'data/bow_summit/2025-2026.json', pits: 6, live: null},
-    {season: '2026-2027', mode: 'live', file: 'data/bow_summit/2026-2027.json', pits: 2, live: {generated_utc: '2026-10-07T12:53:54+00:00'}}
+    {season: '2026-2027', mode: 'live', file: 'data/bow_summit/2026-2027.json', pits: 2, live: {generated_utc: '2026-10-07T12:53:54+00:00'},
+     main: 'data/bow_summit/2026-2027_main.json'}
   ]},
   {id: 'simpson', name: 'Simpson', lat: 50.98516, lon: -115.9843, elevation_m: 2115, seasons: []},
   {id: 'goats_eye', name: "Sunshine Village - Goat's Eye", lat: 51.08953, lon: -115.75462, elevation_m: 2280, seasons: []}
@@ -33,4 +34,22 @@ export const SEASON = {
     temps: [[66, -9], [50, -6], [30, -3], [10, -1], [0, 0]], source: 'transcribed',
     nowcast: {t: '2026-10-06T00', hs_diff_cm: -4, grain_class_agreement: 0.62, hardness_mae_index: 0.8, hardness_bias_index: -0.2, boundary_f1: 0.5}}
   ]
+};
+
+/* The main model's file (data/<plot>/<season>_main.json), in the layout written by snowagent.ops.main_model. */
+export const MAIN = {
+  label: 'Main simulated snowpack: an evolved lab column model (no SNOWPACK).', site: 'bow_summit', season: '2026-2027',
+  main: {
+    id: 'process-f010e90861', name: 'Carver Daniels', label: 'Main simulated snowpack: an evolved lab column model (no SNOWPACK).',
+    run_id: 'main-bow_summit-2026-2027-process-f010e90861', mode: 'live',
+    nowcast: [
+      {t: '2026-10-07T06', hs: 58, swe: 140, L: [[58, 0, 'RG', 3, 300, -2, 0, 0]]},
+      {t: '2026-10-07T12', hs: 59.5, swe: 150, L: [
+        [59.5, 50, 'PP', 1.1, 90, -7, 0, 0],
+        [50, 0, 'FC', 2.4, 250, -1.5, 0, 2]
+      ]}
+    ],
+    pits: [{id: 'pit-2', pit_t: '2026-10-05T18:30', t: '2026-10-06T00', hs_diff_cm: 2, grain_class_agreement: 0.7,
+            hardness_mae_index: 0.5, hardness_bias_index: 0.1, boundary_f1: 0.6}]
+  }
 };

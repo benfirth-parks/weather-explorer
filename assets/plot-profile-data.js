@@ -8,6 +8,11 @@
      pits:    observed profiles, {id, t, hs, L, tests, temps, source, nowcast}, where each L row is
               [top_cm, bottom_cm, grain_form, hardness_index, density] and temps is [[height_cm, temp_c]]
    Heights are above ground; times are UTC "YYYY-MM-DDTHH" (nowcast) or "YYYY-MM-DDTHH:MM" (pits).
+   Since 2026-11-22 the site's main simulated snowpack is an evolved lab model (Carver Daniels, no SNOWPACK).
+   Its runs are in a second file, data/<plot>/<season>_main.json, named by the season's `main` key in sites.json:
+     {label, site, season, main: {id, name, label, run_id, nowcast (same layout as above),
+                                  pits: [{id, hs_diff_cm, grain_class_agreement, hardness_mae_index, ...}]}}
+   The pane draws the main model when that file has a profile, otherwise standard SNOWPACK, and says which.
    Hand hardness index: F=1, 4F=2, 1F=3, P=4, K=5, I=6 (fractional = in between). */
 
 export const SNOWPACK_SITE = 'https://banff-snowpack.netlify.app';
@@ -79,16 +84,23 @@ const rows = L => (Array.isArray(L) ? L : []).filter(r => Array.isArray(r) && Nu
 
 /* One plot-season file -> the compact record the pane draws: the latest simulated profile and the
    latest observed pit (with its agreement score against the simulation, when the site computed one). */
-export function summarisePlot(plot, siteMeta, data) {
-  const sim = latestBy(data?.nowcast, 't');
+export function summarisePlot(plot, siteMeta, data, main = null) {
+  const run = main?.main;
+  const useMain = Array.isArray(run?.nowcast) && run.nowcast.length > 0;
+  const sim = latestBy(useMain ? run.nowcast : data?.nowcast, 't');
   const pit = latestBy(data?.pits, 't');
+  // The pit score must be against the model drawn: the main model's own score at that pit, else none.
+  const score = !pit ? null : useMain ? (run.pits || []).find(p => p && p.id === pit.id) || null : pit.nowcast;
   return {
     plot,
     name: siteMeta?.name || PLOTS[plot] || plot,
     lat: siteMeta?.lat ?? null, lon: siteMeta?.lon ?? null, elevation: siteMeta?.elevation_m ?? siteMeta?.elevation ?? null,
     season: data?.season ?? null,
     mode: data?.mode ?? null,
-    label: data?.label ?? null,
+    label: (useMain ? run.label : data?.label) ?? null,
+    model: useMain
+      ? {kind: 'main', id: run.id ?? null, name: run.name || 'Main model', runId: run.run_id ?? null}
+      : {kind: 'standard', id: 'snowpack', name: 'Standard SNOWPACK', runId: null},
     live: data?.live ? {generated: data.live.generated_utc ?? null, weatherThrough: data.live.weather_through ?? null} : null,
     sim: sim ? {t: utcTime(sim.t), hs: sim.hs ?? null, layers: rows(sim.L).map(r => r.slice(0, 8))} : null,
     pit: pit ? {
@@ -96,9 +108,9 @@ export function summarisePlot(plot, siteMeta, data) {
       layers: rows(pit.L).map(r => r.slice(0, 5)),
       tests: (pit.tests || []).filter(x => x && Number.isFinite(x.height_cm)),
       temps: (pit.temps || []).filter(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])),
-      score: pit.nowcast && 'boundary_f1' in pit.nowcast ? {
-        hsDiff: pit.nowcast.hs_diff_cm ?? null, grainAgreement: pit.nowcast.grain_class_agreement ?? null,
-        hardnessMae: pit.nowcast.hardness_mae_index ?? null
+      score: score && 'boundary_f1' in score ? {
+        hsDiff: score.hs_diff_cm ?? null, grainAgreement: score.grain_class_agreement ?? null,
+        hardnessMae: score.hardness_mae_index ?? null
       } : null
     } : null,
     url: `${SNOWPACK_SITE}/?site=${encodeURIComponent(plot)}`

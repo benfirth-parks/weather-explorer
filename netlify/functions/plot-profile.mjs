@@ -37,7 +37,12 @@ export default async (req) => {
     }
     const found = currentSeason(await getJSON("data/sites.json"), plot);
     if (!found) return json(404, { error: "No season published for this plot" });
-    const body = summarisePlot(plot, found.site, await getJSON(found.season.file));
+    // The site's main model (its own file since 2026-11-22). A missing or broken file falls back to standard SNOWPACK.
+    const [data, main] = await Promise.all([
+      getJSON(found.season.file),
+      found.season.main ? getJSON(found.season.main).catch(() => null) : null
+    ]);
+    const body = summarisePlot(plot, found.site, data, main);
     cache.set(plot, { at: Date.now(), body });
     return json(200, body, 600);
   } catch (error) {

@@ -2,7 +2,7 @@
    netlify/functions/plot-feedback.mjs, kept free of Netlify imports so tests
    can load them.
 
-   A note records what the forecaster saw (which model run and, if one was
+   A note records what the forecaster saw (which model and run and, if one was
    shown, which pit) and the server's receive time. The Banff Snowpack lab
    uses the receive time to keep notes written after a pit out of the scoring
    of that pit, so the client's own clock is never trusted for it. */
@@ -42,6 +42,8 @@ export function validateFeedback(body, now) {
     name,
     model_run_t: modelT === null ? null : new Date(modelT).toISOString(),
     model_hs_cm: Number.isFinite(body.model_hs) ? Math.round(body.model_hs) : null,
+    // Which Banff model the forecaster saw (since 2026-11-27): the main model's id, or "snowpack" for standard SNOWPACK.
+    model_id: text(body.model_id, 80) || null,
     pit_shown_t: pitT === null ? null : new Date(pitT).toISOString()
   };
   return { ok: true, record };

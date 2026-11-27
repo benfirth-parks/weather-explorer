@@ -154,8 +154,12 @@ function draw(box, data, plot, sharedMax) {
   const hsMax = shared ? sharedMax : Math.ceil(profileTop(data) * 1.08 / 10) * 10;
   const padTop = shared ? 16 : 0;
   const figs = element('div', 'plot-profile-figs');
+  // Which model is drawn: the site's main model by name, or standard SNOWPACK when its file is missing.
+  const model = byk ? null : data.model;
+  const title = model ? `Modelled: ${model.name}` : 'Modelled';
+  const sub = model ? (model.kind === 'main' ? 'main model · ' : 'main model unavailable · ') : '';
   if (sim && sim.layers.length) {
-    figs.append(figure('Modelled', `${clock.format(sim.t)} MT · HS ${Math.round(sim.hs ?? sim.layers[0][0])} cm`, drawProfile({
+    figs.append(figure(title, `${sub}${clock.format(sim.t)} MT · HS ${Math.round(sim.hs ?? sim.layers[0][0])} cm`, drawProfile({
       layers: sim.layers, temps: simTemps(sim.layers), hsMax, observed: false, bykFlags: byk, padTop,
       aria: `Modelled snow profile at ${data.name}${byk ? '' : ' study plot'}, ${clock.format(sim.t)} MT: ${sim.layers.length} layers, ${Math.round(sim.hs ?? sim.layers[0][0])} cm deep.`
     }), 'interp'));
@@ -196,7 +200,7 @@ function draw(box, data, plot, sharedMax) {
       if (s.grainAgreement !== null) parts.push(`grain class agrees over ${Math.round(s.grainAgreement * 100)}% of the depth`);
       if (s.hardnessMae !== null) parts.push(`hardness differs by ${s.hardnessMae.toFixed(1)} steps on average`);
       if (s.hsDiff !== null) parts.push(`modelled HS is ${Math.abs(Math.round(s.hsDiff))} cm ${s.hsDiff >= 0 ? 'deeper' : 'shallower'}`);
-      notes.push(`Model vs pit: ${parts.join(', ')}.`);
+      notes.push(`${model ? model.name : 'Model'} vs pit: ${parts.join(', ')}.`);
     }
   } else if (pit && pit.t) {
     notes.push(`No pit in the last ${PIT_MAX_AGE_DAYS} days; the latest observed was ${day.format(pit.t)}.`);
